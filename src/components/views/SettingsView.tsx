@@ -12,7 +12,9 @@ export function SettingsView() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [finmindApiKey, setFinmindApiKey] = useState('');
   const [longcatApiKey, setLongcatApiKey] = useState('');
-  
+  const [longcatBaseUrl, setLongcatBaseUrl] = useState('');
+  const [longcatModel, setLongcatModel] = useState('');
+
   const [showFinmind, setShowFinmind] = useState(false);
   const [showLongcat, setShowLongcat] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,6 +48,8 @@ export function SettingsView() {
         setWebhookUrl(data.webhookUrl || '');
         setFinmindApiKey(data.finmindApiKey || '');
         setLongcatApiKey(data.longcatApiKey || '');
+        setLongcatBaseUrl(data.longcatBaseUrl || '');
+        setLongcatModel(data.longcatModel || '');
       }
     } catch (error) {
       console.error('Fetch settings error:', error);
@@ -87,7 +91,9 @@ export function SettingsView() {
         body: JSON.stringify({
           webhookUrl,
           finmindApiKey,
-          longcatApiKey
+          longcatApiKey,
+          longcatBaseUrl,
+          longcatModel
         })
       });
 
@@ -255,8 +261,8 @@ export function SettingsView() {
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Longcat API Key (金鑰)</label>
                 <div className="relative">
                   <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type={showLongcat ? "text" : "password"} 
+                  <input
+                    type={showLongcat ? "text" : "password"}
                     value={longcatApiKey}
                     onChange={(e) => setLongcatApiKey(e.target.value)}
                     placeholder="請輸入 Longcat 金鑰"
@@ -270,6 +276,38 @@ export function SettingsView() {
                     {showLongcat ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+              </div>
+
+              {/* Longcat Base URL */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Longcat Base URL</label>
+                <div className="relative">
+                  <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={longcatBaseUrl}
+                    onChange={(e) => setLongcatBaseUrl(e.target.value)}
+                    placeholder="https://api.longcat.chat/openai/v1"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">留空將使用預設 URL (https://api.longcat.chat/openai/v1)</p>
+              </div>
+
+              {/* Longcat Model */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Longcat Model</label>
+                <div className="relative">
+                  <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={longcatModel}
+                    onChange={(e) => setLongcatModel(e.target.value)}
+                    placeholder="LongCat-2.0-Preview"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">留空將使用預設模型 (LongCat-2.0-Preview)</p>
               </div>
             </div>
           </div>

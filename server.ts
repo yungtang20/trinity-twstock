@@ -270,7 +270,7 @@ async function startServer() {
           const lastRow = amountJson?.data?.[amountJson.data.length - 1];
           const latestAmount = lastRow?.[2]?.replace(/,/g, '');
           amount = latestAmount ? parseFloat(latestAmount) / 100_000_000 : 0; // 元 → 億元
-          addLog('TWSE', 'OK', `FMTQIK 讀取成功, 成交金額: ${(amount / 100000000).toFixed(2)} 億元`);
+          addLog('TWSE', 'OK', `FMTQIK 讀取成功, 成交金額: ${amount.toFixed(2)} 億元`);
         }
       } catch (e: any) {
         addLog('TWSE', 'WARN', `FMTQIK 讀取失敗: ${e.message}`);
@@ -403,9 +403,9 @@ async function startServer() {
               const changeVal = parseNum(changeStr);
               const closeVal = parseNum(r[2]);
               
-              if (changeStr === '0.00' || changeStr === '0') {
+              if (changeVal === 0) {
                 f++;
-              } else if (changeStr.startsWith('+')) {
+              } else if (changeVal > 0) {
                 const prevClose = closeVal - changeVal;
                 const percent = prevClose > 0 ? (changeVal / prevClose) : 0;
                 if (percent >= 0.0975) {
@@ -413,7 +413,7 @@ async function startServer() {
                 } else {
                   u++;
                 }
-              } else if (changeStr.startsWith('-')) {
+              } else {
                 const prevClose = closeVal + Math.abs(changeVal);
                 const percent = prevClose > 0 ? (Math.abs(changeVal) / prevClose) : 0;
                 if (percent >= 0.0975) {
@@ -421,10 +421,6 @@ async function startServer() {
                 } else {
                   d++;
                 }
-              } else if (changeStr === '---' || changeStr.trim() === '') {
-                // Treated as no trade
-              } else {
-                f++;
               }
             });
             upDown = { limitUp: lUp, up: u, flat: f, down: d, limitDown: lDn };
@@ -871,6 +867,8 @@ async function startServer() {
     res.json({
       success: true,
       longcatApiKey: process.env.VITE_LONGCAT_API_KEY || "",
+      longcatBaseUrl: process.env.VITE_LONGCAT_BASE_URL || "",
+      longcatModel: process.env.VITE_LONGCAT_MODEL || "",
       finmindApiKey: process.env.VITE_FINMIND_API_KEY || "",
       webhookUrl: process.env.VITE_UPDATE_WEBHOOK_URL || ""
     });
@@ -878,10 +876,12 @@ async function startServer() {
 
   // API to update settings and reload environment
   app.post("/api/settings", express.json(), (req, res) => {
-    const { longcatApiKey, finmindApiKey, webhookUrl } = req.body;
+    const { longcatApiKey, longcatBaseUrl, longcatModel, finmindApiKey, webhookUrl } = req.body;
     try {
       updateEnvFile({
         VITE_LONGCAT_API_KEY: longcatApiKey || "",
+        VITE_LONGCAT_BASE_URL: longcatBaseUrl || "",
+        VITE_LONGCAT_MODEL: longcatModel || "",
         VITE_FINMIND_API_KEY: finmindApiKey || "",
         VITE_UPDATE_WEBHOOK_URL: webhookUrl || ""
       });

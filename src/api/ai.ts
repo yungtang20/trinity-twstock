@@ -100,7 +100,7 @@ export async function aiAnalysisHandler(req: Request, res: Response) {
       try {
         const openai = new OpenAI({
           apiKey: longcatApiKey,
-          baseURL: 'https://api.longcat.chat/openai/v1',
+          baseURL: process.env.VITE_LONGCAT_BASE_URL || 'https://api.longcat.chat/openai/v1',
         });
 
         const extractionPrompt = `
@@ -327,7 +327,7 @@ ${industryDocText.substring(0, 1500)}
         addLog('LongCat 整合分析', 'info', `嘗試調用 LongCat 首席分析師模型 ${modelName} 產出最終研究報告...`);
         const openai = new OpenAI({
           apiKey: longcatApiKey,
-          baseURL: 'https://api.longcat.chat/openai/v1',
+          baseURL: process.env.VITE_LONGCAT_BASE_URL || 'https://api.longcat.chat/openai/v1',
         });
 
         // Report 1: General Stock analysis (股票綜合分析)
