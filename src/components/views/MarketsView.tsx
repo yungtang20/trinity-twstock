@@ -303,7 +303,7 @@ function generateAsciiHeatmap(currentPrice: number): string {
          └─────────────────────────┊────
           05-04···············06-05┊ T+1→T+5`;
 
-  const lines = template.split('\n');
+  const lines = template.split(/\r?\n/);
   const basePrices = [
     2440.00, 2434.05, 2415.35, 2390.09, 2365.00, 
     2359.25, 2340.55, 2314.17, 2303.15, 2284.45, 

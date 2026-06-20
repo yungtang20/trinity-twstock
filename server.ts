@@ -93,8 +93,9 @@ async function startServer() {
         if (row?.d) return row.d.replace(/-/g, '');
       }
     } catch { /* ignore */ }
-    // Fallback: today
-    return formatDateStr(new Date());
+    // Fallback: today in Taipei time
+    const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+    return formatDateStr(taipeiNow);
   };
 
   /** Format a date as YYYY/MM/DD for TPEX API */
@@ -1306,11 +1307,16 @@ async function startServer() {
       const ma10 = closes.slice(-10).reduce((a, b) => a + b, 0) / 10;
       const isUp = ma5 > ma10;
 
-      // Generate predictions T+1 to T+5
+      // Generate predictions T+1 to T+5 (deterministic based on stock data)
+      const seed = closes.reduce((sum, c) => sum + c, 0);
+      const seededRandom = (offset: number) => {
+        const x = Math.sin(seed * 9301 + offset * 49297) * 49297;
+        return x - Math.floor(x);
+      };
       const predictions = [];
       for (let i = 1; i <= 5; i++) {
         const trendComponent = isUp ? 0.5 * i : -0.5 * i;
-        const noise = (Math.random() - 0.5) * volatility * 0.3;
+        const noise = (seededRandom(i) - 0.5) * volatility * 0.3;
         const pct = trendComponent + noise;
         predictions.push({
           day: `T+${i}`,
@@ -1319,7 +1325,10 @@ async function startServer() {
         });
       }
 
-      const aiScore = isUp ? parseFloat((0.6 + Math.random() * 0.3).toFixed(3)) : parseFloat((0.1 + Math.random() * 0.3).toFixed(3));
+      // Deterministic AI score based on stock data (consistent between calls)
+      const aiScore = isUp
+        ? parseFloat((0.6 + seededRandom(999) * 0.3).toFixed(3))
+        : parseFloat((0.1 + seededRandom(999) * 0.3).toFixed(3));
 
       res.json({
         success: true,
@@ -1562,12 +1571,19 @@ async function startServer() {
         const ma5 = closes.slice(-5).reduce((a: number, b: number) => a + b, 0) / 5;
         const ma10 = closes.slice(-10).reduce((a: number, b: number) => a + b, 0) / 10;
         const isUp = ma5 > ma10;
-        // Generate T+1 prediction
+        // Generate T+1 prediction (deterministic based on stock data)
+        const seed = closes.reduce((sum, c) => sum + c, 0);
+        const seededRandom = (offset: number) => {
+          const x = Math.sin(seed * 9301 + offset * 49297) * 49297;
+          return x - Math.floor(x);
+        };
         const trendPct = isUp ? (0.5 * 1) : (-0.5 * 1);
-        const noise = (Math.random() - 0.5) * volatility * 0.3;
+        const noise = (seededRandom(1) - 0.5) * volatility * 0.3;
         const predPct = trendPct + noise;
         const predPrice = parseFloat((lastClose * (1 + predPct / 100)).toFixed(2));
-        const aiScore = isUp ? parseFloat((0.6 + Math.random() * 0.3).toFixed(3)) : parseFloat((0.1 + Math.random() * 0.3).toFixed(3));
+        const aiScore = isUp
+          ? parseFloat((0.6 + seededRandom(999) * 0.3).toFixed(3))
+          : parseFloat((0.1 + seededRandom(999) * 0.3).toFixed(3));
         results.push({
           stock_id: c.stock_id,
           stock_name: c.stock_name,
@@ -1635,7 +1651,9 @@ async function startServer() {
             patternName = "M頂"; confidence = 0.7;
           }
         }
-        if (confidence > 0 || Math.random() > 0.6) { // include some random samples so list isn't empty
+        // Deterministic selection based on stock_id hash
+        const stockHash = c.stock_id.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+        if (confidence > 0 || (stockHash % 100) < 40) { // include ~40% of stocks without clear pattern
           results.push({
             stock_id: c.stock_id,
             stock_name: c.stock_name,
@@ -1643,7 +1661,7 @@ async function startServer() {
             volume: Math.floor(c.volume / 1000),
             amount: parseFloat(((c.amount || 0) / 1e8).toFixed(2)),
             patternName,
-            confidence: confidence > 0 ? confidence : parseFloat((0.3 + Math.random() * 0.3).toFixed(2)),
+            confidence: confidence > 0 ? confidence : parseFloat((0.3 + (stockHash % 30) / 100).toFixed(2)),
           });
         }
       }
