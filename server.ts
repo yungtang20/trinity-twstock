@@ -597,12 +597,19 @@ async function startServer() {
           `INSERT OR REPLACE INTO stock_history (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, adj_factor, adj_close, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
-        // Add historical data for the last few days
+        // Add historical data for the last few days dynamically
+        const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+        const t = taipeiNow.getTime();
+        const d0 = new Date(t).toISOString().split('T')[0];
+        const d1 = new Date(t - 86400000).toISOString().split('T')[0];
+        const d2 = new Date(t - 86400000 * 2).toISOString().split('T')[0];
+        const d3 = new Date(t - 86400000 * 3).toISOString().split('T')[0];
+
         const days = [
-          { date: '2026-06-10', open: 910.0, high: 915.0, low: 905.0, close: 912.0, volume: 14500000, amount: 13200000000, trade_count: 22000, spread: 7.0 },
-          { date: '2026-06-11', open: 915.0, high: 928.0, low: 914.0, close: 925.0, volume: 18200000, amount: 16800000000, trade_count: 27500, spread: 13.0 },
-          { date: '2026-06-12', open: 928.0, high: 935.0, low: 925.0, close: 930.0, volume: 22000000, amount: 20400000000, trade_count: 31000, spread: 10.0 },
-          { date: '2026-06-15', open: 935.0, high: 945.0, low: 930.0, close: 940.0, volume: 21500000, amount: 19800000000, trade_count: 29500, spread: 10.0 }
+          { date: d3, open: 910.0, high: 915.0, low: 905.0, close: 912.0, volume: 14500000, amount: 13200000000, trade_count: 22000, spread: 7.0 },
+          { date: d2, open: 915.0, high: 928.0, low: 914.0, close: 925.0, volume: 18200000, amount: 16800000000, trade_count: 27500, spread: 13.0 },
+          { date: d1, open: 928.0, high: 935.0, low: 925.0, close: 930.0, volume: 22000000, amount: 20400000000, trade_count: 31000, spread: 10.0 },
+          { date: d0, open: 935.0, high: 945.0, low: 930.0, close: 940.0, volume: 21500000, amount: 19800000000, trade_count: 29500, spread: 10.0 }
         ];
 
         for (const d of days) {
@@ -613,16 +620,16 @@ async function startServer() {
         const insertInst = tempDb.prepare(
           `INSERT OR REPLACE INTO institutional_data (stock_id, date, foreign_net, trust_net, dealer_net, institutional_net, source) VALUES (?, ?, ?, ?, ?, ?, ?)`
         );
-        insertInst.run('2330', '2026-06-15', 18500, 3200, 1100, 22800, 'initial');
-        insertInst.run('2330', '2026-06-12', 15200, 3100, -820, 17480, 'initial');
-        insertInst.run('2330', '2026-06-11', -1200, 850, -420, -770, 'initial');
-        insertInst.run('2330', '2026-06-10', 18100, 2900, 1500, 22500, 'initial');
+        insertInst.run('2330', d0, 18500, 3200, 1100, 22800, 'initial');
+        insertInst.run('2330', d1, 15200, 3100, -820, 17480, 'initial');
+        insertInst.run('2330', d2, -1200, 850, -420, -770, 'initial');
+        insertInst.run('2330', d3, 18100, 2900, 1500, 22500, 'initial');
       }
 
-      // Auto-cleanup: remove history older than 30 days to limit database size
+      // Auto-cleanup: remove history older than 365 days to limit database size
       console.log('[DB] Auto-cleaning older records to prevent capacity constraints...');
-      tempDb.prepare(`DELETE FROM stock_history WHERE date < date('now', '-30 days')`).run();
-      tempDb.prepare(`DELETE FROM institutional_data WHERE date < date('now', '-30 days')`).run();
+      tempDb.prepare(`DELETE FROM stock_history WHERE date < date('now', '-365 days')`).run();
+      tempDb.prepare(`DELETE FROM institutional_data WHERE date < date('now', '-365 days')`).run();
 
       console.log('[DB] New database initialized with base records.');
     }
@@ -831,7 +838,7 @@ async function startServer() {
       }
 
       // Asynchronously invoke our local database & Supabase crawler integration script
-      exec("node scripts/fetch_today_only.js", (error, stdout, stderr) => {
+      exec("npx tsx scripts/fetch_today_only.js", (error, stdout, stderr) => {
         if (error) {
           console.error(`[Sync] Background SQLite / Supabase update error: ${error.message}`);
           addLog('SYNC', 'ERROR', `Background synchronization failed: ${error.message}`);
@@ -1513,9 +1520,8 @@ async function startServer() {
             const v = (instRows[i] as any).trust_net || 0;
             if (i === 0) { consecutive = v >= 0 ? 1 : -1; }
             else {
-              const pv = (instRows[i - 1] as any).trust_net || 0;
-              if (consecutive > 0 && v >= 0 && pv >= 0) consecutive++;
-              else if (consecutive < 0 && v < 0 && pv < 0) consecutive--;
+              if (consecutive > 0 && v >= 0) consecutive++;
+              else if (consecutive < 0 && v < 0) consecutive--;
               else break;
             }
           }
@@ -1526,9 +1532,8 @@ async function startServer() {
             const v = (instRows[i] as any).foreign_net || 0;
             if (i === 0) { consecutive = v >= 0 ? 1 : -1; }
             else {
-              const pv = (instRows[i - 1] as any).foreign_net || 0;
-              if (consecutive > 0 && v >= 0 && pv >= 0) consecutive++;
-              else if (consecutive < 0 && v < 0 && pv < 0) consecutive--;
+              if (consecutive > 0 && v >= 0) consecutive++;
+              else if (consecutive < 0 && v < 0) consecutive--;
               else break;
             }
           }

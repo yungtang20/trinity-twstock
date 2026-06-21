@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import fetch from "node-fetch";
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL as string,
@@ -73,7 +72,7 @@ async function syncDailyPrices() {
 
   // TPEX
   try {
-    const tpexDate = `115/06/15`;
+    const tpexDate = `${taipeiNow.getFullYear() - 1911}/${String(taipeiNow.getMonth() + 1).padStart(2, '0')}/${String(taipeiNow.getDate()).padStart(2, '0')}`;
     const res = await fetch(`https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${tpexDate}&se=EW`, { headers: { "User-Agent": "Mozilla/5.0" } });
     const json = await res.json() as any;
     if (json?.tables?.[0]?.data) {

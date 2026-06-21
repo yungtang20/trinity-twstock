@@ -16,9 +16,14 @@ const dbPath = path.join(process.cwd(), "twstock", "taiwan_stock_unified.db");
 console.log("📍 SQLite DB Path:", dbPath);
 const db = new Database(dbPath);
 
-const CUTOFF_DATE = "2026-01-01";
-const TODAY_DATE = "2026-06-15"; // Today's market date
-const TODAY_ROC_DATE = "115/06/15"; // ROC calendar representation
+const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+const yyyy = taipeiNow.getFullYear();
+const mm = String(taipeiNow.getMonth() + 1).padStart(2, '0');
+const dd = String(taipeiNow.getDate()).padStart(2, '0');
+
+const CUTOFF_DATE = `${yyyy}-01-01`;
+const TODAY_DATE = `${yyyy}-${mm}-${dd}`; // Today's market date
+const TODAY_ROC_DATE = `${yyyy - 1911}/${mm}/${dd}`; // ROC calendar representation
 
 function cleanFloat(v) {
   if (v === undefined || v === null) return null;
@@ -92,8 +97,8 @@ async function run() {
   }
   console.log(`✅ tdcc_shareholding completely restored! Total: ${totalFeats} rows`);
 
-  // Task 2: Crawl today's global market (2026-06-15) from official APIs
-  console.log(`\n🕸️ Live-Crawling June 15th, 2026 stock prices and volumes...`);
+  // Task 2: Crawl today's global market from official APIs
+  console.log(`\n🕸️ Live-Crawling ${TODAY_DATE} stock prices and volumes...`);
   
   const todayPrices = [];
   const todayInsts = {};
@@ -267,7 +272,7 @@ async function run() {
 
   // Insert today's crawled stock_prices into Local SQLite
   if (todayPrices.length > 0) {
-    console.log(`\n📥 Inserting ${todayPrices.length} live close prices for 2026-06-15 into SQLite...`);
+    console.log(`\n📥 Inserting ${todayPrices.length} live close prices for ${TODAY_DATE} into SQLite...`);
     const insertPrice = db.prepare(`
       INSERT OR REPLACE INTO stock_history (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, adj_factor, adj_close, source)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -286,7 +291,7 @@ async function run() {
   // Insert today's crawled institutional_data into Local SQLite
   const instList = Object.values(todayInsts);
   if (instList.length > 0) {
-    console.log(`📥 Inserting ${instList.length} corporate buy/sells for 2026-06-15 into SQLite...`);
+    console.log(`📥 Inserting ${instList.length} corporate buy/sells for ${TODAY_DATE} into SQLite...`);
     const insertInst = db.prepare(`
       INSERT OR REPLACE INTO institutional_data (stock_id, date, foreign_net, trust_net, dealer_net, foreign_buy, foreign_sell, trust_buy, trust_sell, dealer_buy, dealer_sell, institutional_net, source)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

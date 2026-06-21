@@ -73,7 +73,7 @@ export function MarketsView() {
   const [stock, setStock] = useState<StockData | null>(null);
   
   // Database Date states
-  const [latestDate, setLatestDate] = useState('2026-06-15');
+  const [latestDate, setLatestDate] = useState('');
   const [updateLogs, setUpdateLogs] = useState<string[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showConsole, setShowConsole] = useState(false);
@@ -423,7 +423,7 @@ export function MarketsView() {
   };
 
   const triggerDailyUpdate = async () => {
-    if (latestDate === '2026-06-15' || isUpdating) return;
+    if (isUpdating) return;
     
     setIsUpdating(true);
     setShowConsole(true);
@@ -454,14 +454,14 @@ export function MarketsView() {
         setUpdateLogs(prev => [
           ...prev, 
           `${new Date().toLocaleTimeString()} [完成] 上市櫃 2300+ 檔標的已全數同步至 Supabase 資料庫!`,
-          `${new Date().toLocaleTimeString()} [完成] 全部更新已注入快取！大盤與個股資料庫日期成功更新至 2026-06-15。`
+          `${new Date().toLocaleTimeString()} [完成] 全部更新已注入快取！大盤與個股資料庫日期成功更新至最新交易日。`
         ]);
       } else {
         setUpdateLogs(prev => [...prev, `${new Date().toLocaleTimeString()} [錯誤] 同步失敗: ${json.error}`]);
       }
       
       setTimeout(() => {
-        if (json.success) setLatestDate('2026-06-15');
+        if (json.success) setLatestDate(getPrevTradingDayStr(new Date().toISOString()));
         setIsUpdating(false);
         setTimeout(() => setShowConsole(false), 3000);
       }, 1000);
@@ -542,14 +542,14 @@ export function MarketsView() {
 
       {/* 2. 資料庫更新警報與日誌 */}
       <div className="flex flex-col gap-3">
-        {latestDate === '2026-06-12' ? (
+        {(!latestDate || latestDate < getPrevTradingDayStr(new Date().toISOString())) ? (
           <div className="bg-amber-950/40 border border-amber-900/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
                 <AlertTriangle size={20} />
               </div>
               <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-amber-300">資料庫最新日期為 2026-06-12（距今 3 天）</p>
+                <p className="text-sm font-semibold text-amber-300">資料庫最新日期為 {latestDate || '尚無資料'}</p>
                 <p className="text-xs text-amber-400">目前數據與官方交易所今日最新交易盤後資訊存有落差，建議先執行更新。</p>
               </div>
             </div>
@@ -570,7 +570,7 @@ export function MarketsView() {
                 <CheckCircle size={20} />
               </div>
               <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-emerald-300">資料庫最新日期已同步至 2026-06-15（今日盤後）</p>
+                <p className="text-sm font-semibold text-emerald-300">資料庫最新日期已同步至 {latestDate}（今日盤後）</p>
                 <p className="text-xs text-emerald-400/80">
                   全盤日終開放數據、法人持股日報、均線交叉指標已校對至最新。
                 </p>

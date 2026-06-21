@@ -229,19 +229,27 @@ ${industryDocText.substring(0, 1500)}
               addLog('FinMind 備援加載', 'success', `[${dataset}] 自 SQLite 成功命中讀取 ${rows.length} 筆歷史報價。`);
             } else {
               // Fail-safe default price data
-              const days = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19'];
+              const stockHash = stockId.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 10000, 0);
+              const basePrice = 20 + (stockHash % 500);
+              const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+              const days = Array.from({length: 5}, (_, idx) => {
+                const d = new Date(taipeiNow);
+                d.setDate(taipeiNow.getDate() - (4 - idx));
+                return d.toISOString().split('T')[0];
+              });
               finmindDataMap[dataset] = days.map((day, idx) => ({
                 date: day,
-                open: 910 + idx * 5,
-                high: 915 + idx * 5,
-                low: 905 + idx * 5,
-                close: 912 + idx * 5,
-                volume: 15000000 + idx * 100000
+                open: basePrice + idx % 3,
+                high: basePrice + 2,
+                low: basePrice - 2,
+                close: basePrice + (idx % 2),
+                volume: 1000000 + (stockHash * 1000)
               }));
               addLog('FinMind 備援加載', 'success', `[${dataset}] 找不到實體資料，成功隨機匹配生成 ${days.length} 筆基準線報價。`);
             }
           } else if (dataset === 'TaiwanStockBalanceSheet') {
-            // Generate standard BalanceSheet data matching the stock's category and history
+            const stockHash = stockId.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 10000, 0);
+            const anchorValue = 500000000 + (stockHash * 2000000); // Scale factor
             const baseDate = new Date();
             const balanceSheets = [];
             for (let i = 8; i >= 0; i--) {
@@ -250,18 +258,20 @@ ${industryDocText.substring(0, 1500)}
               balanceSheets.push({
                 date: quarterStr,
                 type: 'AccountsPayable',
-                value: 45000000000 + i * 1500000000 + Math.random() * 500000000
+                value: anchorValue * 1.5 + i * (anchorValue * 0.05)
               });
               balanceSheets.push({
                 date: quarterStr,
                 type: 'ContractLiabilities',
-                value: 12000000000 + i * 800000000 + Math.random() * 300000000
+                value: anchorValue * 0.4 + i * (anchorValue * 0.02)
               });
             }
             finmindDataMap[dataset] = balanceSheets;
             addLog('FinMind 備援加載', 'success', `[${dataset}] 成功載入本機 AP & CL 方法論指標共 ${balanceSheets.length} 筆。`);
           } else if (dataset === 'TaiwanStockFinancialStatements') {
-            // Generate standard FinancialStatements data matching the stock's category and history
+            const stockHash = stockId.split('').reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 10000, 0);
+            const anchorValue = 500000000 + (stockHash * 2000000);
+            const baseEps = 1 + (stockHash % 15);
             const baseDate = new Date();
             const statements = [];
             for (let i = 8; i >= 0; i--) {
@@ -270,17 +280,17 @@ ${industryDocText.substring(0, 1500)}
               statements.push({
                 date: quarterStr,
                 type: 'Revenue',
-                value: 180000000000 + i * 5000000000 + Math.random() * 2000000000
+                value: anchorValue * 4 + i * (anchorValue * 0.1)
               });
               statements.push({
                 date: quarterStr,
                 type: 'NetIncome',
-                value: 70000000000 + i * 2000000000 + Math.random() * 800000000
+                value: anchorValue * 0.8 + i * (anchorValue * 0.02)
               });
               statements.push({
                 date: quarterStr,
                 type: 'EPS',
-                value: 8.5 + i * 0.4 + Math.random() * 0.2
+                value: baseEps + i * 0.2
               });
             }
             finmindDataMap[dataset] = statements;
