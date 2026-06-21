@@ -122,9 +122,9 @@ async function run() {
         const open = cleanFloat(r[5]) || close;
         const high = cleanFloat(r[6]) || close;
         const low = cleanFloat(r[7]) || close;
-        const vol = cleanInt(r[2]) || 0;
-        const amount = cleanInt(r[4]) || 0;
-        const trades = cleanInt(r[3]) || 0;
+        const vol = Math.min(cleanInt(r[2]) || 0, 9999999999);
+        const amount = Math.min(cleanInt(r[4]) || 0, 9999999999);
+        const trades = Math.min(cleanInt(r[3]) || 0, 9999999999);
         
         // Compute spread / change values
         const polarity = String(r[9]).includes("red") ? 1 : String(r[9]).includes("green") ? -1 : 0;
@@ -170,8 +170,8 @@ async function run() {
         const open = cleanFloat(r[4]) || close;
         const high = cleanFloat(r[5]) || close;
         const low = cleanFloat(r[6]) || close;
-        const vol = cleanInt(r[7]) || 0;
-        const amount = cleanInt(r[8]) || 0;
+        const vol = Math.min(cleanInt(r[7]) || 0, 9999999999);
+        const amount = Math.min(cleanInt(r[8]) || 0, 9999999999);
         
         todayPrices.push({
           stock_id: id,

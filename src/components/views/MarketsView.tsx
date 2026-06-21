@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RotateCw, AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight, Terminal as TerminalIcon, Database } from "lucide-react";
+import { Search, RotateCw, AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRight, Terminal as TerminalIcon, Database, ChartLine } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from '../../lib/supabase';
+import { ChartView } from './ChartView';
 
 import { StockData } from '../../types/stock';
 // Function to generate the beautifully scaled retrograde ASCII Heatmap chart
@@ -71,6 +72,7 @@ export function MarketsView() {
   const [ticker, setTicker] = useState('2330');
   const [searchQuery, setSearchQuery] = useState('2330');
   const [stock, setStock] = useState<StockData | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'terminal' | 'kline'>('terminal');
   
   // Database Date states
   const [latestDate, setLatestDate] = useState('');
@@ -632,8 +634,43 @@ export function MarketsView() {
           {/* Monospaced Ascii-bordered title card */}
           {getASCIIHeaderBox()}
 
-          {/* 雙重歷史股價摘要比較盒 */}
-        <div className="bg-slate-950/65 px-4 py-5 font-mono select-none border-b border-slate-800/80">
+          {/* Sub-tab Switcher for Markets/K-Line fusion */}
+          <div className="bg-slate-950 border-b border-slate-800 pb-px flex items-center justify-center p-3 select-none">
+            <div className="bg-slate-900/80 border border-slate-800 p-1 rounded-xl flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('terminal')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  activeSubTab === 'terminal'
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-800/60 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-805/45 border border-transparent'
+                }`}
+                id="subtab-decision-terminal"
+              >
+                <TerminalIcon size={16} />
+                <span>決策核心指標 (5大終端)</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('kline')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  activeSubTab === 'kline'
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-800/60 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-805/45 border border-transparent'
+                }`}
+                id="subtab-visual-kline"
+              >
+                <ChartLine size={16} />
+                <span>專業互動 K 線圖 (K-Line)</span>
+              </button>
+            </div>
+          </div>
+
+          {activeSubTab === 'terminal' ? (
+            <>
+              {/* 雙重歷史股價摘要比較盒 */}
+              <div className="bg-slate-950/65 px-4 py-5 font-mono select-none border-b border-slate-800/80">
           <div className="max-w-xl mx-auto border border-dashed border-slate-800 p-4 rounded-lg bg-slate-950 text-xs sm:text-sm leading-relaxed overflow-x-auto text-slate-400">
             <div className="grid grid-cols-2 gap-4 divide-x divide-slate-800 text-[11px] sm:text-xs">
               <div className="space-y-1.5">
@@ -911,7 +948,7 @@ export function MarketsView() {
                         </tr>
                       </thead>
                       <tbody>
-                        {stock.chipHistory.map((row, index) => (
+                        {stock.chipHistory.slice(0, 10).map((row, index) => (
                           <tr key={index} className="hover:bg-slate-900/30 border-b border-slate-850/60 leading-normal">
                             <td className="p-2 text-left pl-4 text-slate-400">{row.date}</td>
                             <td className={`p-2 text-right font-semibold ${row.foreign >= 0 ? 'text-red-500' : 'text-emerald-400 font-medium'}`}>
@@ -941,11 +978,16 @@ export function MarketsView() {
                 <div className="font-mono text-xs text-slate-300 leading-normal select-none overflow-x-auto">
                   <div className="border border-dashed border-slate-800 bg-slate-950 p-4 rounded-xl space-y-1.5 max-w-lg mx-auto">
                     <div className="text-slate-450 font-bold border-b border-slate-900 pb-1 mb-2 text-center text-[10px] tracking-widest uppercase">
-                      🧠 AI 評估結果 (SIMULATION MODE)
+                      🧠 AI 評估結果 (Kronos 深度引擎離線)
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-500 w-16">🧠 狀態 :</span>
-                      <span className="text-cyan-400 font-bold">SIM-RDY</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-slate-500 w-16">🧠 主模型 :</span>
+                      <span className="text-rose-400 font-bold">離線 (Offline)</span>
+                      <span className="text-[10px] text-slate-500 bg-slate-900/80 px-1 border border-slate-800 rounded">Pytorch Core Unloaded</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                      <span className="text-slate-500 w-16">⚡ 備援機制 :</span>
+                      <span className="text-amber-400 font-bold font-sans">特徵擬合/插動多項式快速推演 (Active)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-slate-500 w-16">💪 力道 :</span>
@@ -1060,6 +1102,12 @@ export function MarketsView() {
             </div>
           </div>
         </div>
+            </>
+          ) : (
+            <div className="p-4 sm:p-6 bg-slate-950/20">
+              <ChartView initialStockId={stock.id} hideHeader={true} />
+            </div>
+          )}
         {/* Footer command bar */}
         <div className="bg-slate-950 border-t border-slate-800/80 px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-450 font-mono">
           <div className="flex items-center gap-2">

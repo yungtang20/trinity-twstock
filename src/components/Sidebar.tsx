@@ -18,7 +18,6 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
       <nav className="flex-1 px-4 py-6 space-y-1">
         <NavItem id="dashboard" icon={<LayoutDashboard size={20} />} label="儀表板" active={currentView === 'dashboard'} onClick={() => onViewChange('dashboard')} />
         <NavItem id="markets" icon={<TrendingUp size={20} />} label="市場分析" active={currentView === 'markets'} onClick={() => onViewChange('markets')} />
-        <NavItem id="chart" icon={<ChartLine size={20} />} label="K線圖表" active={currentView === 'chart'} onClick={() => onViewChange('chart')} />
         <NavItem id="strategies" icon={<BarChart3 size={20} />} label="策略模組" active={currentView === 'strategies'} onClick={() => onViewChange('strategies')} />
         <NavItem id="ai-analysis" icon={<Bot size={20} />} label="AI 深度分析" active={currentView === 'ai-analysis'} onClick={() => onViewChange('ai-analysis')} />
         <div className="pt-8 pb-2">

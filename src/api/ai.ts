@@ -253,7 +253,7 @@ ${industryDocText.substring(0, 1500)}
             const baseDate = new Date();
             const balanceSheets = [];
             for (let i = 8; i >= 0; i--) {
-              const d = new Date(baseDate.getFullYear() - Math.floor(i / 4), (i % 4) * 3 + 1, 1);
+              const d = new Date(baseDate.getFullYear() - Math.floor(i / 4), (i % 4) * 3, 1);
               const quarterStr = `${d.getFullYear()}-Q${Math.floor(i % 4) + 1}`;
               balanceSheets.push({
                 date: quarterStr,
@@ -275,7 +275,7 @@ ${industryDocText.substring(0, 1500)}
             const baseDate = new Date();
             const statements = [];
             for (let i = 8; i >= 0; i--) {
-              const d = new Date(baseDate.getFullYear() - Math.floor(i / 4), (i % 4) * 3 + 1, 1);
+              const d = new Date(baseDate.getFullYear() - Math.floor(i / 4), (i % 4) * 3, 1);
               const quarterStr = `${d.getFullYear()}-Q${Math.floor(i % 4) + 1}`;
               statements.push({
                 date: quarterStr,

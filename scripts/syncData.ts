@@ -30,17 +30,64 @@ const parseSpread = (str: string) => {
 };
 
 async function syncDailyPrices() {
-  const dateStr = getLatestTradingDate();
+  // Dynamic search for latest valid trading date (handling holidays/weekends)
   const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
-  const isoDate = `${taipeiNow.getFullYear()}-${String(taipeiNow.getMonth() + 1).padStart(2, '0')}-${String(taipeiNow.getDate()).padStart(2, '0')}`;
+  
+  let activeTradingDate = null;
+  let activeRocDate = null;
+  let activeYyyyMmDd = null;
+  let activeYyyy = null;
+  let activeMm = null;
+  let activeDd = null;
+  let twseParsedJson = null;
+
+  console.log(`\n🔎 [Sync] Searching backward to find the latest valid trading day from TWSE (checking up to 8 days)...`);
+  for (let i = 0; i < 8; i++) {
+    const checkDate = new Date(taipeiNow);
+    checkDate.setDate(checkDate.getDate() - i);
+    const cyyyy = checkDate.getFullYear();
+    const cmm = String(checkDate.getMonth() + 1).padStart(2, '0');
+    const cdd = String(checkDate.getDate()).padStart(2, '0');
+    const dateStr = `${cyyyy}${cmm}${cdd}`;
+    
+    try {
+      const twseUrl = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALLBUT0999`;
+      const res = await fetch(twseUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const json = await res.json() as any;
+      const priceTable = json?.tables?.find((t: any) => t.title?.includes("行情"));
+      if (json.stat === "OK" && priceTable?.data) {
+        activeTradingDate = `${cyyyy}-${cmm}-${cdd}`;
+        activeRocDate = `${cyyyy - 1911}/${cmm}/${cdd}`;
+        activeYyyyMmDd = dateStr;
+        activeYyyy = cyyyy;
+        activeMm = cmm;
+        activeDd = cdd;
+        twseParsedJson = json;
+        console.log(`  👉 Found valid trading day: ${activeTradingDate} (${dateStr}).`);
+        break;
+      } else {
+        console.log(`  - Date ${dateStr} is closed or has no data (${json.stat || 'No data'}).`);
+      }
+    } catch (err) {
+      console.warn(`  ⚠️ Error checking date ${dateStr}: ${err.message}`);
+    }
+  }
+
+  if (!activeTradingDate) {
+    console.error("❌ Failed to find a valid trading day in the last 8 days!");
+    process.exit(1);
+  }
+
+  const dateStr = activeYyyyMmDd;
+  const isoDate = activeTradingDate;
+  const tpexDate = activeRocDate;
   console.log(`[Sync] Fetching TWSE & TPEX data for ${dateStr}...`);
 
   const records: any[] = [];
 
   // TWSE
   try {
-    const res = await fetch(`https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALLBUT0999`, { headers: { "User-Agent": "Mozilla/5.0" } });
-    const json = await res.json() as any;
+    const json = twseParsedJson;
     const priceTable = json?.tables?.find((t: any) => t.title?.includes("行情"));
     
     if (priceTable?.data) {
@@ -72,7 +119,6 @@ async function syncDailyPrices() {
 
   // TPEX
   try {
-    const tpexDate = `${taipeiNow.getFullYear() - 1911}/${String(taipeiNow.getMonth() + 1).padStart(2, '0')}/${String(taipeiNow.getDate()).padStart(2, '0')}`;
     const res = await fetch(`https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${tpexDate}&se=EW`, { headers: { "User-Agent": "Mozilla/5.0" } });
     const json = await res.json() as any;
     if (json?.tables?.[0]?.data) {

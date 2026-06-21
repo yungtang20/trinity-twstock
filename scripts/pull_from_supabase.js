@@ -16,8 +16,8 @@ const dbPath = path.join(process.cwd(), "twstock", "taiwan_stock_unified.db");
 console.log("📍 SQLite DB Path:", dbPath);
 const db = new Database(dbPath);
 
-// Fast download filter: 2026-06-01 to present (~110 trading days, very light & fast, finishes in ~10 seconds)
-const CUTOFF_DATE = "2026-06-01";
+// Fast download filter: 2026-01-01 to present (~110 trading days, very light & fast, finishes in ~30 seconds)
+const CUTOFF_DATE = "2026-01-01";
 
 async function run() {
   console.log(`⏳ Beginning lightning-fast Supabase -> SQLite restoration (>= ${CUTOFF_DATE})...`);

@@ -110,12 +110,21 @@ const VolumeBar: React.FC<{
   );
 };
 
-export function ChartView() {
-  const [stockId, setStockId] = useState('2330');
+interface ChartViewProps {
+  initialStockId?: string;
+  hideHeader?: boolean;
+}
+
+export function ChartView({ initialStockId = '2330', hideHeader = false }: ChartViewProps = {}) {
+  const [stockId, setStockId] = useState(initialStockId);
   const [stockName, setStockName] = useState('');
-  const [searchQuery, setSearchQuery] = useState('2330');
-  const [priceData, setPriceData] = useState<PriceData[]>([]);
-  const [indicatorData, setIndicatorData] = useState<IndicatorData[]>([]);
+  const [searchQuery, setSearchQuery] = useState(initialStockId);
+
+  useEffect(() => {
+    setStockId(initialStockId);
+    setSearchQuery(initialStockId);
+  }, [initialStockId]);
+  const [fullHistoryData, setFullHistoryData] = useState<PriceData[]>([]);
   const [chipData, setChipData] = useState<ChipData[]>([]);
   const [whaleData, setWhaleData] = useState<WhaleData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,27 +132,37 @@ export function ChartView() {
   const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick');
   const [timeRange, setTimeRange] = useState('120'); // days
 
+  // Derive active priceData matching the requested timeRange from full 512-record history
+  const priceData = useMemo(() => {
+    const limit = parseInt(timeRange) || 120;
+    return fullHistoryData.slice(-limit);
+  }, [fullHistoryData, timeRange]);
+
   // MA periods to display
   const maPeriods = [20, 60, 200];
   const maColors = ['#f59e0b', '#3b82f6', '#a855f7'];
 
-  // Calculate MAs
+  // Calculate MAs on the complete 512 historical records, then filter to current active dates to ensure MA200 shows correctly!
   const maData = useMemo(() => {
     return maPeriods.map((period, idx) => {
       const values: { date: string; value: number }[] = [];
-      for (let i = period - 1; i < priceData.length; i++) {
-        const sum = priceData.slice(i - period + 1, i + 1).reduce((acc, d) => acc + d.close, 0);
+      for (let i = period - 1; i < fullHistoryData.length; i++) {
+        const sum = fullHistoryData.slice(i - period + 1, i + 1).reduce((acc, d) => acc + d.close, 0);
         values.push({
-          date: priceData[i].date,
+          date: fullHistoryData[i].date,
           value: sum / period
         });
       }
-      return { period, values, color: maColors[idx] };
+      // Filter values to only match our active viewport's dates
+      const activeDates = new Set(priceData.map(d => d.date));
+      const filteredValues = values.filter(v => activeDates.has(v.date));
+
+      return { period, values: filteredValues, color: maColors[idx] };
     });
-  }, [priceData]);
+  }, [fullHistoryData, priceData]);
 
   // Calculate KD indicators
-  const calculateKD = (data: PriceData[], period: 9): IndicatorData[] => {
+  const calculateKD = (data: PriceData[], period: number = 9): IndicatorData[] => {
     const result: IndicatorData[] = [];
     for (let i = period - 1; i < data.length; i++) {
       const slice = data.slice(i - period + 1, i + 1);
@@ -164,17 +183,23 @@ export function ChartView() {
     return result;
   };
 
-  // Load data
+  // Calculate KD indicators on complete 512 records, then slice to target viewport
+  const indicatorData = useMemo(() => {
+    const fullIndicator = calculateKD(fullHistoryData, 9);
+    const activeDates = new Set(priceData.map(d => d.date));
+    return fullIndicator.filter(d => activeDates.has(d.date));
+  }, [fullHistoryData, priceData]);
+
+  // Load data - always request 512-record history to ensure MA200 and long indicators calculate beautifully!
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        // Load price data from local API
-        const priceRes = await fetch(`/api/stock/${stockId}/history?days=${timeRange}`);
+        // Load exactly 512 days of history to have complete datasets for MA200 back-calculation
+        const priceRes = await fetch(`/api/stock/${stockId}/history?days=512`);
         const priceJson = await priceRes.json();
         if (priceJson.success && priceJson.data.length > 0) {
-          setPriceData(priceJson.data);
-          setIndicatorData(calculateKD(priceJson.data, 9));
+          setFullHistoryData(priceJson.data);
           if (priceJson.meta && priceJson.meta.stock_name) {
             setStockName(priceJson.meta.stock_name);
           } else {
@@ -215,7 +240,7 @@ export function ChartView() {
     if (stockId) {
       loadData();
     }
-  }, [stockId, timeRange]);
+  }, [stockId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,23 +320,27 @@ export function ChartView() {
       {/* Header Controls */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
         <div className="flex flex-wrap items-center gap-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="股票代號"
-              className="w-24 bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-white font-mono"
-            />
-            <button
-              type="submit"
-              className="px-4 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded font-bold text-sm"
-            >
-              查詢
-            </button>
-          </form>
+          {!hideHeader && (
+            <>
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="股票代號"
+                  className="w-24 bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-white font-mono"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded font-bold text-sm"
+                >
+                  查詢
+                </button>
+              </form>
 
-          <div className="h-6 w-px bg-slate-700" />
+              <div className="h-6 w-px bg-slate-700" />
+            </>
+          )}
 
           <select
             value={timeRange}
@@ -396,7 +425,11 @@ export function ChartView() {
               <polyline
                 key={ma.period}
                 points={ma.values
-                  .map((v, i) => `${getX(i + (priceData.length - ma.values.length))},${priceScale(v.value)}`)
+                  .map((v) => {
+                    const idx = priceData.findIndex(d => d.date === v.date);
+                    return idx >= 0 ? `${getX(idx)},${priceScale(v.value)}` : '';
+                  })
+                  .filter(Boolean)
                   .join(' ')}
                 fill="none"
                 stroke={ma.color}
@@ -483,7 +516,11 @@ export function ChartView() {
               {indicatorData.length > 0 && (
                 <polyline
                   points={indicatorData
-                    .map((d, i) => `${getX(i + (priceData.length - indicatorData.length))},${indicatorScale(d.k)}`)
+                    .map((d) => {
+                      const idx = priceData.findIndex(p => p.date === d.date);
+                      return idx >= 0 ? `${getX(idx)},${indicatorScale(d.k)}` : '';
+                    })
+                    .filter(Boolean)
                     .join(' ')}
                   fill="none"
                   stroke="#ef4444"
@@ -494,7 +531,11 @@ export function ChartView() {
               {indicatorData.length > 0 && (
                 <polyline
                   points={indicatorData
-                    .map((d, i) => `${getX(i + (priceData.length - indicatorData.length))},${indicatorScale(d.d)}`)
+                    .map((d) => {
+                      const idx = priceData.findIndex(p => p.date === d.date);
+                      return idx >= 0 ? `${getX(idx)},${indicatorScale(d.d)}` : '';
+                    })
+                    .filter(Boolean)
                     .join(' ')}
                   fill="none"
                   stroke="#3b82f6"
@@ -558,22 +599,30 @@ export function ChartView() {
               {whaleData.length > 0 && (
                 <polyline
                   points={whaleData
-                    .map((d, i) => `${getX(i)},${whaleScale(d.ratio)}`)
+                    .map((d, i) => {
+                      const idx = priceData.findIndex(p => p.date === d.date);
+                      const safeIdx = idx >= 0 ? idx : Math.round((i / whaleData.length) * (priceData.length - 1));
+                      return `${getX(safeIdx)},${whaleScale(d.ratio)}`;
+                    })
                     .join(' ')}
                   fill="none"
                   stroke="#8b5cf6"
                   strokeWidth={1.5}
                 />
               )}
-              {whaleData.map((d, i) => (
-                <circle
-                  key={d.date}
-                  cx={getX(i)}
-                  cy={whaleScale(d.ratio)}
-                  r={2}
-                  fill="#8b5cf6"
-                />
-              ))}
+              {whaleData.map((d, i) => {
+                const idx = priceData.findIndex(p => p.date === d.date);
+                const safeIdx = idx >= 0 ? idx : Math.round((i / whaleData.length) * (priceData.length - 1));
+                return (
+                  <circle
+                    key={d.date}
+                    cx={getX(safeIdx)}
+                    cy={whaleScale(d.ratio)}
+                    r={2}
+                    fill="#8b5cf6"
+                  />
+                );
+              })}
             </svg>
           </div>
         </div>

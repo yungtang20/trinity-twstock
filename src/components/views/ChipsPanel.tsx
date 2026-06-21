@@ -64,7 +64,7 @@ export function ChipsPanel({ stockId }: ChipsPanelProps) {
                 </tr>
               </thead>
               <tbody>
-                {data.chipHistory.map((row, index) => (
+                {data.chipHistory.slice(0, 10).map((row, index) => (
                   <tr key={index} className="hover:bg-slate-900/30 border-b border-slate-850/60 leading-normal">
                     <td className="p-2 text-left pl-4 text-slate-400">{row.date}</td>
                     <td className={`p-2 text-right font-semibold ${row.foreign >= 0 ? 'text-red-500' : 'text-emerald-400 font-medium'}`}>

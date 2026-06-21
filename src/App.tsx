@@ -7,7 +7,6 @@ import { useState } from "react";
 import { Layout } from "./components/Layout";
 import { DashboardView } from "./components/views/DashboardView";
 import { MarketsView } from "./components/views/MarketsView";
-import { ChartView } from "./components/views/ChartView";
 import { StrategiesView } from "./components/views/StrategiesView";
 import { SettingsView } from "./components/views/SettingsView";
 import { AIAnalysisView } from "./components/views/AIAnalysisView";
@@ -20,7 +19,6 @@ export default function App() {
     <Layout currentView={currentView} onViewChange={setCurrentView}>
       {currentView === 'dashboard' && <DashboardView />}
       {currentView === 'markets' && <MarketsView />}
-      {currentView === 'chart' && <ChartView />}
       {currentView === 'strategies' && <StrategiesView />}
       {currentView === 'settings' && <SettingsView />}
       {currentView === 'ai-analysis' && <AIAnalysisView />}

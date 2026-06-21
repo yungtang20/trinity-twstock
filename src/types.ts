@@ -1,4 +1,4 @@
-export type AppView = 'dashboard' | 'markets' | 'chart' | 'strategies' | 'settings' | 'ai-analysis';
+export type AppView = 'dashboard' | 'markets' | 'strategies' | 'settings' | 'ai-analysis';
 
 export interface MarketStat {
   title: string;

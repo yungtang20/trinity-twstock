@@ -14,13 +14,55 @@ const supabase = createClient(url, key);
 const dbPath = path.join(process.cwd(), "twstock", "taiwan_stock_unified.db");
 const db = new Database(dbPath);
 
-// Dynamic today's date in Taipei time
+// Dynamic search for latest valid trading date (handling holidays/weekends)
 const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
-const yyyy = taipeiNow.getFullYear();
-const mm = String(taipeiNow.getMonth() + 1).padStart(2, '0');
-const dd = String(taipeiNow.getDate()).padStart(2, '0');
-const TODAY_DATE = `${yyyy}-${mm}-${dd}`;
-const TODAY_ROC_DATE = `${yyyy - 1911}/${mm}/${dd}`;
+let activeTradingDate = null;
+let activeRocDate = null;
+let activeYyyy = null;
+let activeMm = null;
+let activeDd = null;
+let twseDataRows = null;
+
+console.log(`\n🔎 Searching backward to find the latest valid trading day from TWSE (checking up to 8 days)...`);
+for (let i = 0; i < 8; i++) {
+  const checkDate = new Date(taipeiNow);
+  checkDate.setDate(checkDate.getDate() - i);
+  const cyyyy = checkDate.getFullYear();
+  const cmm = String(checkDate.getMonth() + 1).padStart(2, '0');
+  const cdd = String(checkDate.getDate()).padStart(2, '0');
+  const dateStr = `${cyyyy}${cmm}${cdd}`;
+  
+  try {
+    const twseUrl = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALL`;
+    const res = await fetch(twseUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const json = await res.json();
+    if (json.stat === "OK" && json.tables && json.tables[8]) {
+      activeTradingDate = `${cyyyy}-${cmm}-${cdd}`;
+      activeRocDate = `${cyyyy - 1911}/${cmm}/${cdd}`;
+      activeYyyy = cyyyy;
+      activeMm = cmm;
+      activeDd = cdd;
+      twseDataRows = json.tables[8].data;
+      console.log(`  👉 Found valid trading day: ${activeTradingDate} (${dateStr}).`);
+      break;
+    } else {
+      console.log(`  - Date ${dateStr} is closed or has no data (${json.stat || 'No data'}).`);
+    }
+  } catch (err) {
+    console.warn(`  ⚠️ Error checking date ${dateStr}: ${err.message}`);
+  }
+}
+
+if (!activeTradingDate) {
+  console.error("❌ Failed to find a valid trading day in the last 8 days!");
+  process.exit(1);
+}
+
+const TODAY_DATE = activeTradingDate;
+const TODAY_ROC_DATE = activeRocDate;
+const yyyy = activeYyyy;
+const mm = activeMm;
+const dd = activeDd;
 
 function cleanFloat(v) {
   if (v === undefined || v === null) return null;
@@ -39,7 +81,7 @@ function cleanInt(v) {
 }
 
 async function run() {
-  console.log(`\n🕸️ Live-Crawling stock prices and volumes for TODAY: ${TODAY_DATE}...`);
+  console.log(`\n🕸️ Live-Crawling stock prices and volumes for the latest trading day: ${TODAY_DATE}...`);
   
   const todayPrices = [];
   const todayInsts = {};
@@ -47,12 +89,9 @@ async function run() {
   // 1. TWSE Quotes
   try {
     const twseUrl = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${yyyy}${mm}${dd}&type=ALL`;
-    const res = await fetch(twseUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-    const json = await res.json();
-    if (json.stat === "OK" && json.tables && json.tables[8]) {
-      const dataRows = json.tables[8].data;
-      console.log(`  TWSE online response is OK! Parsed ${dataRows.length} rows.`);
-      for (const r of dataRows) {
+    if (twseDataRows) {
+      console.log(`  TWSE online response is already loaded! Parsed ${twseDataRows.length} rows.`);
+      for (const r of twseDataRows) {
         const id = String(r[0]).trim();
         if (id.length !== 4 || isNaN(Number(id))) continue;
         
@@ -62,9 +101,9 @@ async function run() {
         const open = cleanFloat(r[5]) || close;
         const high = cleanFloat(r[6]) || close;
         const low = cleanFloat(r[7]) || close;
-        const vol = cleanInt(r[2]) || 0;
-        const amount = cleanInt(r[4]) || 0;
-        const trades = cleanInt(r[3]) || 0;
+        const vol = Math.min(cleanInt(r[2]) || 0, 9999999999);
+        const amount = Math.min(cleanInt(r[4]) || 0, 9999999999);
+        const trades = Math.min(cleanInt(r[3]) || 0, 9999999999);
         
         const polarity = String(r[9]).includes("red") ? 1 : String(r[9]).includes("green") ? -1 : 0;
         const spreadAmt = cleanFloat(r[10]) || 0;
@@ -106,8 +145,8 @@ async function run() {
         const open = cleanFloat(r[4]) || close;
         const high = cleanFloat(r[5]) || close;
         const low = cleanFloat(r[6]) || close;
-        const vol = cleanInt(r[7]) || 0;
-        const amount = cleanInt(r[8]) || 0;
+        const vol = Math.min(cleanInt(r[7]) || 0, 9999999999);
+        const amount = Math.min(cleanInt(r[8]) || 0, 9999999999);
         
         todayPrices.push({
           stock_id: id,
@@ -242,7 +281,7 @@ async function run() {
 
   // Optional: Upload today's crawled prices to Supabase
   if (todayPrices.length > 0) {
-    console.log(`📤 Upserting to Supabase...`);
+    console.log(`📤 Upserting ${todayPrices.length} rows to Supabase stock_price...`);
     try {
       const bSize = 1000;
       for (let s = 0; s < todayPrices.length; s += bSize) {
@@ -260,7 +299,10 @@ async function run() {
           adj_factor: p.adj_factor,
           source: p.source
         }));
-        await supabase.from("stock_price").upsert(batch);
+        const { error } = await supabase.from("stock_price").upsert(batch);
+        if (error) {
+          console.error(`❌ Supabase stock_price upsert batch error at [${s}]:`, error);
+        }
       }
       console.log("✅ Supabase stock_price updated with today's entries!");
     } catch (sbPriceErr) {
@@ -269,6 +311,7 @@ async function run() {
   }
 
   if (instList.length > 0) {
+    console.log(`📤 Upserting ${instList.length} rows to Supabase stock_institutional...`);
     try {
       const bSize = 1000;
       for (let s = 0; s < instList.length; s += bSize) {
@@ -286,7 +329,10 @@ async function run() {
           dealer_sell: i.dealer_sell,
           source: i.source
         }));
-        await supabase.from("stock_institutional").upsert(batch);
+        const { error } = await supabase.from("stock_institutional").upsert(batch);
+        if (error) {
+          console.error(`❌ Supabase stock_institutional upsert batch error at [${s}]:`, error);
+        }
       }
       console.log("✅ Supabase stock_institutional updated with today's entries!");
     } catch (sbInstErr) {

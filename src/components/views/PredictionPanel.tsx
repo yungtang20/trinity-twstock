@@ -39,6 +39,14 @@ export function PredictionPanel({ stockId }: PredictionPanelProps) {
           </div>
           <div className="space-y-1 text-slate-300">
             <div className="flex justify-between">
+              <span className="text-slate-400">主模型核心 (Kronos)</span>
+              <span className="font-bold text-rose-400">OFFLINE (離線)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">備援運算機制</span>
+              <span className="font-bold text-amber-400 text-xs font-sans">特徵擬合運算 (Active)</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-400">信心分數</span>
               <span className="font-bold text-white">{(data.aiScore * 100).toFixed(1)}%</span>
             </div>

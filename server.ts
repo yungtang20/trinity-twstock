@@ -3,11 +3,17 @@ dotenv.config();
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { createServer as createViteServer } from "vite";
 import https from "https";
 import http from "http";
+import { createClient } from "@supabase/supabase-js";
 import { aiAnalysisHandler } from "./src/api/ai";
+
+const sbUrl = process.env.VITE_SUPABASE_URL || "";
+const sbKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+const supabase = (sbUrl && sbKey) ? createClient(sbUrl, sbKey) : null;
+
 
 async function startServer() {
   const app = express();
@@ -32,6 +38,12 @@ async function startServer() {
 
   // Store API diagnostics for the front-end debug console
   let debugLogs: Array<{ time: string; type: string; status: string; detail: string }> = [];
+  let activeSyncProcess = {
+    running: false,
+    logs: [] as string[],
+    startTime: null as string | null,
+    error: null as string | null
+  };
 
   /** Helper: follow 302 redirects (TPEX API requires this) */
   function fetchFollowRedirects(url: string, maxRedirects = 5): Promise<{ ok: boolean; status: number; json: () => Promise<any> }> {
@@ -233,74 +245,85 @@ async function startServer() {
 
   /** Fetch TWSE data from official API */
   const getTwseStats = async () => {
+    let date = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+    let maxDbDate: Date | null = null;
     try {
-      const dateStr = getLatestTradingDate();
-      addLog('TWSE', 'FETCHING', `正在從 TWSE API 擷取 ${dateStr} 大盤數據...`);
-      
-      // 1. 取得加權指數 + 漲跌家數 (type=ALL 才有價格指數 tables[0])
-      const indexUrl = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALL`;
-      const indexRes = await fetch(indexUrl, { 
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(10000)
-      });
-      
-      if (!indexRes.ok) {
-        throw new Error(`TWSE API 回應錯誤: ${indexRes.status}`);
-      }
-      
-      const indexJson = await indexRes.json();
-      addLog('TWSE', 'OK', `MI_INDEX 讀取成功`);
-      
-      const parsedIndex = parseTwseIndex(indexJson);
-      if (!parsedIndex) {
-        throw new Error('無法解析 TWSE 指數數據');
-      }
-
-      // 2. 取得成交金額 (FMTQIK)
-      const amountUrl = `https://www.twse.com.tw/exchangeReport/FMTQIK?response=json&date=${dateStr}`;
-      let amount = 0;
-      try {
-        const amountRes = await fetch(amountUrl, { 
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(5000)
-        });
-        if (amountRes.ok) {
-          const amountJson = await amountRes.json();
-          // FMTQIK 資料按日期升序排列，取最後一筆（最新）
-          // fields: [日期, 成交股數, 成交金額, ...]
-          const lastRow = amountJson?.data?.[amountJson.data.length - 1];
-          const latestAmount = lastRow?.[2]?.replace(/,/g, '');
-          amount = latestAmount ? parseFloat(latestAmount) / 100_000_000 : 0; // 元 → 億元
-          addLog('TWSE', 'OK', `FMTQIK 讀取成功, 成交金額: ${amount.toFixed(2)} 億元`);
+      if (db) {
+        const row = db.prepare("SELECT MAX(date) as d FROM stock_history").get();
+        if (row?.d) {
+          maxDbDate = new Date(row.d);
         }
-      } catch (e: any) {
-        addLog('TWSE', 'WARN', `FMTQIK 讀取失敗: ${e.message}`);
       }
+    } catch { /* ignore */ }
 
-      // 3. 漲跌家數 (從 MI_INDEX tables[7] 解析)
-      let upDown = { limitUp: 0, up: 0, flat: 0, down: 0, limitDown: 0 };
-      const parsedUpDown = parseTwseUpDown(indexJson);
-      if (parsedUpDown) {
-        upDown = parsedUpDown;
-        addLog('TWSE', 'OK', `漲跌家數: 漲停=${upDown.limitUp}, 上漲=${upDown.up}, 平盤=${upDown.flat}, 下跌=${upDown.down}, 跌停=${upDown.limitDown}`);
-      } else {
-        addLog('TWSE', 'WARN', `漲跌家數解析失敗`);
+    // Try up to 8 days backwards to find the latest valid trading day
+    for (let attempts = 0; attempts < 8; attempts++) {
+      const targetDate = maxDbDate && attempts === 0 ? maxDbDate : new Date(date);
+      if (attempts > 0) {
+        targetDate.setDate(targetDate.getDate() - attempts);
       }
+      
+      const dateStr = formatDateStr(targetDate);
+      addLog('TWSE', 'FETCHING', `正在從 TWSE API 擷取 ${dateStr} 大盤數據 (嘗試第 ${attempts + 1} 天)...`);
+      
+      try {
+        const indexUrl = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALL`;
+        const indexRes = await fetch(indexUrl, { 
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(10000)
+        });
+        
+        if (!indexRes.ok) {
+          throw new Error(`TWSE API 回應錯誤: ${indexRes.status}`);
+        }
+        
+        const indexJson = await indexRes.json();
+        const parsedIndex = parseTwseIndex(indexJson);
+        if (!parsedIndex) {
+          throw new Error('無法解析 TWSE 指數數據');
+        }
 
-      addLog('TWSE', 'OK', `加權指數: ${parsedIndex.index}, 漲跌點: ${parsedIndex.change}, 漲跌幅: ${parsedIndex.changePercent}%`);
+        // 2. 取得成交金額 (FMTQIK)
+        const amountUrl = `https://www.twse.com.tw/exchangeReport/FMTQIK?response=json&date=${dateStr}`;
+        let amount = 0;
+        try {
+          const amountRes = await fetch(amountUrl, { 
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            signal: AbortSignal.timeout(5000)
+          });
+          if (amountRes.ok) {
+            const amountJson = await amountRes.json();
+            const lastRow = amountJson?.data?.[amountJson.data.length - 1];
+            const latestAmount = lastRow?.[2]?.replace(/,/g, '');
+            amount = latestAmount ? parseFloat(latestAmount) / 100_000_000 : 0; // 元 → 億元
+          }
+        } catch (e: any) {
+          addLog('TWSE', 'WARN', `FMTQIK 讀取失敗: ${e.message}`);
+        }
 
-      return {
-        success: true,
-        index: parsedIndex.index,
-        change: parsedIndex.change,
-        changePercent: parsedIndex.changePercent,
-        amount: parseFloat(amount.toFixed(2)),
-        ...upDown
-      };
-    } catch (err: any) {
-      addLog('TWSE', 'CRITICAL', `TWSE API 擷取失敗: ${err.message}`);
-      return { ...fallbackTwseData, success: false, error: err.message };
+        // 3. 漲跌家數 (從 MI_INDEX tables[7] 解析)
+        let upDown = { limitUp: 0, up: 0, flat: 0, down: 0, limitDown: 0 };
+        const parsedUpDown = parseTwseUpDown(indexJson);
+        if (parsedUpDown) {
+          upDown = parsedUpDown;
+        }
+
+        addLog('TWSE', 'OK', `大盤資料擷取 ${dateStr} 成功: 加權指數 ${parsedIndex.index}, 漲跌: ${parsedIndex.change}`);
+        return {
+          success: true,
+          index: parsedIndex.index,
+          change: parsedIndex.change,
+          changePercent: parsedIndex.changePercent,
+          amount: parseFloat(amount.toFixed(2)),
+          ...upDown
+        };
+      } catch (err: any) {
+        addLog('TWSE', 'WARN', `${dateStr} 擷取或解析失敗: ${err.message}`);
+      }
     }
+
+    addLog('TWSE', 'CRITICAL', `TWSE API 連續 8 天擷取失敗，使用 fallback`);
+    return { ...fallbackTwseData, success: false, error: "連續 8 天無可用大盤數據" };
   };
 
   /** Calculate OTC stats from SQLite database (TPEX API no longer provides up/down/amount) */
@@ -363,103 +386,124 @@ async function startServer() {
 
   /** Fetch TPEX data from official API */
   const getOtcStats = async () => {
+    let date = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+    let maxDbDate: Date | null = null;
     try {
-      const latestDate = getLatestTradingDate();
-      const dateStr = `${latestDate.slice(0,4)}/${latestDate.slice(4,6)}/${latestDate.slice(6,8)}`;
-      addLog('TPEX', 'FETCHING', `正在從 TPEX API 擷取 ${dateStr} 櫃買數據...`);
+      if (db) {
+        const row = db.prepare("SELECT MAX(date) as d FROM stock_history").get();
+        if (row?.d) {
+          maxDbDate = new Date(row.d);
+        }
+      }
+    } catch { /* ignore */ }
 
-      // 1. 取得櫃買指數 (TPEX API 會 302 重定向)
-      const indexUrl = `https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${dateStr}`;
-      const indexRes = await fetchFollowRedirects(indexUrl);
-      
-      if (!indexRes.ok) {
-        throw new Error(`TPEX API 回應錯誤: ${indexRes.status}`);
+    // Try up to 8 days backwards to find the latest valid trading day
+    for (let attempts = 0; attempts < 8; attempts++) {
+      const targetDate = maxDbDate && attempts === 0 ? maxDbDate : new Date(date);
+      if (attempts > 0) {
+        targetDate.setDate(targetDate.getDate() - attempts);
       }
       
-      const indexJson = await indexRes.json();
-      addLog('TPEX', 'OK', `櫃買指數 API 讀取成功`);
-      
-      const parsedIndex = parseTpexIndex(indexJson);
-      if (!parsedIndex) {
-        throw new Error('無法解析 TPEX 指數數據');
-      }
+      const yyyy = targetDate.getFullYear();
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(targetDate.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}/${mm}/${dd}`;
+      const searchDateStr = `${yyyy}${mm}${dd}`;
 
-      // 2. 漲跌家數 + 成交金額 (優先從 TPEX 官網即時 Quotes API 解析，若失敗再進 SQLite)
-      let upDown = { limitUp: 0, up: 0, flat: 0, down: 0, limitDown: 0 };
-      let hasLiveUpDown = false;
+      addLog('TPEX', 'FETCHING', `正在從 TPEX API 擷取 ${dateStr} 櫃買數據 (嘗試第 ${attempts + 1} 天)...`);
+
       try {
-        const quotesUrl = `https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${dateStr}&se=EW&s=0,asc,0`;
-        const quotesRes = await fetchFollowRedirects(quotesUrl);
-        if (quotesRes.ok) {
-          const quotesJson = await quotesRes.json();
-          const quotesData = quotesJson?.tables?.[0]?.data || quotesJson?.aaData || [];
-          if (quotesData.length > 0) {
-            let lUp = 0, u = 0, f = 0, d = 0, lDn = 0;
-            quotesData.forEach((r: any) => {
-              const id = String(r[0] || '');
-              if (id.length > 6) return; // scroll out warrants
-              const changeStr = String(r[3] || '');
-              const changeVal = parseNum(changeStr);
-              const closeVal = parseNum(r[2]);
-              
-              if (changeVal === 0) {
-                f++;
-              } else if (changeVal > 0) {
-                const prevClose = closeVal - changeVal;
-                const percent = prevClose > 0 ? (changeVal / prevClose) : 0;
-                if (percent >= 0.0975) {
-                  lUp++;
+        // 1. 取得櫃買指數 (TPEX API 會 302 重定向)
+        const indexUrl = `https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_index/st41_result.php?l=zh-tw&d=${dateStr}`;
+        const indexRes = await fetchFollowRedirects(indexUrl);
+        
+        if (!indexRes.ok) {
+          throw new Error(`TPEX API 回應錯誤: ${indexRes.status}`);
+        }
+        
+        const indexJson = await indexRes.json();
+        const parsedIndex = parseTpexIndex(indexJson);
+        if (!parsedIndex) {
+          throw new Error('無法解析 TPEX 指數數據');
+        }
+
+        // 2. 漲跌家數 + 成交金額 (優先從 TPEX 官網即時 Quotes API 解析，若失敗再進 SQLite)
+        let upDown = { limitUp: 0, up: 0, flat: 0, down: 0, limitDown: 0 };
+        let hasLiveUpDown = false;
+        try {
+          const quotesUrl = `https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php?l=zh-tw&d=${dateStr}&se=EW&s=0,asc,0`;
+          const quotesRes = await fetchFollowRedirects(quotesUrl);
+          if (quotesRes.ok) {
+            const quotesJson = await quotesRes.json();
+            const quotesData = quotesJson?.tables?.[0]?.data || quotesJson?.aaData || [];
+            if (quotesData.length > 0) {
+              let lUp = 0, u = 0, f = 0, d = 0, lDn = 0;
+              quotesData.forEach((r: any) => {
+                const id = String(r[0] || '');
+                if (id.length > 6) return; // scroll out warrants
+                const changeStr = String(r[3] || '');
+                const changeVal = parseNum(changeStr);
+                const closeVal = parseNum(r[2]);
+                
+                if (changeVal === 0) {
+                  f++;
+                } else if (changeVal > 0) {
+                  const prevClose = closeVal - changeVal;
+                  const percent = prevClose > 0 ? (changeVal / prevClose) : 0;
+                  if (percent >= 0.0975) {
+                    lUp++;
+                  } else {
+                    u++;
+                  }
                 } else {
-                  u++;
+                  const prevClose = closeVal + Math.abs(changeVal);
+                  const percent = prevClose > 0 ? (Math.abs(changeVal) / prevClose) : 0;
+                  if (percent >= 0.0975) {
+                    lDn++;
+                  } else {
+                    d++;
+                  }
                 }
-              } else {
-                const prevClose = closeVal + Math.abs(changeVal);
-                const percent = prevClose > 0 ? (Math.abs(changeVal) / prevClose) : 0;
-                if (percent >= 0.0975) {
-                  lDn++;
-                } else {
-                  d++;
-                }
-              }
-            });
-            upDown = { limitUp: lUp, up: u, flat: f, down: d, limitDown: lDn };
-            hasLiveUpDown = true;
-            addLog('TPEX', 'OK', `官網即時 Quotes 解析成功, 漲跌幅統計: 漲停=${lUp}, 上漲=${u}, 平盤=${f}, 下跌=${d}, 跌停=${lDn}`);
+              });
+              upDown = { limitUp: lUp, up: u, flat: f, down: d, limitDown: lDn };
+              hasLiveUpDown = true;
+            }
           }
+        } catch (e: any) {
+          addLog('TPEX', 'WARN', `Quotes API 讀取或解析失敗: ${e.message}`);
         }
-      } catch (e: any) {
-        addLog('TPEX', 'WARN', `官網即時 Quotes 解析失敗: ${e.message}，改用資料庫或預設資料`);
-      }
 
-      const dbStats = getOtcStatsFromDb(latestDate);
-      if (!hasLiveUpDown && dbStats) {
-        upDown = { limitUp: dbStats.limit_up, up: dbStats.up, flat: dbStats.flat, down: dbStats.down, limitDown: dbStats.limit_down };
-      }
-      const amount = dbStats ? dbStats.total_amount : 0;
-
-      // 3. 成交金額 (TPEX API 提供，單位：仟元)
-      let tpexAmount = 0;
-      try {
-        const tpexLatest = indexJson?.tables?.[0]?.data?.slice(-1)?.[0];
-        if (tpexLatest?.[2]) {
-          tpexAmount = parseFloat(String(tpexLatest[2]).replace(/,/g, '')) / 100000;
+        const dbStats = getOtcStatsFromDb(searchDateStr);
+        if (!hasLiveUpDown && dbStats) {
+          upDown = { limitUp: dbStats.limit_up, up: dbStats.up, flat: dbStats.flat, down: dbStats.down, limitDown: dbStats.limit_down };
         }
-      } catch { /* ignore */ }
+        const amount = dbStats ? dbStats.total_amount : 0;
 
-      addLog('TPEX', 'OK', `櫃買指數: ${parsedIndex.index}, 漲跌: ${parsedIndex.change}, 漲跌幅: ${parsedIndex.changePercent}%, 成交額: ${tpexAmount.toFixed(2)} 億元`);
+        // 3. 成交金額 (TPEX API 提供，單位：仟元)
+        let tpexAmount = 0;
+        try {
+          const tpexLatest = indexJson?.tables?.[0]?.data?.slice(-1)?.[0];
+          if (tpexLatest?.[2]) {
+            tpexAmount = parseFloat(String(tpexLatest[2]).replace(/,/g, '')) / 100000;
+          }
+        } catch { /* ignore */ }
 
-      return {
-        success: true,
-        index: parsedIndex.index,
-        change: parsedIndex.change,
-        changePercent: parsedIndex.changePercent,
-        amount: tpexAmount || amount,
-        ...upDown
-      };
-    } catch (err: any) {
-      addLog('TPEX', 'CRITICAL', `TPEX API 擷取失敗: ${err.message}`);
-      return { ...fallbackOtcData, success: false, error: err.message };
+        addLog('TPEX', 'OK', `櫃買資料擷取 ${dateStr} 成功: 櫃買指數 ${parsedIndex.index}, 漲跌: ${parsedIndex.change}`);
+        return {
+          success: true,
+          index: parsedIndex.index,
+          change: parsedIndex.change,
+          changePercent: parsedIndex.changePercent,
+          amount: tpexAmount || amount,
+          ...upDown
+        };
+      } catch (err: any) {
+        addLog('TPEX', 'WARN', `${dateStr} 櫃買擷取或解析失敗: ${err.message}`);
+      }
     }
+
+    addLog('TPEX', 'CRITICAL', `TPEX API 連續 8 天擷取失敗，使用 fallback`);
+    return { ...fallbackOtcData, success: false, error: "連續 8 天無可用櫃買數據" };
   };
 
   // ── SQLite Database Connection ────────────────────────────
@@ -623,13 +667,7 @@ async function startServer() {
         insertInst.run('2330', d0, 18500, 3200, 1100, 22800, 'initial');
         insertInst.run('2330', d1, 15200, 3100, -820, 17480, 'initial');
         insertInst.run('2330', d2, -1200, 850, -420, -770, 'initial');
-        insertInst.run('2330', d3, 18100, 2900, 1500, 22500, 'initial');
       }
-
-      // Auto-cleanup: remove history older than 365 days to limit database size
-      console.log('[DB] Auto-cleaning older records to prevent capacity constraints...');
-      tempDb.prepare(`DELETE FROM stock_history WHERE date < date('now', '-365 days')`).run();
-      tempDb.prepare(`DELETE FROM institutional_data WHERE date < date('now', '-365 days')`).run();
 
       console.log('[DB] New database initialized with base records.');
     }
@@ -697,7 +735,7 @@ async function startServer() {
   app.get("/api/stock/:id/history", (req, res) => {
     if (!db) return res.json({ success: false, error: "DB not connected" });
     const id = req.params.id;
-    const days = Math.min(parseInt(String(req.query.days || "120")), 500);
+    const days = Math.min(parseInt(String(req.query.days || "120")), 1000);
     try {
       const meta = db.prepare("SELECT stock_id, stock_name, market FROM stock_meta WHERE stock_id = ?").get(id);
       const rows = db.prepare(
@@ -800,54 +838,112 @@ async function startServer() {
 
   // Market movers (top gainers and losers for latest trading day)
   app.post("/api/sync-daily", (req, res) => {
-    exec("npx tsx scripts/syncData.ts", (error, stdout, stderr) => {
+    exec("npx tsx scripts/syncData.ts && npx tsx scripts/fetch_today_only.js", (error, stdout, stderr) => {
       if (error) {
         console.error(`Sync error: ${error}`);
         return res.status(500).json({ success: false, error: error.message });
       }
-      addLog('SYNC', 'OK', `Supabase TS sync complete.`);
+      addLog('SYNC', 'OK', `Supabase TS sync and Local SQLite sync complete.`);
       res.json({ success: true, log: stdout });
     });
   });
 
   // Client-safe Webhook proxy and local database sync
   app.post("/api/trigger-update", async (req, res) => {
+    if (activeSyncProcess.running) {
+      return res.json({
+        success: true,
+        message: "爬取與同步流程已在中途執行，同步日誌更新中...",
+        alreadyRunning: true
+      });
+    }
+
     const webhookUrl = process.env.VITE_UPDATE_WEBHOOK_URL;
 
-    // Return success immediately to the browser client.
-    // This totally eliminates browser network timeout "Failed to fetch" errors.
+    // Reset status block
+    activeSyncProcess.running = true;
+    activeSyncProcess.logs = [`[系統] ${new Date().toLocaleTimeString("zh-TW", { hour12: false })} 開始大盤行情同步程序...`];
+    activeSyncProcess.startTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" });
+    activeSyncProcess.error = null;
+
     res.json({
       success: true,
-      message: "Update triggered successfully. Process running in background."
+      message: "大盤與個股實時同步指令已送達！即刻在背景啟動爬蟲對接...",
+      alreadyRunning: false
     });
 
     // Execute background update tasks asynchronously
     (async () => {
       if (webhookUrl && (webhookUrl.startsWith("http://") || webhookUrl.startsWith("https://"))) {
+        activeSyncProcess.logs.push(`[系統] 偵測到遠端 Webhook，進行同步觸發: ${webhookUrl}`);
         try {
-          // Asynchronously tickle remote webhook with 4 seconds timeout
           await fetch(webhookUrl, {
             method: 'POST',
             signal: AbortSignal.timeout(4000)
           });
+          activeSyncProcess.logs.push(`[系統] 遠端 Webhook 觸發成功。`);
         } catch (err: any) {
+          activeSyncProcess.logs.push(`[系統] [警告] 遠端 Webhook 觸發未成功: ${err.message}`);
           console.warn(`[Webhook-Warning] Background remote webhook trigger failed: ${err.message}`);
         }
-      } else if (webhookUrl) {
-        console.warn(`[Webhook-Warning] Skipped background trigger. Configuration VITE_UPDATE_WEBHOOK_URL is not a valid URL: ${webhookUrl.substring(0, 15)}...`);
       }
 
-      // Asynchronously invoke our local database & Supabase crawler integration script
-      exec("npx tsx scripts/fetch_today_only.js", (error, stdout, stderr) => {
-        if (error) {
-          console.error(`[Sync] Background SQLite / Supabase update error: ${error.message}`);
-          addLog('SYNC', 'ERROR', `Background synchronization failed: ${error.message}`);
+      activeSyncProcess.logs.push(`[系統] 啟動本地 Python/Node.js 爬蟲對接。`);
+      activeSyncProcess.logs.push(`[系統] 目標工作流程：從 Supabase 擷取並對接本地補登...`);
+
+      // Using spawn to stream subprocess stdout & stderr in real time
+      const child = spawn("npx tsx scripts/pull_from_supabase.js && npx tsx scripts/fetch_today_only.js", { shell: true });
+
+      child.stdout.on("data", (data) => {
+        const text = data.toString();
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            const time = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+            activeSyncProcess.logs.push(`[${time}] ${trimmed}`);
+            addLog('SYNC_STAGE', 'INFO', trimmed);
+          }
+        }
+      });
+
+      child.stderr.on("data", (data) => {
+        const text = data.toString();
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            const time = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+            activeSyncProcess.logs.push(`[${time}] [錯誤] ${trimmed}`);
+            addLog('SYNC_STAGE', 'ERR', trimmed);
+          }
+        }
+      });
+
+      child.on("close", (code) => {
+        activeSyncProcess.running = false;
+        const time = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+        if (code !== 0) {
+          activeSyncProcess.error = `處理程序異常終止 (代碼: ${code})`;
+          activeSyncProcess.logs.push(`\n[${time}] ❌ 行程異常結束。錯誤代碼: ${code}`);
+          addLog('SYNC', 'ERROR', `Background sync process exited with code ${code}`);
         } else {
-          console.log(`[Sync] Background SQLite & Supabase update succeeded.`);
-          addLog('SYNC', 'OK', `Database synchronized successfully in the background.`);
+          activeSyncProcess.logs.push(`\n[${time}] ✅ 大盤實時爬蟲同步完成！本地 SQLite 資料庫已同步至最新。`);
+          addLog('SYNC', 'OK', 'Database synchronized successfully with raw crawling stream.');
         }
       });
     })();
+  });
+
+  // GET Endpoint to poll sync progress
+  app.get("/api/sync-status", (_req, res) => {
+    res.json({
+      success: true,
+      running: activeSyncProcess.running,
+      logs: activeSyncProcess.logs,
+      startTime: activeSyncProcess.startTime,
+      error: activeSyncProcess.error
+    });
   });
 
   // Helper to dynamically update .env file and process.env values in-memory
@@ -911,6 +1007,532 @@ async function startServer() {
       res.json({ success: true, message: "設定儲存成功，且已與系統同步工作！" });
     } catch (err: any) {
       console.error("Save settings error:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // FinMind Historical Backfill Endpoint
+  app.post("/api/backfill-finmind", express.json(), async (req, res) => {
+    if (!db) return res.status(500).json({ success: false, error: "Database not connected" });
+    const { stockId, startDate, endDate, types = ["price", "institutional"] } = req.body;
+    
+    if (!stockId) {
+      return res.status(400).json({ success: false, error: "缺少 stockId (股票代號或批次組)" });
+    }
+    if (!startDate) {
+      return res.status(400).json({ success: false, error: "缺少 startDate (開始日期, 格式: YYYY-MM-DD)" });
+    }
+
+    const token = process.env.VITE_FINMIND_API_KEY || "";
+    
+    // 解析目標股票代號，支援陣列、半角或全形逗號、空格分隔，或預設庫存關鍵字 "ALL_META"
+    let targetStockIds: string[] = [];
+    if (Array.isArray(stockId)) {
+      targetStockIds = stockId.map(id => String(id).trim()).filter(Boolean);
+    } else if (typeof stockId === "string") {
+      if (stockId === "ALL_META") {
+        try {
+          const rows = db.prepare("SELECT stock_id FROM stock_meta WHERE length(stock_id) = 4 AND stock_id NOT GLOB '*[A-Z]*' ORDER BY stock_id ASC LIMIT 100").all() as any[];
+          targetStockIds = rows.map(r => r.stock_id);
+        } catch (e: any) {
+          return res.status(500).json({ success: false, error: "無法獲取庫存 stock_meta 列表: " + e.message });
+        }
+      } else {
+        targetStockIds = stockId.split(/[\s,，]+/).map(id => id.trim()).filter(Boolean);
+      }
+    }
+
+    if (targetStockIds.length === 0) {
+      return res.status(400).json({ success: false, error: "無效的股票代號指定" });
+    }
+
+    let priceInsertedTotal = 0;
+    let instInsertedTotal = 0;
+    const logs: string[] = [];
+    const maxBulkLimit = 150; // 安全上限，避免呼叫過度被 FinMind 拒絕
+
+    if (targetStockIds.length > maxBulkLimit) {
+      logs.push(`⚠️ 注意：由於 API 速率限制，已將此次批次數量自動安全調整為前 ${maxBulkLimit} 檔個股。`);
+      targetStockIds = targetStockIds.slice(0, maxBulkLimit);
+    }
+
+    logs.push(`🔍 開始自 FinMind 執行【自動批次歷史數據回補】! 共計偵測到 ${targetStockIds.length} 檔個股...`);
+    logs.push(`📅 回補日期區間: ${startDate} 至 ${endDate || '今日'}`);
+
+    try {
+      for (let i = 0; i < targetStockIds.length; i++) {
+        const id = targetStockIds[i];
+        const progressStr = `[進度 ${i + 1}/${targetStockIds.length}] 股號 ${id}`;
+        logs.push(`--------------------------------------`);
+        logs.push(`🔄 正在下載對接 ${progressStr}...`);
+
+        // 為尊重 FinMind API 流量，設定微小延遲 (300ms)
+        if (i > 0 && targetStockIds.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 350));
+        }
+
+        // 1. Fetch Pricing
+        if (types.includes("price")) {
+          const urlPrice = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${id}&start_date=${startDate}${endDate ? `&end_date=${endDate}` : ''}&token=${token}`;
+          const resPrice = await fetch(urlPrice);
+          if (!resPrice.ok) {
+            logs.push(`❌ ${progressStr} 股價 API 回應錯誤: ${resPrice.status}`);
+            continue;
+          }
+          const jsonPrice = await resPrice.json() as any;
+          if (jsonPrice.data && jsonPrice.data.length > 0) {
+            const insertStmt = db.prepare(`
+              INSERT OR REPLACE INTO stock_history (
+                stock_id, date, open, high, low, close, volume, amount, trade_count, spread, adj_factor, adj_close, source
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, ?, 'finmind')
+            `);
+            
+            let insertedInThisStock = 0;
+            db.transaction(() => {
+              for (const r of jsonPrice.data) {
+                const open = parseFloat(r.open) || 0;
+                const high = parseFloat(r.max) || 0;
+                const low = parseFloat(r.min) || 0;
+                const close = parseFloat(r.close) || 0;
+                const volume = parseInt(r.Trading_Volume, 10) || 0;
+                const amount = parseFloat(r.Trading_money) || 0;
+                const tradeCount = parseInt(r.Trading_turnover, 10) || 0;
+                const spread = parseFloat(r.spread) || 0;
+                
+                insertStmt.run(
+                  id,
+                  r.date,
+                  open,
+                  high,
+                  low,
+                  close,
+                  volume,
+                  amount,
+                  tradeCount,
+                  spread,
+                  close
+                );
+                insertedInThisStock++;
+              }
+            })();
+            priceInsertedTotal += insertedInThisStock;
+            logs.push(`📈 ${progressStr} 成功寫入 ${insertedInThisStock} 筆日股價。`);
+          } else {
+            logs.push(`⚠️ ${progressStr} 無可用的股價歷史數據。`);
+          }
+        }
+
+        // 2. Fetch Institutional Sell/Buy
+        if (types.includes("institutional")) {
+          const urlInst = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestorsBuySell&data_id=${id}&start_date=${startDate}${endDate ? `&end_date=${endDate}` : ''}&token=${token}`;
+          const resInst = await fetch(urlInst);
+          if (!resInst.ok) {
+            logs.push(`❌ ${progressStr} 法人 API 回應錯誤: ${resInst.status}`);
+            continue;
+          }
+          const jsonInst = await resInst.json() as any;
+          if (jsonInst.data && jsonInst.data.length > 0) {
+            const grouped: { [dateStr: string]: {
+              foreign_buy: number; foreign_sell: number;
+              trust_buy: number; trust_sell: number;
+              dealer_buy: number; dealer_sell: number;
+            } } = {};
+
+            for (const item of jsonInst.data) {
+              const d = item.date;
+              if (!grouped[d]) {
+                grouped[d] = {
+                  foreign_buy: 0, foreign_sell: 0,
+                  trust_buy: 0, trust_sell: 0,
+                  dealer_buy: 0, dealer_sell: 0
+                };
+              }
+              const buy = parseInt(item.buy, 10) || 0;
+              const sell = parseInt(item.sell, 10) || 0;
+              const n = item.name;
+
+              if (n === "Foreign_Investor") {
+                grouped[d].foreign_buy += buy;
+                grouped[d].foreign_sell += sell;
+              } else if (n === "Investment_Trust") {
+                grouped[d].trust_buy += buy;
+                grouped[d].trust_sell += sell;
+              } else if (n === "Dealer_self" || n === "Dealer_Hedging") {
+                grouped[d].dealer_buy += buy;
+                grouped[d].dealer_sell += sell;
+              }
+            }
+
+            const insertInstStmt = db.prepare(`
+              INSERT OR REPLACE INTO institutional_data (
+                stock_id, date, foreign_net, trust_net, dealer_net,
+                foreign_buy, foreign_sell, trust_buy, trust_sell, dealer_buy, dealer_sell,
+                institutional_net, source
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finmind')
+            `);
+
+            let instInsertedInThisStock = 0;
+            db.transaction(() => {
+              for (const [dateStr, v] of Object.entries(grouped)) {
+                const fNet = v.foreign_buy - v.foreign_sell;
+                const tNet = v.trust_buy - v.trust_sell;
+                const dNet = v.dealer_buy - v.dealer_sell;
+                const instNet = fNet + tNet + dNet;
+
+                insertInstStmt.run(
+                  id,
+                  dateStr,
+                  fNet,
+                  tNet,
+                  dNet,
+                  v.foreign_buy,
+                  v.foreign_sell,
+                  v.trust_buy,
+                  v.trust_sell,
+                  v.dealer_buy,
+                  v.dealer_sell,
+                  instNet
+                );
+                instInsertedInThisStock++;
+              }
+            })();
+            instInsertedTotal += instInsertedInThisStock;
+            logs.push(`👥 ${progressStr} 成功寫入 ${instInsertedInThisStock} 筆三大法人歷史。`);
+          } else {
+            logs.push(`⚠️ ${progressStr} 無可用的法人歷史數據。`);
+          }
+        }
+      }
+
+      // 重新計算本地交易日曆
+      try {
+        const dates = db.prepare("SELECT DISTINCT date FROM stock_history ORDER BY date ASC").all() as any[];
+        db.prepare("DELETE FROM stock_trading_calendar").run();
+        const insertCalendar = db.prepare(`
+          INSERT INTO stock_trading_calendar (date, is_trading_day, source)
+          VALUES (?, 1, 'finmind')
+        `);
+        db.transaction(() => {
+          for (const row of dates) {
+            insertCalendar.run(row.date);
+          }
+        })();
+        logs.push(`--------------------------------------`);
+        logs.push(`📅 本地交易日曆已重新整合。`);
+      } catch (calErr: any) {
+        logs.push(`⚠️ 統整本地日曆時有警訊但非致命: ${calErr.message}`);
+      }
+
+      const summaryMsg = `🎉 自動批次對接成功！共回補了 ${targetStockIds.length} 檔個股 (股價: ${priceInsertedTotal} 筆, 法人: ${instInsertedTotal} 筆)`;
+      addLog('BACKFILL', 'OK', summaryMsg);
+      logs.push(`\n✅ ${summaryMsg}`);
+
+      res.json({
+        success: true,
+        priceInserted: priceInsertedTotal,
+        instInserted: instInsertedTotal,
+        logs
+      });
+    } catch (err: any) {
+      console.error("FinMind backfill error:", err);
+      logs.push(`\n❌ 回補程序中斷: ${err.message}`);
+      addLog('BACKFILL', 'ERROR', `FinMind batch backfill failed: ${err.message}`);
+      res.json({
+        success: false,
+        error: err.message,
+        logs
+      });
+    }
+  });
+
+  // TDCC Class Shareholding CSV Ingest Endpoint
+  app.post("/api/upload-tdcc", express.json({ limit: "50mb" }), async (req, res) => {
+    if (!db) return res.status(500).json({ success: false, error: "Database not connected" });
+    const { csvText } = req.body;
+    if (!csvText) {
+      return res.status(400).json({ success: false, error: "缺少 csvText 檔案內容" });
+    }
+
+    const lines = csvText.split(/\r?\n/);
+    const groups: { [key: string]: { totalShares: number; whaleShares: number; retailShares: number } } = {};
+    let parsedCount = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.includes("資料日期") || line.includes("持股分級")) continue;
+      
+      const parts = line.split(",").map((s: string) => s.trim().replace(/['"']/g, ''));
+      if (parts.length < 6) continue;
+      
+      const rawDate = parts[0]; 
+      const stockId = parts[1];
+      const classId = parseInt(parts[2], 10);
+      const count = parseInt(parts[3], 10) || 0;
+      const shares = parseFloat(parts[4]) || 0;
+      
+      if (isNaN(classId) || classId > 16 || parts[2].includes("計") || parts[2] === "999") {
+        continue; // skip totals or invalid rows
+      }
+
+      // Normalize date to YYYY-MM-DD
+      let date = rawDate;
+      if (/^\d{8}$/.test(rawDate)) {
+        date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+      } else if (rawDate.includes("/")) {
+        date = rawDate.replace(/\//g, "-");
+      } else if (rawDate.includes("-") && rawDate.length === 10) {
+        date = rawDate;
+      } else {
+        continue; // invalid date formatting
+      }
+
+      const key = `${stockId}_${date}`;
+      if (!groups[key]) {
+        groups[key] = { totalShares: 0, whaleShares: 0, retailShares: 0 };
+      }
+
+      groups[key].totalShares += shares;
+      // Standard Whale: Class >= 12 (holding >= 400,000 shares)
+      // Standard Retail: Class <= 5 (holding <= 20,000 shares)
+      if (classId >= 12) {
+        groups[key].whaleShares += shares;
+      }
+      if (classId <= 5) {
+        groups[key].retailShares += shares;
+      }
+      parsedCount++;
+    }
+
+    let insertedRecords = 0;
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO tdcc_shareholding (stock_id, date, total_shares, whale_ratio, retail_ratio, source)
+      VALUES (?, ?, ?, ?, ?, 'upload')
+    `);
+
+    let supabaseSynced = false;
+    let supabaseErrorMsg = null;
+
+    try {
+      db.transaction(() => {
+        for (const [key, v] of Object.entries(groups)) {
+          const [stockId, date] = key.split("_");
+          const total = v.totalShares;
+          const whaleRatio = total > 0 ? (v.whaleShares / total) * 100 : 0;
+          const retailRatio = total > 0 ? (v.retailShares / total) * 100 : 0;
+
+          insertStmt.run(
+            stockId,
+            date,
+            total,
+            parseFloat(whaleRatio.toFixed(2)),
+            parseFloat(retailRatio.toFixed(2))
+          );
+          insertedRecords++;
+        }
+      })();
+
+      // Asynchronously/synchronously sync to Supabase stock_features if client exists
+      if (supabase && insertedRecords > 0) {
+        try {
+          const supabaseRows = Object.entries(groups).map(([k, v]) => {
+            const [stockId, date] = k.split("_");
+            const total = v.totalShares;
+            const whaleRatio = total > 0 ? (v.whaleShares / total) * 100 : 0;
+            const retailRatio = total > 0 ? (v.retailShares / total) * 100 : 0;
+            return {
+              stock_id: stockId,
+              date,
+              total_shares: total,
+              whale_ratio: parseFloat(whaleRatio.toFixed(2)),
+              retail_ratio: parseFloat(retailRatio.toFixed(2)),
+              source: "upload"
+            };
+          });
+
+          const bSize = 1000;
+          for (let s = 0; s < supabaseRows.length; s += bSize) {
+            const batch = supabaseRows.slice(s, s + bSize);
+            const { error: sbErr } = await supabase.from("stock_features").upsert(batch);
+            if (sbErr) {
+              throw sbErr;
+            }
+          }
+          supabaseSynced = true;
+        } catch (sbErr: any) {
+          console.error("❌ Failed to sync uploaded TDCC to Supabase:", sbErr.message);
+          supabaseErrorMsg = sbErr.message;
+        }
+      }
+
+      const syncStatusText = supabaseSynced ? "，且已同步雲端 Supabase！" : (supabaseErrorMsg ? `，但同步 Supabase 失敗: ${supabaseErrorMsg}` : "，未開啟 Supabase 同步。");
+      addLog('TDCC_UPLOAD', 'OK', `Uploaded TDCC CSV, parsed ${parsedCount} entries, inserted ${insertedRecords} records${syncStatusText}`);
+      
+      res.json({
+        success: true,
+        message: `成功解析 ${parsedCount} 條數據，並在本地 SQLite 建立/覆蓋了 ${insertedRecords} 筆集保股權分散紀錄${syncStatusText}`,
+        parsedCount,
+        insertedRecords,
+        supabaseSynced
+      });
+    } catch (err: any) {
+      console.error("TDCC upload ingest error:", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // TDCC Automatic Online Fetching & Syncing Endpoint
+  app.post("/api/auto-download-tdcc", async (req, res) => {
+    if (!db) return res.status(500).json({ success: false, error: "Database not connected" });
+    
+    addLog('TDCC_AUTO_FETCH', 'RUNNING', "Initiated direct TDCC download from open data platform...");
+    const url = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5";
+    
+    try {
+      // 1. Fetch live open data file from TDCC
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "*/*"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`TDCC Open Data returned HTTP status ${response.status}`);
+      }
+
+      const csvText = await response.text();
+      if (!csvText || csvText.length < 100) {
+        throw new Error("Received empty or invalid CSV response from TDCC Open Data");
+      }
+
+      // 2. Parse and Aggregate the weekly features
+      const lines = csvText.split(/\r?\n/);
+      const groups: { [key: string]: { totalShares: number; whaleShares: number; retailShares: number } } = {};
+      let parsedCount = 0;
+      let tdccDate = "Unknown";
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || line.includes("資料日期") || line.includes("持股分級")) continue;
+        
+        const parts = line.split(",").map((s: string) => s.trim().replace(/['"']/g, ''));
+        if (parts.length < 6) continue;
+        
+        const rawDate = parts[0]; 
+        const stockId = parts[1];
+        const classId = parseInt(parts[2], 10);
+        const shares = parseFloat(parts[4]) || 0;
+        
+        if (isNaN(classId) || classId > 16 || parts[2].includes("計") || parts[2] === "999") {
+          continue; // skip totals or invalid rows
+        }
+
+        // Normalize date to YYYY-MM-DD
+        let date = rawDate;
+        if (/^\d{8}$/.test(rawDate)) {
+          date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+        } else if (rawDate.includes("/")) {
+          date = rawDate.replace(/\//g, "-");
+        } else if (rawDate.includes("-") && rawDate.length === 10) {
+          date = rawDate;
+        } else {
+          continue; // invalid date formatting
+        }
+
+        tdccDate = date; // track latest parsed date
+
+        const key = `${stockId}_${date}`;
+        if (!groups[key]) {
+          groups[key] = { totalShares: 0, whaleShares: 0, retailShares: 0 };
+        }
+
+        groups[key].totalShares += shares;
+        // Standard Whale: Class >= 12 (holding >= 400,000 shares)
+        // Standard Retail: Class <= 5 (holding <= 20,000 shares)
+        if (classId >= 12) {
+          groups[key].whaleShares += shares;
+        }
+        if (classId <= 5) {
+          groups[key].retailShares += shares;
+        }
+        parsedCount++;
+      }
+
+      // 3. Save to local SQLite database
+      let insertedRecords = 0;
+      const insertStmt = db.prepare(`
+        INSERT OR REPLACE INTO tdcc_shareholding (stock_id, date, total_shares, whale_ratio, retail_ratio, source)
+        VALUES (?, ?, ?, ?, ?, 'opendata_auto')
+      `);
+
+      db.transaction(() => {
+        for (const [key, v] of Object.entries(groups)) {
+          const [stockId, date] = key.split("_");
+          const total = v.totalShares;
+          const whaleRatio = total > 0 ? (v.whaleShares / total) * 100 : 0;
+          const retailRatio = total > 0 ? (v.retailShares / total) * 100 : 0;
+
+          insertStmt.run(
+            stockId,
+            date,
+            total,
+            parseFloat(whaleRatio.toFixed(2)),
+            parseFloat(retailRatio.toFixed(2))
+          );
+          insertedRecords++;
+        }
+      })();
+
+      // 4. Upsert aggregated weekly data directly to Supabase stock_features
+      let supabaseSynced = false;
+      let supabaseErrorMsg = null;
+
+      if (supabase && insertedRecords > 0) {
+        try {
+          const supabaseRows = Object.entries(groups).map(([k, v]) => {
+            const [stockId, date] = k.split("_");
+            const total = v.totalShares;
+            const whaleRatio = total > 0 ? (v.whaleShares / total) * 100 : 0;
+            const retailRatio = total > 0 ? (v.retailShares / total) * 100 : 0;
+            return {
+              stock_id: stockId,
+              date,
+              total_shares: total,
+              whale_ratio: parseFloat(whaleRatio.toFixed(2)),
+              retail_ratio: parseFloat(retailRatio.toFixed(2)),
+              source: "opendata_auto"
+            };
+          });
+
+          const bSize = 1000;
+          for (let s = 0; s < supabaseRows.length; s += bSize) {
+            const batch = supabaseRows.slice(s, s + bSize);
+            const { error: sbErr } = await supabase.from("stock_features").upsert(batch);
+            if (sbErr) {
+              throw sbErr;
+            }
+          }
+          supabaseSynced = true;
+        } catch (sbErr: any) {
+          console.error("❌ Failed to sync auto-downloaded TDCC to Supabase:", sbErr.message);
+          supabaseErrorMsg = sbErr.message;
+        }
+      }
+
+      const syncStatusText = supabaseSynced ? "，且已同步雲端 Supabase！" : (supabaseErrorMsg ? `，但同步 Supabase 失敗: ${supabaseErrorMsg}` : "，未開啟 Supabase 同步。");
+      addLog('TDCC_AUTO_FETCH', 'OK', `Fetched TDCC Online Date ${tdccDate}, parsed ${parsedCount} rows, inserted ${insertedRecords} records${syncStatusText}`);
+      
+      res.json({
+        success: true,
+        message: `成功從集保服務自動下載最新週指標數據 (${tdccDate})！共解析 ${parsedCount} 筆資料，並在 SQLite 覆蓋建立 ${insertedRecords} 筆籌碼大戶資料${syncStatusText}`,
+        parsedCount,
+        insertedRecords,
+        tdccDate,
+        supabaseSynced
+      });
+    } catch (err: any) {
+      console.error("❌ Automatic TDCC download failed:", err);
+      addLog('TDCC_AUTO_FETCH', 'ERROR', `Online TDCC fetch failed: ${err.message}`);
       res.status(500).json({ success: false, error: err.message });
     }
   });
