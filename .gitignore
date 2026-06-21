@@ -25,7 +25,7 @@ audit/
 docs/
 twse-anytara-temp/
 twsetwse-anytara-temp/
-twse-app/
+src/
 股市/
 *.py
 *.cjs

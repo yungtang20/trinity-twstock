@@ -1,0 +1,9 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env
+.env.local
+# 注意：.env.example 不加入 .gitignore，保留在 repo 中作為範例
