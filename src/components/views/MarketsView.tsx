@@ -634,43 +634,22 @@ export function MarketsView() {
           {/* Monospaced Ascii-bordered title card */}
           {getASCIIHeaderBox()}
 
-          {/* Sub-tab Switcher for Markets/K-Line fusion */}
-          <div className="bg-slate-950 border-b border-slate-800 pb-px flex items-center justify-center p-3 select-none">
-            <div className="bg-slate-900/80 border border-slate-800 p-1 rounded-xl flex gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveSubTab('terminal')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                  activeSubTab === 'terminal'
-                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-800/60 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-805/45 border border-transparent'
-                }`}
-                id="subtab-decision-terminal"
-              >
-                <TerminalIcon size={16} />
-                <span>決策核心指標 (5大終端)</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setActiveSubTab('kline')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                  activeSubTab === 'kline'
-                    ? 'bg-blue-500/10 text-blue-400 border border-blue-800/60 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-805/45 border border-transparent'
-                }`}
-                id="subtab-visual-kline"
-              >
-                <ChartLine size={16} />
-                <span>專業互動 K 線圖 (K-Line)</span>
-              </button>
+          {/* 1. 專業互動 K 線圖與法人、大戶整合面板 */}
+          <div className="p-4 sm:p-6 bg-slate-950/60 border-b border-slate-850/80">
+            <div className="flex items-center gap-2 mb-4">
+              <ChartLine size={18} className="text-cyan-400 animate-pulse" />
+              <h4 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider font-mono">
+                [PANEL] 專業互動 K 線圖 · 法人買賣超 · 大戶集保持股 (REALTIME CHART COCKPIT)
+              </h4>
+            </div>
+            
+            <div className="rounded-xl overflow-hidden border border-slate-850/90">
+              <ChartView initialStockId={stock.id} hideHeader={true} />
             </div>
           </div>
 
-          {activeSubTab === 'terminal' ? (
-            <>
-              {/* 雙重歷史股價摘要比較盒 */}
-              <div className="bg-slate-950/65 px-4 py-5 font-mono select-none border-b border-slate-800/80">
+          {/* 雙重歷史股價摘要比較盒 */}
+          <div className="bg-slate-950/65 px-4 py-5 font-mono select-none border-b border-slate-800/80">
           <div className="max-w-xl mx-auto border border-dashed border-slate-800 p-4 rounded-lg bg-slate-950 text-xs sm:text-sm leading-relaxed overflow-x-auto text-slate-400">
             <div className="grid grid-cols-2 gap-4 divide-x divide-slate-800 text-[11px] sm:text-xs">
               <div className="space-y-1.5">
@@ -1102,12 +1081,6 @@ export function MarketsView() {
             </div>
           </div>
         </div>
-            </>
-          ) : (
-            <div className="p-4 sm:p-6 bg-slate-950/20">
-              <ChartView initialStockId={stock.id} hideHeader={true} />
-            </div>
-          )}
         {/* Footer command bar */}
         <div className="bg-slate-950 border-t border-slate-800/80 px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-450 font-mono">
           <div className="flex items-center gap-2">
