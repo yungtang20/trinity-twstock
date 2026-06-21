@@ -343,9 +343,10 @@ D:\twse\twse-app\
 │   │   ├── Sidebar.tsx              # 側邊欄
 │   │   ├── Header.tsx               # 標頭
 │   │   └── Layout.tsx               # 佈局
+│   ├── api\
+│   │   └── ai.ts                    # AI API 點
 │   ├── lib\
 │   │   ├── api.ts                   # API 函數
-│   │   ├── ai-api.ts                # AI API 函數
 │   │   ├── indicators.ts            # 技術指標計算
 │   │   └── utils.ts                 # 工具函數
 │   ├── App.tsx                      # 主應用程式

@@ -310,12 +310,10 @@ async function startServer() {
       // Normalize date format: 20260612 → 2026-06-12 (SQLite stores dates with hyphens)
       let activeDate = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
       
-      const checkRow = db.prepare(
-        "SELECT COUNT(*) as count FROM stock_history WHERE date = ? AND stock_id IN (SELECT stock_id FROM stock_meta WHERE market='OTC')"
-      ).get(activeDate);
-
-      if (!checkRow || checkRow.count === 0) {
-        // 如果當天尚無資料，退回到資料庫最新有資料的交易日計算
+      let activeDateRow = db.prepare(`SELECT date FROM stock_history WHERE date <= ? AND stock_id IN (SELECT stock_id FROM stock_meta WHERE market='OTC') GROUP BY date HAVING COUNT(*) > 50 ORDER BY date DESC LIMIT 1`).get(activeDate);
+      if (activeDateRow?.date) {
+        activeDate = activeDateRow.date;
+      } else {
         const maxDateRow = db.prepare(
           "SELECT MAX(date) as d FROM stock_history WHERE stock_id IN (SELECT stock_id FROM stock_meta WHERE market='OTC')"
         ).get();
@@ -326,9 +324,9 @@ async function startServer() {
 
       // Find previous trading day for OTC stocks
       const prevDateRow = db.prepare(
-        "SELECT MAX(date) as d FROM stock_history WHERE date < ? AND stock_id IN (SELECT stock_id FROM stock_meta WHERE market='OTC')"
+        "SELECT date FROM stock_history WHERE date < ? AND stock_id IN (SELECT stock_id FROM stock_meta WHERE market='OTC') GROUP BY date HAVING COUNT(*) > 50 ORDER BY date DESC LIMIT 1"
       ).get(activeDate);
-      const prevDate = prevDateRow?.d;
+      const prevDate = prevDateRow?.date;
       if (!prevDate) return null;
 
       const row = db.prepare(`
@@ -584,39 +582,42 @@ async function startServer() {
       }
 
       // Add a few baseline stocks metadata
-      const insertMeta = tempDb.prepare(
-        `INSERT OR REPLACE INTO stock_meta (stock_id, stock_name, industry_category, market, type, source) VALUES (?, ?, ?, ?, ?, ?)`
-      );
-      insertMeta.run('2330', '台積電', '半導體業', 'TSE', 'TSE', 'initial');
-      insertMeta.run('2317', '鴻海', '其他電子業', 'TSE', 'TSE', 'initial');
-      insertMeta.run('2454', '聯發科', '半導體業', 'TSE', 'TSE', 'initial');
-      insertMeta.run('0050', '元大台灣50', 'ETF', 'TSE', 'TSE', 'initial');
+      const ENABLE_SEED_DATA = process.env.ENABLE_SEED_DATA === 'true';
+      if (ENABLE_SEED_DATA) {
+        const insertMeta = tempDb.prepare(
+          `INSERT OR REPLACE INTO stock_meta (stock_id, stock_name, industry_category, market, type, source) VALUES (?, ?, ?, ?, ?, ?)`
+        );
+        insertMeta.run('2330', '台積電', '半導體業', 'TSE', 'TSE', 'initial');
+        insertMeta.run('2317', '鴻海', '其他電子業', 'TSE', 'TSE', 'initial');
+        insertMeta.run('2454', '聯發科', '半導體業', 'TSE', 'TSE', 'initial');
+        insertMeta.run('0050', '元大台灣50', 'ETF', 'TSE', 'TSE', 'initial');
 
-      // Add 2330 historical price data
-      const insertHistory = tempDb.prepare(
-        `INSERT OR REPLACE INTO stock_history (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, adj_factor, adj_close, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      );
+        // Add 2330 historical price data
+        const insertHistory = tempDb.prepare(
+          `INSERT OR REPLACE INTO stock_history (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, adj_factor, adj_close, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        );
 
-      // Add historical data for the last few days
-      const days = [
-        { date: '2026-06-10', open: 910.0, high: 915.0, low: 905.0, close: 912.0, volume: 14500000, amount: 13200000000, trade_count: 22000, spread: 7.0 },
-        { date: '2026-06-11', open: 915.0, high: 928.0, low: 914.0, close: 925.0, volume: 18200000, amount: 16800000000, trade_count: 27500, spread: 13.0 },
-        { date: '2026-06-12', open: 928.0, high: 935.0, low: 925.0, close: 930.0, volume: 22000000, amount: 20400000000, trade_count: 31000, spread: 10.0 },
-        { date: '2026-06-15', open: 935.0, high: 945.0, low: 930.0, close: 940.0, volume: 21500000, amount: 19800000000, trade_count: 29500, spread: 10.0 }
-      ];
+        // Add historical data for the last few days
+        const days = [
+          { date: '2026-06-10', open: 910.0, high: 915.0, low: 905.0, close: 912.0, volume: 14500000, amount: 13200000000, trade_count: 22000, spread: 7.0 },
+          { date: '2026-06-11', open: 915.0, high: 928.0, low: 914.0, close: 925.0, volume: 18200000, amount: 16800000000, trade_count: 27500, spread: 13.0 },
+          { date: '2026-06-12', open: 928.0, high: 935.0, low: 925.0, close: 930.0, volume: 22000000, amount: 20400000000, trade_count: 31000, spread: 10.0 },
+          { date: '2026-06-15', open: 935.0, high: 945.0, low: 930.0, close: 940.0, volume: 21500000, amount: 19800000000, trade_count: 29500, spread: 10.0 }
+        ];
 
-      for (const d of days) {
-        insertHistory.run('2330', d.date, d.open, d.high, d.low, d.close, d.volume, d.amount, d.trade_count, d.spread, 1.0, d.close, 'initial');
+        for (const d of days) {
+          insertHistory.run('2330', d.date, d.open, d.high, d.low, d.close, d.volume, d.amount, d.trade_count, d.spread, 1.0, d.close, 'initial');
+        }
+
+        // Add institutional flows
+        const insertInst = tempDb.prepare(
+          `INSERT OR REPLACE INTO institutional_data (stock_id, date, foreign_net, trust_net, dealer_net, institutional_net, source) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        );
+        insertInst.run('2330', '2026-06-15', 18500, 3200, 1100, 22800, 'initial');
+        insertInst.run('2330', '2026-06-12', 15200, 3100, -820, 17480, 'initial');
+        insertInst.run('2330', '2026-06-11', -1200, 850, -420, -770, 'initial');
+        insertInst.run('2330', '2026-06-10', 18100, 2900, 1500, 22500, 'initial');
       }
-
-      // Add institutional flows
-      const insertInst = tempDb.prepare(
-        `INSERT OR REPLACE INTO institutional_data (stock_id, date, foreign_net, trust_net, dealer_net, institutional_net, source) VALUES (?, ?, ?, ?, ?, ?, ?)`
-      );
-      insertInst.run('2330', '2026-06-15', 18500, 3200, 1100, 22800, 'initial');
-      insertInst.run('2330', '2026-06-12', 15200, 3100, -820, 17480, 'initial');
-      insertInst.run('2330', '2026-06-11', -1200, 850, -420, -770, 'initial');
-      insertInst.run('2330', '2026-06-10', 18100, 2900, 1500, 22500, 'initial');
 
       // Auto-cleanup: remove history older than 30 days to limit database size
       console.log('[DB] Auto-cleaning older records to prevent capacity constraints...');
@@ -677,7 +678,7 @@ async function startServer() {
     if (!q) return res.json({ success: true, data: [] });
     try {
       const rows = db.prepare(
-        "SELECT stock_id, stock_name, market, industry_category FROM stock_meta WHERE stock_id LIKE ? OR stock_name LIKE ? LIMIT 10"
+        "SELECT stock_id, stock_name, market, industry_category FROM stock_meta WHERE (stock_id LIKE ? OR stock_name LIKE ?) AND length(stock_id) = 4 AND stock_id NOT GLOB '*[A-Z]*' LIMIT 10"
       ).all(`%${q}%`, `%${q}%`);
       res.json({ success: true, data: rows });
     } catch (err: any) {
@@ -691,10 +692,11 @@ async function startServer() {
     const id = req.params.id;
     const days = Math.min(parseInt(String(req.query.days || "120")), 500);
     try {
+      const meta = db.prepare("SELECT stock_id, stock_name, market FROM stock_meta WHERE stock_id = ?").get(id);
       const rows = db.prepare(
         "SELECT date, open, high, low, close, volume FROM stock_history WHERE stock_id = ? ORDER BY date DESC LIMIT ?"
       ).all(id, days);
-      res.json({ success: true, data: rows.reverse() });
+      res.json({ success: true, data: rows.reverse(), meta: meta || { stock_id: id, stock_name: "未知", market: "" }, source: meta?.market === 'TSE' ? 'twse' : 'tpex' });
     } catch (err: any) {
       res.json({ success: false, error: err.message });
     }
@@ -723,6 +725,19 @@ async function startServer() {
     try {
       const rows = db.prepare(
         "SELECT date, foreign_net, trust_net, dealer_net, institutional_net FROM institutional_data WHERE stock_id = ? ORDER BY date DESC LIMIT 30"
+      ).all(id);
+      res.json({ success: true, data: rows });
+    } catch (err: any) {
+      res.json({ success: false, error: err.message });
+    }
+  });
+
+  app.get("/api/stock/:id/shareholding", (req, res) => {
+    if (!db) return res.json({ success: false, error: "DB not connected" });
+    const id = req.params.id;
+    try {
+      const rows = db.prepare(
+        "SELECT date, whale_ratio as ratio, count, total_shares as shares FROM tdcc_shareholding WHERE stock_id = ? ORDER BY date DESC LIMIT 30"
       ).all(id);
       res.json({ success: true, data: rows });
     } catch (err: any) {
@@ -896,9 +911,12 @@ async function startServer() {
   app.get("/api/movers", (_req, res) => {
     if (!db) return res.json({ success: false, error: "DB not connected" });
     try {
-      const latestDate = db.prepare("SELECT MAX(date) as d FROM stock_history").get()?.d;
+      const latestDateRow = db.prepare(`SELECT date FROM stock_history GROUP BY date HAVING COUNT(*) > 100 ORDER BY date DESC LIMIT 1`).get();
+      const latestDate = latestDateRow?.date || db.prepare("SELECT MAX(date) as d FROM stock_history").get()?.d;
       if (!latestDate) return res.json({ success: false, error: "No data" });
-      const prevDate = db.prepare("SELECT MAX(date) as d FROM stock_history WHERE date < ?").get(latestDate)?.d;
+
+      const prevDateRow = db.prepare(`SELECT date FROM stock_history WHERE date < ? GROUP BY date HAVING COUNT(*) > 100 ORDER BY date DESC LIMIT 1`).get(latestDate);
+      const prevDate = prevDateRow?.date || db.prepare("SELECT MAX(date) as d FROM stock_history WHERE date < ?").get(latestDate)?.d;
       if (!prevDate) return res.json({ success: false, error: "No previous data" });
 
       const sql = `
@@ -922,6 +940,14 @@ async function startServer() {
   });
 
   // ── Existing TWSE/TPEX Routes ────────────────────────────
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      success: true,
+      sqlite: !!db,
+      time: new Date().toISOString()
+    });
+  });
+
   app.get("/api/twse-stats", async (_req, res) => {
     const data = await getTwseStats();
     res.json(data);

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 import Database from 'better-sqlite3';
+import { API_CONFIG } from '../config/apis';
 
 interface DebugLog {
   timestamp: string;
@@ -100,7 +101,7 @@ export async function aiAnalysisHandler(req: Request, res: Response) {
       try {
         const openai = new OpenAI({
           apiKey: longcatApiKey,
-          baseURL: process.env.VITE_LONGCAT_BASE_URL || 'https://api.longcat.chat/openai/v1',
+          baseURL: API_CONFIG.LONGCAT_BASE_URL,
         });
 
         const extractionPrompt = `
@@ -182,7 +183,7 @@ ${industryDocText.substring(0, 1500)}
       const start_date = query.start_date || '2023-01-01';
       const end_date = query.end_date || '';
       
-      const finmindUrl = `https://api.finmindtrade.com/api/v4/data?dataset=${dataset}&data_id=${stockId}&start_date=${start_date}${end_date ? `&end_date=${end_date}` : ''}&token=${finmindApiKey || ''}`;
+      const finmindUrl = `${API_CONFIG.FINMIND_BASE_URL}?dataset=${dataset}&data_id=${stockId}&start_date=${start_date}${end_date ? `&end_date=${end_date}` : ''}&token=${finmindApiKey || ''}`;
       
       let fetchedSuccessfully = false;
       if (finmindApiKey) {
@@ -327,7 +328,7 @@ ${industryDocText.substring(0, 1500)}
         addLog('LongCat 整合分析', 'info', `嘗試調用 LongCat 首席分析師模型 ${modelName} 產出最終研究報告...`);
         const openai = new OpenAI({
           apiKey: longcatApiKey,
-          baseURL: process.env.VITE_LONGCAT_BASE_URL || 'https://api.longcat.chat/openai/v1',
+          baseURL: API_CONFIG.LONGCAT_BASE_URL,
         });
 
         // Report 1: General Stock analysis (股票綜合分析)

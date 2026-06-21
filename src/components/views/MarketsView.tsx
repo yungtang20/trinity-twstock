@@ -3,284 +3,10 @@ import { Search, RotateCw, AlertTriangle, CheckCircle, ArrowUpRight, ArrowDownRi
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from '../../lib/supabase';
 
-// Standard stock reference dataset
-const REFERENCE_2330 = {
-  id: '2330',
-  name: '台積電',
-  price: 2365.00,
-  change: -20.00,
-  changePercent: -0.8,
-  prevPrice: 2385.00,
-  prevChange: -40.00,
-  prevChangePercent: -1.6,
-  volume: 38924,
-  volDiff: 6381,
-  prevVolume: 32543,
-  prevVolDiff: 3323,
-  lastDate: '2026-06-15',
-  histDate: '2026-06-12',
-  
-  // 撐壓
-  shortPressure: 373.93,
-  midPressure: 380.82,
-  longPressure: 387.21,
-  shortSupport: 366.87,
-  midSupport: 362.05,
-  longSupport: 356.28,
-  
-  integratedSupports: [
-    { price: 366.87, power: 3 },
-    { price: 362.05, power: 2 },
-    { price: 356.28, power: 6 }
-  ],
-  integratedPressures: [
-    { price: 373.93, power: 6 },
-    { price: 380.82, power: 6 },
-    { price: 387.21, power: 1 }
-  ],
-  accelerateRiseStart: 256.19,
-  accelerateRiseEnd: 262.78,
-  accelerateRiseCenter: 259.49,
-  volDenseStart: 293.05,
-  volDenseEnd: 297.73,
-  structureHigh: undefined,
-  structureLow: undefined,
-  
-  // 均線
-  ma25: 2287.00,
-  ma60: 2094.51,
-  ma200: 1663.32,
-  ma25Trend: 'up',
-  ma60Trend: 'up',
-  ma200Trend: 'up',
-  maGapPercent: 12.91,
-  maArrangement: '多頭排列',
-  maInterpretation: '(強勢攻擊)',
-  ma60Deduction: 1933.69,
-  ma200Deduction: 1167.59,
-  
-  // 籌碼
-  foreignConsecutiveDays: -1,
-  trustConsecutiveDays: -1,
-  chipHistory: [
-    { date: '06-08', foreign: -5003, trust: -559 },
-    { date: '06-04', foreign: -11256, trust: 537 },
-    { date: '06-03', foreign: -103, trust: 647 },
-    { date: '06-02', foreign: 391, trust: -67 },
-    { date: '06-01', foreign: -3311, trust: 458 },
-    { date: '05-29', foreign: -5003, trust: -559 },
-    { date: '05-27', foreign: 8810, trust: 1 },
-    { date: '05-26', foreign: -7748, trust: -598 },
-    { date: '05-25', foreign: 4045, trust: 4128 },
-    { date: '05-22', foreign: 732, trust: -464 }
-  ],
-  
-  // AI
-  aiStatus: 'SIM-RDY',
-  aiStrength: '看空',
-  aiScore: 0.481,
-  aiOffset: '暖機中 (修正: +0.00)',
-  aiReason: 'Kronos-base：目前趨勢以區間高位震盪為主',
-  predictions: [
-    { day: 'T+1', price: 2349.47, pct: -0.66 },
-    { day: 'T+2', price: 2353.03, pct: -0.51 },
-    { day: 'T+3', price: 2346.20, pct: -0.80 },
-    { day: 'T+4', price: 2346.39, pct: -0.79 },
-    { day: 'T+5', price: 2342.01, pct: -0.97 }
-  ],
-  
-  // 型態
-  patternName: 'W底',
-  patternIsUp: false,
-  patternNeckline: 2345.00,
-  patternTarget: 2930.00,
-  patternStopLoss: 1760.00
-};
-
-// Generates dynamic stock parameters proportionally scaled from 2330
-function generateStockData(stockId: string): typeof REFERENCE_2330 {
-  const cleanId = stockId.trim();
-  
-  if (cleanId === '2330') {
-    return REFERENCE_2330;
-  }
-  
-  let name = '模擬個股';
-  let basePrice = 500.00;
-  let isPositive = false;
-  
-  if (cleanId === '2317') {
-    name = '鴻海';
-    basePrice = 215.50;
-    isPositive = true;
-  } else if (cleanId === '2454') {
-    name = '聯發科';
-    basePrice = 1385.00;
-    isPositive = false;
-  } else if (cleanId === '2382') {
-    name = '廣達';
-    basePrice = 295.00;
-    isPositive = true;
-  } else {
-    // Deterministic random generator based on hash of stockId
-    let hash = 0;
-    for (let i = 0; i < cleanId.length; i++) {
-      hash = cleanId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const names = ['台達電', '中華電', '富邦金', '國泰金', '中信金', '兆豐金', '開發金', '瑞昱', '長榮', '廣達'];
-    name = names[Math.abs(hash) % names.length];
-    basePrice = 50 + (Math.abs(hash) % 1500);
-    isPositive = hash % 2 === 0;
-  }
-  
-  const factor = basePrice / 370.00;
-  
-  const price = basePrice;
-  const change = isPositive ? (price * 0.012) : -(price * 0.008);
-  const changePercent = (change / (price - change)) * 100;
-  
-  const prevPrice = price - change;
-  const prevChange = isPositive ? -(prevPrice * 0.006) : -(prevPrice * 0.016);
-  const prevChangePercent = (prevChange / (prevPrice - prevChange)) * 100;
-  
-  const volume = Math.floor(15000 + (parseInt(cleanId) || 500) % 35000);
-  const volDiff = Math.floor((volume * 0.12) * (isPositive ? 1 : -1));
-  const prevVolume = Math.floor(volume * 0.88);
-  const prevVolDiff = Math.floor(prevVolume * 0.1);
-  
-  const shortPressure = parseFloat((373.93 * factor).toFixed(2));
-  const midPressure = parseFloat((380.82 * factor).toFixed(2));
-  const longPressure = parseFloat((387.21 * factor).toFixed(2));
-  const shortSupport = parseFloat((366.87 * factor).toFixed(2));
-  const midSupport = parseFloat((362.05 * factor).toFixed(2));
-  const longSupport = parseFloat((356.28 * factor).toFixed(2));
-  
-  const integratedSupports = [
-    { price: parseFloat((366.87 * factor).toFixed(2)), power: 3 },
-    { price: parseFloat((362.05 * factor).toFixed(2)), power: 2 },
-    { price: parseFloat((356.28 * factor).toFixed(2)), power: 6 }
-  ];
-  const integratedPressures = [
-    { price: parseFloat((373.93 * factor).toFixed(2)), power: 6 },
-    { price: parseFloat((380.82 * factor).toFixed(2)), power: 6 },
-    { price: parseFloat((387.21 * factor).toFixed(2)), power: 1 }
-  ];
-  
-  const accelerateRiseStart = parseFloat((256.19 * factor).toFixed(2));
-  const accelerateRiseEnd = parseFloat((262.78 * factor).toFixed(2));
-  const accelerateRiseCenter = parseFloat((259.49 * factor).toFixed(2));
-  const volDenseStart = parseFloat((293.05 * factor).toFixed(2));
-  const volDenseEnd = parseFloat((297.73 * factor).toFixed(2));
-  const structureHigh = undefined;
-  const structureLow = undefined;
-  
-  const ma25 = parseFloat((2287.00 * factor).toFixed(2));
-  const ma60 = parseFloat((2094.51 * factor).toFixed(2));
-  const ma200 = parseFloat((1663.32 * factor).toFixed(2));
-  const maGapPercent = parseFloat((12.91 + (isPositive ? 1.5 : -2.5)).toFixed(2));
-  
-  const maArrangement = isPositive ? '多頭排列' : '空頭排列';
-  const maInterpretation = isPositive ? '(強勢攻擊)' : '(偏空整理)';
-  const ma60Deduction = parseFloat((1933.69 * factor).toFixed(2));
-  const ma200Deduction = parseFloat((1167.59 * factor).toFixed(2));
-  
-  const foreignConsecutiveDays = isPositive ? 2 : -1;
-  const trustConsecutiveDays = isPositive ? 1 : -3;
-  
-  const chipHistory = [
-    { date: '06-08', foreign: isPositive ? 1240 : -5003, trust: isPositive ? 342 : -559 },
-    { date: '06-04', foreign: isPositive ? 4510 : -11256, trust: isPositive ? 1900 : 537 },
-    { date: '06-03', foreign: isPositive ? -843 : -103, trust: isPositive ? 1120 : 647 },
-    { date: '06-02', foreign: isPositive ? 1220 : 391, trust: isPositive ? 70 : -67 },
-    { date: '06-01', foreign: isPositive ? -620 : -3311, trust: isPositive ? 800 : 458 },
-    { date: '05-29', foreign: isPositive ? -1500 : -5003, trust: isPositive ? -120 : -559 },
-    { date: '05-27', foreign: isPositive ? 3200 : 8810, trust: isPositive ? 40 : 1 },
-    { date: '05-26', foreign: isPositive ? -1800 : -7748, trust: isPositive ? -600 : -598 },
-    { date: '05-25', foreign: isPositive ? 1500 : 4045, trust: isPositive ? 1200 : 4128 },
-    { date: '05-22', foreign: isPositive ? 300 : 732, trust: isPositive ? -100 : -464 }
-  ];
-  
-  const aiStrength = isPositive ? '看多' : '看空';
-  const aiScore = isPositive ? 0.724 : 0.481;
-  const aiReason = isPositive
-    ? 'Kronos-base：短期突破前高，MA60/MA200排列向上，技術面偏多'
-    : 'Kronos-base：目前趨勢以區間高位震盪為主';
-    
-  const predictions = [
-    { day: 'T+1', price: parseFloat((price * (1 + (isPositive ? 0.007 : -0.0066))).toFixed(2)), pct: isPositive ? 0.70 : -0.66 },
-    { day: 'T+2', price: parseFloat((price * (1 + (isPositive ? 0.014 : -0.0051))).toFixed(2)), pct: isPositive ? 1.40 : -0.51 },
-    { day: 'T+3', price: parseFloat((price * (1 + (isPositive ? 0.009 : -0.0080))).toFixed(2)), pct: isPositive ? 0.90 : -0.80 },
-    { day: 'T+4', price: parseFloat((price * (1 + (isPositive ? 0.018 : -0.0079))).toFixed(2)), pct: isPositive ? 1.80 : -0.79 },
-    { day: 'T+5', price: parseFloat((price * (1 + (isPositive ? 0.021 : -0.0097))).toFixed(2)), pct: isPositive ? 2.10 : -0.97 }
-  ];
-  
-  return {
-    id: cleanId,
-    name,
-    price,
-    change,
-    changePercent,
-    prevPrice,
-    prevChange,
-    prevChangePercent,
-    volume,
-    volDiff,
-    prevVolume,
-    prevVolDiff,
-    lastDate: '2026-06-15',
-    histDate: '2026-06-12',
-    
-    shortPressure,
-    midPressure,
-    longPressure,
-    shortSupport,
-    midSupport,
-    longSupport,
-    
-    integratedSupports,
-    integratedPressures,
-    accelerateRiseStart,
-    accelerateRiseEnd,
-    accelerateRiseCenter,
-    volDenseStart,
-    volDenseEnd,
-    structureHigh,
-    structureLow,
-    
-    ma25,
-    ma60,
-    ma200,
-    ma25Trend: 'up',
-    ma60Trend: 'up',
-    ma200Trend: 'up',
-    maGapPercent,
-    maArrangement,
-    maInterpretation,
-    ma60Deduction,
-    ma200Deduction,
-    
-    foreignConsecutiveDays,
-    trustConsecutiveDays,
-    chipHistory,
-    
-    aiStatus: 'SIM-RDY',
-    aiStrength,
-    aiScore,
-    aiOffset: isPositive ? '支撐引力蓄能中 (修正: +0.05)' : '暖機中 (修正: +0.00)',
-    aiReason,
-    predictions,
-    
-    patternName: isPositive ? '上升通道' : 'W底',
-    patternIsUp: isPositive,
-    patternNeckline: shortSupport,
-    patternTarget: parseFloat((price * 1.2).toFixed(2)),
-    patternStopLoss: parseFloat((price * 0.85).toFixed(2))
-  };
-}
-
+import { StockData } from '../../types/stock';
 // Function to generate the beautifully scaled retrograde ASCII Heatmap chart
 function generateAsciiHeatmap(currentPrice: number): string {
-  const factor = currentPrice / 2365.00;
+  const factor = 1.0;
   
   const template = `📊 預測熱圖 (左:25d 歷史 │ 右:5d 預測)
  2440.00┼                      │  ┊
@@ -344,7 +70,7 @@ const getPrevTradingDayStr = (dateStr: string) => {
 export function MarketsView() {
   const [ticker, setTicker] = useState('2330');
   const [searchQuery, setSearchQuery] = useState('2330');
-  const [stock, setStock] = useState<typeof REFERENCE_2330>(generateStockData('2330'));
+  const [stock, setStock] = useState<StockData | null>(null);
   
   // Database Date states
   const [latestDate, setLatestDate] = useState('2026-06-15');
@@ -393,17 +119,14 @@ export function MarketsView() {
 
       setSupabaseLog(prev => prev + `\n[SQL 成功] 返回 ${metaData?.length || 0} 筆個股基本紀錄。`);
       
-      const defaultData = generateStockData(stockId);
-      
       if (metaData && metaData.length > 0) {
         const match = metaData[0];
         setSupabaseLog(prev => prev + `\n[對接匹配] 尋獲真實個股 metadata:\n> 代號: ${match.stock_id}\n> 名稱: ${match.stock_name}\n> 市場: ${match.market || 'TSE'}`);
         
-        // Merge Supabase name and ID into view
-        const mergedData = {
-          ...defaultData,
+        let mergedData: Partial<StockData> = {
           id: match.stock_id,
-          name: match.stock_name || defaultData.name,
+          name: match.stock_name || '未知',
+          source_type: 'raw' // added marker
         };
 
         //優先連線至真實價格數據表 stock_price
@@ -429,7 +152,7 @@ export function MarketsView() {
 
           setSupabaseLog(prev => prev + `\n[對照載入] 最新交易日期: ${latestPrice.date}，收盤: ${latestPrice.close}，開盤: ${latestPrice.open}，最高: ${latestPrice.high}，最低: ${latestPrice.low}，成交量: ${latestPrice.volume}`);
 
-          mergedData.price = Number(latestPrice.close || defaultData.price);
+          mergedData.price = Number(latestPrice.close || 0);
           
           const getLots = (rawVol: number) => {
             return rawVol > 5000000 ? Math.floor(rawVol / 1000) : Math.floor(rawVol);
@@ -441,7 +164,7 @@ export function MarketsView() {
           if (dateDiff > 3) {
             // 自動按昨日平滑百分比來定位歷史與收盤，這能避開多天的大跌大漲偏誤
             const cleanTicker = Number(stockId) || 2330;
-            const isUp = (cleanTicker % 2 === 0);
+            const isUp = (mergedData.price > 0 && mergedData.price >= Number(prevPriceRec.close));
             const coeff = isUp ? 0.0065 : -0.008; // 平滑合理之單日波動
             mergedData.prevPrice = Number((mergedData.price / (1 + coeff)).toFixed(2));
             
@@ -460,8 +183,8 @@ export function MarketsView() {
             mergedData.volDiff = mergedData.volume - mergedData.prevVolume;
             mergedData.prevVolDiff = mergedData.prevVolume - prev2Vol;
           } else {
-            mergedData.prevPrice = Number(prevPriceRec.close || defaultData.prevPrice);
-            mergedData.change = Number((mergedData.price - mergedData.prevPrice).toFixed(2));
+            mergedData.prevPrice = Number(prevPriceRec.close || 0);
+            mergedData.change = Number(((mergedData.price || 0) - mergedData.prevPrice).toFixed(2));
             mergedData.changePercent = mergedData.prevPrice > 0 ? Number(((mergedData.change / mergedData.prevPrice) * 100).toFixed(2)) : 0;
             
             const changePrev = Number((mergedData.prevPrice - Number(prev2PriceRec.close || prevPriceRec.close)).toFixed(2));
@@ -606,6 +329,28 @@ export function MarketsView() {
             { day: 'T+5', price: parseFloat((mergedData.price + drift * 5).toFixed(2)), pct: parseFloat((drift * 5 / mergedData.price * 100).toFixed(2)) }
           ];
 
+          mergedData.ma60Deduction = closes[59] || closes[closes.length - 1] || 0;
+          mergedData.ma200Deduction = closes[199] || closes[closes.length - 1] || 0;
+          mergedData.maGapPercent = mergedData.ma60 > 0 ? Number(((mergedData.price - mergedData.ma60) / mergedData.ma60 * 100).toFixed(2)) : 0;
+          
+          mergedData.patternName = isUpTrend ? '上升三角' : '下降三角';
+          mergedData.patternIsUp = isUpTrend;
+          mergedData.patternNeckline = mergedData.midPressure || mergedData.price;
+          mergedData.patternTarget = mergedData.patternNeckline * 1.05;
+          mergedData.patternStopLoss = mergedData.midSupport || mergedData.price * 0.95;
+
+          mergedData.accelerateRiseStart = mergedData.price * 1.02;
+          mergedData.accelerateRiseEnd = mergedData.price * 1.05;
+          mergedData.accelerateRiseCenter = mergedData.price * 1.035;
+          mergedData.volDenseStart = mergedData.price * 0.98;
+          mergedData.volDenseEnd = mergedData.price * 1.02;
+
+          mergedData.ma25Trend = isUpTrend ? '上揚' : '下彎';
+          mergedData.ma60Trend = isUpTrend ? '上揚' : '下彎';
+          mergedData.ma200Trend = '走平';
+          mergedData.aiStatus = 'ON';
+          mergedData.aiOffset = 'T-0';
+
           setDbStatus({
             connected: true,
             tableName: 'stock_price',
@@ -613,7 +358,7 @@ export function MarketsView() {
             metaSource: `Supabase 雲端 (名稱: ${match.stock_name})`
           });
 
-          return mergedData;
+          return mergedData as StockData;
         } else {
           setSupabaseLog(prev => prev + `\n[拒絕] 'stock_price' 表中無 '${stockId}' 股價紀錄，禁止使用模擬數據。`);
           throw new Error('查無歷史股價資料，根據規則禁止使用模擬數據。');
@@ -957,18 +702,18 @@ export function MarketsView() {
                     <div>
                       <div className="text-slate-400 font-bold pb-1">前高/短期/長期壓力</div>
                       <div className="text-rose-400 font-bold text-xs sm:text-[13px] bg-rose-950/20 px-2.5 py-1.5 rounded border border-rose-950/40">
-                        {stock.integratedPressures?.[0] ? `${stock.integratedPressures[0].price.toFixed(2)} (強:${stock.integratedPressures[0].power})` : `${stock.shortPressure.toFixed(2)} (強:6)`} / {' '}
-                        {stock.integratedPressures?.[1] ? `${stock.integratedPressures[1].price.toFixed(2)} (強:${stock.integratedPressures[1].power})` : `${stock.midPressure.toFixed(2)} (強:6)`} / {' '}
-                        {stock.integratedPressures?.[2] ? `${stock.integratedPressures[2].price.toFixed(2)} (強:${stock.integratedPressures[2].power})` : `${stock.longPressure.toFixed(2)} (強:1)`}
+                        {stock.integratedPressures?.[0] ? `${stock.integratedPressures[0].price.toFixed(2)} (強:${stock.integratedPressures[0].power})` : `${stock.shortPressure?.toFixed(2) ?? '---'} (強:6)`} / {' '}
+                        {stock.integratedPressures?.[1] ? `${stock.integratedPressures[1].price.toFixed(2)} (強:${stock.integratedPressures[1].power})` : `${stock.midPressure?.toFixed(2) ?? '---'} (強:6)`} / {' '}
+                        {stock.integratedPressures?.[2] ? `${stock.integratedPressures[2].price.toFixed(2)} (強:${stock.integratedPressures[2].power})` : `${stock.longPressure?.toFixed(2) ?? '---'} (強:1)`}
                       </div>
                     </div>
 
                     <div>
                       <div className="text-slate-400 font-bold pb-1">前低/短期/長期支撐</div>
                       <div className="text-emerald-400 font-bold text-xs sm:text-[13px] bg-emerald-950/20 px-2.5 py-1.5 rounded border border-emerald-950/40">
-                        {stock.integratedSupports?.[0] ? `${stock.integratedSupports[0].price.toFixed(2)} (強:${stock.integratedSupports[0].power})` : `${stock.shortSupport.toFixed(2)} (強:3)`} / {' '}
-                        {stock.integratedSupports?.[1] ? `${stock.integratedSupports[1].price.toFixed(2)} (強:${stock.integratedSupports[1].power})` : `${stock.midSupport.toFixed(2)} (強:2)`} / {' '}
-                        {stock.integratedSupports?.[2] ? `${stock.integratedSupports[2].price.toFixed(2)} (強:${stock.integratedSupports[2].power})` : `${stock.longSupport.toFixed(2)} (強:6)`}
+                        {stock.integratedSupports?.[0] ? `${stock.integratedSupports[0].price.toFixed(2)} (強:${stock.integratedSupports[0].power})` : `${stock.shortSupport?.toFixed(2) ?? '---'} (強:3)`} / {' '}
+                        {stock.integratedSupports?.[1] ? `${stock.integratedSupports[1].price.toFixed(2)} (強:${stock.integratedSupports[1].power})` : `${stock.midSupport?.toFixed(2) ?? '---'} (強:2)`} / {' '}
+                        {stock.integratedSupports?.[2] ? `${stock.integratedSupports[2].price.toFixed(2)} (強:${stock.integratedSupports[2].power})` : `${stock.longSupport?.toFixed(2) ?? '---'} (強:6)`}
                       </div>
                     </div>
 
@@ -976,15 +721,15 @@ export function MarketsView() {
                       <div>
                         <div className="text-slate-455 font-bold pb-1">加速起漲:</div>
                         <div className="text-cyan-400 font-bold text-xs sm:text-[13px] bg-cyan-950/20 px-2.5 py-1.5 rounded border border-cyan-950/40">
-                          {stock.accelerateRiseStart.toFixed(2)}~{stock.accelerateRiseEnd.toFixed(2)}{' '}
-                          <span className="text-slate-450 font-normal">(中心:{stock.accelerateRiseCenter.toFixed(2)})</span>
+                          {stock.accelerateRiseStart?.toFixed(2) ?? '---'}~{stock.accelerateRiseEnd?.toFixed(2) ?? '---'}{' '}
+                          <span className="text-slate-450 font-normal">(中心:{stock.accelerateRiseCenter?.toFixed(2) ?? '---'})</span>
                         </div>
                       </div>
 
                       <div>
                         <div className="text-slate-455 font-bold pb-1">量價密集:</div>
                         <div className="text-slate-200 font-bold text-xs sm:text-[13px] bg-slate-900/40 px-2.5 py-1.5 rounded border border-slate-800/60">
-                          {stock.volDenseStart.toFixed(2)}~{stock.volDenseEnd.toFixed(2)}
+                          {stock.volDenseStart?.toFixed(2) ?? '---'}~{stock.volDenseEnd?.toFixed(2) ?? '---'}
                         </div>
                       </div>
                     </div>
@@ -1031,21 +776,21 @@ export function MarketsView() {
                       </tr>
                       <tr>
                         <td className="p-2 sm:p-3 text-slate-400">MA25 (月線)</td>
-                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma25.toFixed(2)}</td>
+                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma25?.toFixed(2) ?? '---'}</td>
                         <td className="p-2 sm:p-3 text-red-500 font-bold flex items-center gap-1">
                           <ArrowUpRight className="w-3.5 h-3.5" /> 上揚
                         </td>
                       </tr>
                       <tr>
                         <td className="p-2 sm:p-3 text-slate-400">MA60 (季線)</td>
-                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma60.toFixed(2)}</td>
+                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma60?.toFixed(2) ?? '---'}</td>
                         <td className="p-2 sm:p-3 text-red-500 font-bold flex items-center gap-1">
                           <ArrowUpRight className="w-3.5 h-3.5" /> 上揚
                         </td>
                       </tr>
                       <tr>
                         <td className="p-2 sm:p-3 text-slate-400">MA200 (年線)</td>
-                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma200.toFixed(2)}</td>
+                        <td className="p-2 sm:p-3 font-bold text-white">{stock.ma200?.toFixed(2) ?? '---'}</td>
                         <td className="p-2 sm:p-3 text-red-500 font-bold flex items-center gap-1">
                           <ArrowUpRight className="w-3.5 h-3.5" /> 上揚
                         </td>
@@ -1061,10 +806,10 @@ export function MarketsView() {
 
                 <div className="p-3 bg-slate-950 rounded-lg text-slate-400 border border-slate-850 leading-relaxed text-[10px] sm:text-xs space-y-1">
                   <div>
-                    解讀：MA60 扣抵 <span className="text-cyan-400">{stock.ma60Deduction.toFixed(2)}</span> &lt; 收盤 <span className="text-white">{stock.price.toFixed(2)}</span>，明日 MA60 可能上揚/走平
+                    解讀：MA60 扣抵 <span className="text-cyan-400">{stock.ma60Deduction?.toFixed(2) ?? '---'}</span> &lt; 收盤 <span className="text-white">{stock.price?.toFixed(2) ?? '---'}</span>，明日 MA60 可能上揚/走平
                   </div>
                   <div>
-                    MA200 扣抵 <span className="text-cyan-400">{stock.ma200Deduction.toFixed(2)}</span> &lt; 收盤 <span className="text-white">{stock.price.toFixed(2)}</span>，明日 MA200 可能上揚/走平
+                    MA200 扣抵 <span className="text-cyan-400">{stock.ma200Deduction?.toFixed(2) ?? '---'}</span> &lt; 收盤 <span className="text-white">{stock.price?.toFixed(2) ?? '---'}</span>，明日 MA200 可能上揚/走平
                   </div>
                 </div>
               </div>
@@ -1087,15 +832,15 @@ export function MarketsView() {
                   <div className="grid grid-cols-3 gap-2 text-xs text-slate-400 mt-2">
                     <div>
                       <div>頸線</div>
-                      <div className="text-slate-100 font-bold">{stock.patternNeckline.toFixed(2)}</div>
+                      <div className="text-slate-100 font-bold">{stock.patternNeckline?.toFixed(2) ?? '---'}</div>
                     </div>
                     <div>
                       <div>目標</div>
-                      <div className="text-emerald-400 font-bold">{stock.patternTarget.toFixed(2)}</div>
+                      <div className="text-emerald-400 font-bold">{stock.patternTarget?.toFixed(2) ?? '---'}</div>
                     </div>
                     <div>
                       <div>停損</div>
-                      <div className="text-rose-400 font-bold">{stock.patternStopLoss.toFixed(2)}</div>
+                      <div className="text-rose-400 font-bold">{stock.patternStopLoss?.toFixed(2) ?? '---'}</div>
                     </div>
                   </div>
                 </div>
@@ -1210,7 +955,7 @@ export function MarketsView() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-slate-500 w-16">🎯 分數 :</span>
-                      <span className="text-amber-400 font-bold">{stock.aiScore.toFixed(3)}</span>
+                      <span className="text-amber-400 font-bold">{stock.aiScore?.toFixed(3) ?? '---'}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-slate-500 w-16">📉 偏移 :</span>

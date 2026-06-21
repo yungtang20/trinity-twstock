@@ -112,6 +112,7 @@ const VolumeBar: React.FC<{
 
 export function ChartView() {
   const [stockId, setStockId] = useState('2330');
+  const [stockName, setStockName] = useState('');
   const [searchQuery, setSearchQuery] = useState('2330');
   const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [indicatorData, setIndicatorData] = useState<IndicatorData[]>([]);
@@ -174,41 +175,35 @@ export function ChartView() {
         if (priceJson.success && priceJson.data.length > 0) {
           setPriceData(priceJson.data);
           setIndicatorData(calculateKD(priceJson.data, 9));
+          if (priceJson.meta && priceJson.meta.stock_name) {
+            setStockName(priceJson.meta.stock_name);
+          } else {
+            setStockName('未知');
+          }
         }
 
-        // Try to load chip data from Supabase
-        if (supabase) {
-          const { data: instData } = await supabase
-            .from('stock_institutional')
-            .select('*')
-            .eq('stock_id', stockId)
-            .order('date', { ascending: false })
-            .limit(parseInt(timeRange));
+        // Load institutional data
+        const instRes = await fetch(`/api/stock/${stockId}/institutional`);
+        const instJson = await instRes.json();
+        if (instJson.success) {
+          setChipData(instJson.data.map((d: any) => ({
+            date: d.date,
+            foreign: d.foreign_net || 0,
+            trust: d.trust_net || 0,
+            dealer: d.dealer_net || 0
+          })));
+        }
 
-          if (instData) {
-            setChipData(instData.map(d => ({
-              date: d.date,
-              foreign: d.foreign_net || 0,
-              trust: d.trust_net || 0,
-              dealer: d.dealer_net || 0
-            })));
-          }
-
-          const { data: whale } = await supabase
-            .from('stock_features')
-            .select('*')
-            .eq('stock_id', stockId)
-            .order('date', { ascending: false })
-            .limit(parseInt(timeRange));
-
-          if (whale) {
-            setWhaleData(whale.map(d => ({
-              date: d.date,
-              ratio: d.whale_ratio || 0,
-              count: d.whale_count || 0,
-              shares: d.whale_shares || 0
-            })));
-          }
+        // Load shareholding data
+        const whaleRes = await fetch(`/api/stock/${stockId}/shareholding`);
+        const whaleJson = await whaleRes.json();
+        if (whaleJson.success) {
+          setWhaleData(whaleJson.data.map((d: any) => ({
+            date: d.date,
+            ratio: d.ratio || 0,
+            count: d.count || 0,
+            shares: d.shares || 0
+          })));
         }
       } catch (err) {
         console.error('Failed to load chart data:', err);
@@ -220,7 +215,7 @@ export function ChartView() {
     if (stockId) {
       loadData();
     }
-  }, [stockId, timeRange, supabase]);
+  }, [stockId, timeRange]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,7 +350,7 @@ export function ChartView() {
         <div className="bg-slate-950 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-white font-bold">{stockId}</span>
-            <span className="text-slate-400">台積電</span>
+            <span className="text-slate-400">{stockName || '載入中...'}</span>
           </div>
           <div className="text-xs text-slate-400">
             {priceData[priceData.length - 1]?.date}

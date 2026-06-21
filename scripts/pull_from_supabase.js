@@ -16,8 +16,8 @@ const dbPath = path.join(process.cwd(), "twstock", "taiwan_stock_unified.db");
 console.log("📍 SQLite DB Path:", dbPath);
 const db = new Database(dbPath);
 
-// Fast download filter: 2026-01-01 to present (~110 trading days, very light & fast, finishes in ~10 seconds)
-const CUTOFF_DATE = "2026-01-01";
+// Fast download filter: 2026-06-01 to present (~110 trading days, very light & fast, finishes in ~10 seconds)
+const CUTOFF_DATE = "2026-06-01";
 
 async function run() {
   console.log(`⏳ Beginning lightning-fast Supabase -> SQLite restoration (>= ${CUTOFF_DATE})...`);
@@ -80,15 +80,19 @@ async function run() {
     console.log(`\n🔄 Restoring ${sqliteTable} from Supabase ${supabaseTable}...`);
     db.prepare(`DELETE FROM ${sqliteTable}`).run();
     
-    // Count exact rows matching our date window cutoff
-    const { count, error: countErr } = await supabase
+    // Use exact count where possible, but if it fails fallback to a large number
+    let count = 0;
+    const { count: exactCount, error: countErr } = await supabase
       .from(supabaseTable)
       .select("*", { count: "exact", head: true })
       .gte("date", CUTOFF_DATE);
       
     if (countErr) {
-      console.error(`❌ Can't get total rows for ${supabaseTable}:`, countErr.message);
-      return;
+      console.error(`⚠️ Can't get total rows for ${supabaseTable}, fallback to scanning:`, countErr.message);
+      // Hardcode a large enough number for recent days
+      count = 300000;
+    } else {
+      count = exactCount;
     }
     
     console.log(`  Total rows since ${CUTOFF_DATE} in ${supabaseTable}: ${count}. Restoring using parallel batches...`);
