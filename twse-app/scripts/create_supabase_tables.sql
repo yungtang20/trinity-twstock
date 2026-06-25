@@ -85,10 +85,28 @@ ALTER TABLE dividend_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock_trading_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE per_data ENABLE ROW LEVEL SECURITY;
 
--- 建立匿名存取政策
+-- 建立匿名存取政策（唯讀）
 CREATE POLICY "Allow anonymous read" ON stock_history FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous read" ON institutional_data FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous read" ON shareholding_unified FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous read" ON dividend_events FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous read" ON stock_trading_calendar FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous read" ON per_data FOR SELECT USING (true);
+
+-- ============================================================
+-- 寫入政策（供 service role / 後端同步使用）
+-- 注意：前端 anon key 不具備寫入權限
+-- ============================================================
+
+CREATE POLICY "Allow service role insert" ON stock_history FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON stock_history FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow service role insert" ON institutional_data FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON institutional_data FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow service role insert" ON shareholding_unified FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON shareholding_unified FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow service role insert" ON dividend_events FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON dividend_events FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow service role insert" ON stock_trading_calendar FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON stock_trading_calendar FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow service role insert" ON per_data FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow service role update" ON per_data FOR UPDATE USING (true) WITH CHECK (true);

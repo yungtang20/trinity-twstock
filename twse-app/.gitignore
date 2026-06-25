@@ -7,3 +7,26 @@ coverage/
 .env
 .env.local
 # 注意：.env.example 不加入 .gitignore，保留在 repo 中作為範例
+
+# SQLite 資料庫
+*.db
+*.db-shm
+*.db-wal
+
+# 暫時檔案
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# IDE / 編輯器
+.vscode/
+.idea/
+*.sublime-*
+
+# 系統檔案
+Thumbs.db
+desktop.ini
+
+# 測試快照
+snapshot/
