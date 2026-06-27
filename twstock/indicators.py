@@ -278,3 +278,64 @@ class TechnicalIndicators:
             })
 
         return result
+
+    def bollinger(self, stock_id):
+        """
+        計算 Bollinger Bands (20, 2)。
+        Middle = SMA(20)
+        Upper = Middle + 2 * STD(20)
+        Lower = Middle - 2 * STD(20)
+        Bandwidth = (Upper - Lower) / Middle * 100
+        %B = (close - Lower) / (Upper - Lower)
+        回傳 list of dict：[{"stock_id":..., "date":..., "bb_middle":..., "bb_upper":...,
+                             "bb_lower":..., "bb_bandwidth":..., "bb_pct_b":...}, ...]
+        """
+        data = self._get_prices(stock_id)
+        if not data:
+            return []
+
+        period = 20
+        num_std = 2
+        result = []
+
+        for i, row in enumerate(data):
+            if i < period - 1:
+                result.append({
+                    "stock_id": stock_id,
+                    "date": row["date"],
+                    "bb_middle": None,
+                    "bb_upper": None,
+                    "bb_lower": None,
+                    "bb_bandwidth": None,
+                    "bb_pct_b": None,
+                })
+                continue
+
+            window = [data[j]["close"] for j in range(i - period + 1, i + 1)]
+            middle = sum(window) / period
+            variance = sum((x - middle) ** 2 for x in window) / period
+            std = variance ** 0.5
+            upper = middle + num_std * std
+            lower = middle - num_std * std
+
+            if middle != 0:
+                bandwidth = (upper - lower) / middle * 100
+            else:
+                bandwidth = 0.0
+
+            if upper != lower:
+                pct_b = (row["close"] - lower) / (upper - lower)
+            else:
+                pct_b = 0.5
+
+            result.append({
+                "stock_id": stock_id,
+                "date": row["date"],
+                "bb_middle": middle,
+                "bb_upper": upper,
+                "bb_lower": lower,
+                "bb_bandwidth": bandwidth,
+                "bb_pct_b": pct_b,
+            })
+
+        return result
