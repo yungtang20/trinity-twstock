@@ -213,3 +213,68 @@ class TechnicalIndicators:
                 })
 
         return result
+
+    def kdj(self, stock_id):
+        """
+        計算 KDJ (9, 3, 3)。
+        RSV = (close - low_9) / (high_9 - low_9) * 100
+        K = 2/3 * prev_K + 1/3 * RSV（初始 K=50）
+        D = 2/3 * prev_D + 1/3 * K（初始 D=50）
+        J = 3K - 2D
+        回傳 list of dict：[{"stock_id":..., "date":..., "kdj_k":..., "kdj_d":..., "kdj_j":...}, ...]
+        """
+        data = self._get_prices(stock_id)
+        if not data:
+            return []
+
+        n = 9
+        result = []
+        k_val = None
+        d_val = None
+
+        for i, row in enumerate(data):
+            if i < n - 1:
+                result.append({
+                    "stock_id": stock_id,
+                    "date": row["date"],
+                    "kdj_k": None,
+                    "kdj_d": None,
+                    "kdj_j": None,
+                })
+                continue
+
+            # RSV
+            window_high = [data[j]["high"] for j in range(i - n + 1, i + 1)]
+            window_low = [data[j]["low"] for j in range(i - n + 1, i + 1)]
+            high_n = max(window_high)
+            low_n = min(window_low)
+
+            if high_n == low_n:
+                rsv = 50.0
+            else:
+                rsv = (row["close"] - low_n) / (high_n - low_n) * 100
+
+            # K (com=2 → alpha=1/3)
+            if k_val is None:
+                k_val = rsv
+            else:
+                k_val = rsv * (1/3) + k_val * (2/3)
+
+            # D (com=2 → alpha=1/3)
+            if d_val is None:
+                d_val = k_val
+            else:
+                d_val = k_val * (1/3) + d_val * (2/3)
+
+            # J
+            j_val = 3 * k_val - 2 * d_val
+
+            result.append({
+                "stock_id": stock_id,
+                "date": row["date"],
+                "kdj_k": round(k_val, 4),
+                "kdj_d": round(d_val, 4),
+                "kdj_j": round(j_val, 4),
+            })
+
+        return result
