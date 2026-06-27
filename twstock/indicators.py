@@ -134,3 +134,82 @@ class TechnicalIndicators:
                 result.append({"stock_id": stock_id, "date": row["date"], key: round(rsi_val, 4)})
 
         return result
+
+    def macd(self, stock_id):
+        """
+        計算 MACD (12, 26, 9)。
+        DIF = EMA(12) - EMA(26)
+        DEA = EMA(DIF, 9)
+        HIST = DIF - DEA
+        回傳 list of dict：[{"stock_id":..., "date":..., "macd_dif":..., "macd_dea":..., "macd_hist":...}, ...]
+        """
+        data = self._get_prices(stock_id)
+        if not data:
+            return []
+
+        result = []
+        dif_list = []
+        ema_12 = None
+        ema_26 = None
+        dea = None
+        k_12 = 2 / (12 + 1)
+        k_26 = 2 / (26 + 1)
+        k_9 = 2 / (9 + 1)
+
+        for i, row in enumerate(data):
+            close = row["close"]
+
+            # EMA 12
+            if i < 11:
+                ema_12 = None
+            elif ema_12 is None:
+                ema_12 = sum(data[j]["close"] for j in range(0, 12)) / 12
+            else:
+                ema_12 = close * k_12 + ema_12 * (1 - k_12)
+
+            # EMA 26
+            if i < 25:
+                ema_26 = None
+            elif ema_26 is None:
+                ema_26 = sum(data[j]["close"] for j in range(0, 26)) / 26
+            else:
+                ema_26 = close * k_26 + ema_26 * (1 - k_26)
+
+            # DIF
+            if ema_12 is not None and ema_26 is not None:
+                dif = ema_12 - ema_26
+                dif_list.append(dif)
+            else:
+                dif = None
+
+            # DEA
+            if dif is None:
+                dea = None
+            elif len(dif_list) < 9:
+                dea = None
+            elif dea is None:
+                dea = sum(dif_list[:9]) / 9
+            else:
+                dea = dif * k_9 + dea * (1 - k_9)
+
+            # HIST（用 round 後的值計算，確保 hist = dif - dea）
+            if dif is not None and dea is not None:
+                dif_r = round(dif, 4)
+                dea_r = round(dea, 4)
+                result.append({
+                    "stock_id": stock_id,
+                    "date": row["date"],
+                    "macd_dif": dif_r,
+                    "macd_dea": dea_r,
+                    "macd_hist": round(dif_r - dea_r, 4),
+                })
+            else:
+                result.append({
+                    "stock_id": stock_id,
+                    "date": row["date"],
+                    "macd_dif": None,
+                    "macd_dea": None,
+                    "macd_hist": None,
+                })
+
+        return result
