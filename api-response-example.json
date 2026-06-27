@@ -1,0 +1,283 @@
+{
+  "說明": "這是本專案所有 API 回傳格式的參考範例。Claude 必須嚴格遵守這些格式，不得自行創造或推測欄位。",
+
+  "endpoints": {
+    "GET /api/twse-stats": {
+      "description": "加權指數統計（從 TWSE 官網爬取 + DB 漲跌數）",
+      "success_response": {
+        "success": true,
+        "date": "2026-06-25",
+        "index": 22345.67,
+        "change": 123.45,
+        "changePercent": 0.56,
+        "amount": 3456.78,
+        "limitUp": 45,
+        "up": 1200,
+        "flat": 300,
+        "down": 800,
+        "limitDown": 12
+      },
+      "failure_response": {
+        "success": false,
+        "index": 0,
+        "change": 0,
+        "changePercent": 0,
+        "amount": 0,
+        "limitUp": 0,
+        "up": 0,
+        "flat": 0,
+        "down": 0,
+        "limitDown": 0,
+        "_source": "fallback"
+      }
+    },
+
+    "GET /api/otc-stats": {
+      "description": "櫃買指數統計（從 OTC 官網爬取 + DB 漲跌數）",
+      "success_response": {
+        "success": true,
+        "date": "2026-06-25",
+        "index": 156.78,
+        "change": 2.34,
+        "changePercent": 1.52,
+        "amount": 567.89,
+        "limitUp": 8,
+        "up": 200,
+        "flat": 50,
+        "down": 150,
+        "limitDown": 3
+      },
+      "failure_response": {
+        "success": false,
+        "index": 0,
+        "change": 0,
+        "changePercent": 0,
+        "amount": 0,
+        "limitUp": 0,
+        "up": 0,
+        "flat": 0,
+        "down": 0,
+        "limitDown": 0,
+        "_source": "fallback"
+      }
+    },
+
+    "GET /api/dashboard/recent-dividend": {
+      "description": "接下來一週發放的股利",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "stock_id": "2330",
+            "stock_name": "台積電",
+            "date": "2026-07-01",
+            "cash_dividend": 15.0,
+            "stock_dividend": 0
+          },
+          {
+            "stock_id": "2317",
+            "stock_name": "鴻海",
+            "date": "2026-06-30",
+            "cash_dividend": 5.0,
+            "stock_dividend": 0.5
+          }
+        ]
+      },
+      "empty_response": {
+        "success": true,
+        "data": []
+      },
+      "failure_response": {
+        "success": false,
+        "error": "DB not connected",
+        "data": []
+      }
+    },
+
+    "GET /api/dashboard/trust-buy-2day": {
+      "description": "投信連買二日名單",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "stock_id": "2330",
+            "stock_name": "台積電",
+            "close": 1150.0,
+            "volume": 50000000,
+            "prev_close": 1140.0,
+            "prev_volume": 45000000,
+            "latest_trust_net": 1500.5,
+            "trust_days": 2
+          }
+        ]
+      },
+      "empty_response": {
+        "success": true,
+        "data": []
+      }
+    },
+
+    "GET /api/dashboard/break-ma200": {
+      "description": "突破 MA200 的股票",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "stock_id": "2330",
+            "stock_name": "台積電",
+            "prev_close": 900.0,
+            "latest_close": 950.0,
+            "prev_ma200": 850.0,
+            "latest_ma200": 940.0,
+            "volume": 60000000,
+            "close": 950.0,
+            "change_pct": 5.56,
+            "volume_change_pct": 10.0
+          }
+        ]
+      },
+      "empty_response": {
+        "success": true,
+        "data": []
+      }
+    },
+
+    "GET /api/dashboard/limit-up-yesterday": {
+      "description": "昨日漲停的股票",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "stock_id": "1234",
+            "stock_name": "測試股",
+            "close": 100.0,
+            "prev_close": 90.9,
+            "change_pct": 10.01,
+            "volume": 1000000,
+            "vol_explosion_pct": 50.0,
+            "volume_change_pct": 30.0
+          }
+        ]
+      },
+      "empty_response": {
+        "success": true,
+        "data": []
+      }
+    },
+
+    "GET /api/movers": {
+      "description": "漲跌幅排行榜",
+      "success_response": {
+        "success": true,
+        "date": "2026-06-25",
+        "gainers": [
+          {
+            "stock_id": "2330",
+            "stock_name": "台積電",
+            "market": "上市",
+            "price": 1150.0,
+            "prev_close": 1140.0,
+            "change": 10.0,
+            "change_pct": 0.88
+          }
+        ],
+        "losers": [
+          {
+            "stock_id": "2317",
+            "stock_name": "鴻海",
+            "market": "上市",
+            "price": 180.0,
+            "prev_close": 185.0,
+            "change": -5.0,
+            "change_pct": -2.7
+          }
+        ]
+      }
+    },
+
+    "GET /api/stock/search?q=": {
+      "description": "股票搜尋",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "stock_id": "2330",
+            "stock_name": "台積電",
+            "market": "上市",
+            "industry_category": "半導體"
+          }
+        ]
+      }
+    },
+
+    "GET /api/stock/:id/history": {
+      "description": "股票歷史價格",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "date": "2026-06-25",
+            "open": 1140.0,
+            "high": 1155.0,
+            "low": 1138.0,
+            "close": 1150.0,
+            "volume": 50000000,
+            "amount": 5750000000
+          }
+        ]
+      }
+    },
+
+    "GET /api/stock/:id/indicators": {
+      "description": "股票技術指標",
+      "success_response": {
+        "success": true,
+        "data": {
+          "ma5": 1145.0,
+          "ma20": 1130.0,
+          "ma60": 1100.0,
+          "ma200": 1050.0,
+          "rsi": 65.5,
+          "support": 1120.0,
+          "pressure": 1160.0
+        }
+      }
+    },
+
+    "GET /api/stock/:id/institutional": {
+      "description": "股票法人買賣",
+      "success_response": {
+        "success": true,
+        "data": [
+          {
+            "date": "2026-06-25",
+            "foreign_net": 5000.5,
+            "trust_net": 1500.5,
+            "dealer_net": 800.0,
+            "institutional_net": 7301.0
+          }
+        ]
+      }
+    },
+
+    "GET /api/health": {
+      "description": "系統健康檢查",
+      "response": {
+        "success": true,
+        "sqlite": true,
+        "time": "2026-06-26T10:30:00.000Z"
+      }
+    }
+  },
+
+  "data_rules": [
+    "所有 API 回傳必須包含 success 欄位（boolean）",
+    "失敗時必須有 error 欄位（string）",
+    "列表資料放在 data 陣列中",
+    "date 格式為 YYYY-MM-DD",
+    "數值為 number，不要字串",
+    "stock_id 為字串（如 '2330'）",
+    "漲跌幅 changePercent 為百分比數值（如 1.52 代表 1.52%）",
+    "不要使用陣列索引作為 keys（如 data[0]），使用物件欄位名稱"
+  ]
+}

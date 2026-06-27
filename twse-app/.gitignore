@@ -4,29 +4,44 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env
-.env.local
-# 注意：.env.example 不加入 .gitignore，保留在 repo 中作為範例
-
-# SQLite 資料庫
-*.db
-*.db-shm
-*.db-wal
-
-# 暫時檔案
-*.tmp
-*.temp
-*.bak
-*.swp
-
-# IDE / 編輯器
+.env*
+!.env.example
+.claude/
+.agents/
+.harness-worktrees/
 .vscode/
-.idea/
-*.sublime-*
-
-# 系統檔案
-Thumbs.db
-desktop.ini
-
-# 測試快照
-snapshot/
+kronos/
+taiwan_stock_unified.db
+taiwan_stock_unified.db-shm
+taiwan_stock_unified.db-wal
+superpowers_zh/
+superpowers_repo/
+prompt/
+paddleorc.py
+twstock/
+tests/
+.github/
+audit/
+docs/
+twse-anytara-temp/
+twsetwse-anytara-temp/
+twse-app/
+股市/
+*.py
+*.cjs
+findings.json
+review-findings.json
+metadata.json
+schema.sql
+check_db.*
+debug_server.js
+quick_check.py
+download_kronos.py
+fetch.cjs
+test_api.js
+test_history_query.cjs
+skills-lock.json
+.pre-commit-config.yaml
+.env.example
+TODO.md
+node_modules

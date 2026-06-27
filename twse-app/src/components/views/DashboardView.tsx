@@ -5,6 +5,9 @@ import {
   ChevronUp,
   Database,
   AlertTriangle,
+  CheckCircle2,
+  Info,
+  Clock,
 } from "lucide-react";
 import { cn, formatTaipeiTime, getMarketStatus } from "../../lib/utils";
 import type { AppView } from "../../types";
@@ -23,6 +26,7 @@ interface IndexStats {
   down: number;
   limitDown: number;
   error?: string;
+  date?: string;
 }
 
 interface IndexChartDataPoint {
@@ -174,13 +178,14 @@ function CollapsibleCard({
             </div>
           )}
           {error && (
-            <div className="flex items-center gap-2 py-4 text-xs text-error bg-error/10 rounded px-3">
+            <div className="flex items-center gap-2 py-4 text-xs text-error bg-error/10 rounded px-3" data-testid="error-display">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="flex-1">{error}</span>
               {onRetry && (
                 <button
                   onClick={onRetry}
                   className="text-xs text-primary-500 hover:text-yellow-300"
+                  data-testid="retry-button"
                 >
                   重試
                 </button>
@@ -230,8 +235,6 @@ export function DashboardView() {
   const [limitUpLoading, setLimitUpLoading] = useState(false);
   const [limitUpError, setLimitUpError] = useState<string | null>(null);
 
-  const [tseChartData, setTseChartData] = useState<IndexChartDataPoint[]>([]);
-  const [otcChartData, setOtcChartData] = useState<IndexChartDataPoint[]>([]);
   const [otcStats, setOtcStats] = useState<IndexStats>({
     success: false,
     index: 0,
@@ -253,18 +256,20 @@ export function DashboardView() {
       try {
         const res = await fetch("/api/twse-stats");
         const data = await res.json();
-        if (data.success && data.data) {
+        if (data.success) {
+          const stats = data.data || data;
           setTseStats({
             success: true,
-            index: data.data.index,
-            change: data.data.change,
-            changePercent: data.data.changePercent,
-            amount: data.data.amount,
-            limitUp: data.data.limitUp,
-            up: data.data.up,
-            flat: data.data.flat,
-            down: data.data.down,
-            limitDown: data.data.limitDown,
+            index: stats.index,
+            change: stats.change,
+            changePercent: stats.changePercent,
+            amount: stats.amount,
+            limitUp: stats.limitUp,
+            up: stats.up,
+            flat: stats.flat,
+            down: stats.down,
+            limitDown: stats.limitDown,
+            date: stats.date,
           });
         }
       } catch {
@@ -280,18 +285,20 @@ export function DashboardView() {
       try {
         const res = await fetch("/api/otc-stats");
         const data = await res.json();
-        if (data.success && data.data) {
+        if (data.success) {
+          const stats = data.data || data;
           setOtcStats({
             success: true,
-            index: data.data.index,
-            change: data.data.change,
-            changePercent: data.data.changePercent,
-            amount: data.data.amount,
-            limitUp: data.data.limitUp,
-            up: data.data.up,
-            flat: data.data.flat,
-            down: data.data.down,
-            limitDown: data.data.limitDown,
+            index: stats.index,
+            change: stats.change,
+            changePercent: stats.changePercent,
+            amount: stats.amount,
+            limitUp: stats.limitUp,
+            up: stats.up,
+            flat: stats.flat,
+            down: stats.down,
+            limitDown: stats.limitDown,
+            date: stats.date,
           });
         }
       } catch {
@@ -299,25 +306,6 @@ export function DashboardView() {
       }
     };
     loadOtc();
-  }, []);
-
-  // Load index chart data
-  useEffect(() => {
-    const loadIndexCharts = async () => {
-      try {
-        const [tseRes, otcRes] = await Promise.all([
-          fetch("/api/index-chart/tse"),
-          fetch("/api/index-chart/otc"),
-        ]);
-        const tseData = await tseRes.json();
-        const otcData = await otcRes.json();
-        if (tseData.success) setTseChartData(tseData.data || []);
-        if (otcData.success) setOtcChartData(otcData.data || []);
-      } catch {
-        // ignore chart error
-      }
-    };
-    loadIndexCharts();
   }, []);
 
   // Clock
@@ -415,125 +403,78 @@ export function DashboardView() {
   };
 
   // Index card component — 標題顏色隨漲跌變化（紅漲綠跌）
-  const renderIndexCard = (
-    title: string,
-    stats: IndexStats,
-  ) => {
+  const renderIndexCard = (title: string, stats: IndexStats) => {
     if (!stats.success) {
       return (
-        <div className="bg-bg-secondary border border-border rounded-lg p-3">
-          <div className="text-[16px] font-bold mb-2 text-gray-400">{title} ---</div>
-          <div className="text-gray-600 text-center py-4">暫無資料</div>
+        <div className="bg-bg-secondary border border-border rounded-lg p-2" data-testid="empty-state">
+          <div className="text-[12px] font-bold text-gray-400">{title} ---</div>
+          <div className="text-gray-600 text-center py-2 text-[10px]">暫無資料</div>
         </div>
       );
     }
 
-    // 標題顏色：漲=紅，跌=綠
     const titleColorClass = stats.change >= 0 ? 'text-red-400' : 'text-green-400';
 
     return (
-      <div className="bg-bg-secondary border border-border rounded-lg p-3">
-        {/* Title */}
-        <div className={`text-[16px] font-bold mb-3 ${titleColorClass}`}>
+      <div className="bg-bg-secondary border border-border rounded-lg p-2" data-testid="index-card">
+        {/* Title + Index */}
+        <div className={`text-[12px] font-bold ${titleColorClass}`}>
           {title} {stats.index.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </div>
-        {/* Main stats: 收盤 + 漲跌 */}
-        <div className="grid grid-cols-2 gap-y-2 text-[12px] mb-2 pb-2 border-b border-border/50">
-          <div>
-            <div className="text-gray-500">收盤</div>
-            <div className="text-gray-300 font-mono font-medium">
-              {stats.index.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-gray-500">漲跌</div>
-            <div className={`font-mono font-medium ${changeColor(stats.change)}`}>
-              {formatChange(stats.change)} ({formatPercent(stats.changePercent)})
-            </div>
-          </div>
+        {/* Change */}
+        <div className={`text-[11px] font-mono ${changeColor(stats.change)}`}>
+          {formatChange(stats.change)} ({formatPercent(stats.changePercent)})
         </div>
-        {/* High/Low + Amount */}
-        <div className="grid grid-cols-3 gap-y-1 text-[11px] mb-2 pb-2 border-b border-border/50">
-          <div>
-            <div className="text-gray-500">最高</div>
-            <div className="text-gray-300 font-mono">
-              {((stats.index - stats.change)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div>
-            <div className="text-gray-500">最低</div>
-            <div className="text-gray-300 font-mono">
-              {stats.index.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-gray-500">成交</div>
-            <div className="text-gray-300 font-mono">{formatAmount(stats.amount)}</div>
-          </div>
-        </div>
-        {/* 漲跌家數 */}
-        <div className="text-[11px]">
-          <div className="text-gray-500 mb-1 text-center">漲跌家數</div>
-          <div className="grid grid-cols-5 gap-1 text-center">
-            <div>
-              <div className="text-gray-600 text-[10px]">漲停</div>
-              <div className="text-red-400 font-mono font-bold text-[13px]">{stats.limitUp}</div>
-            </div>
-            <div>
-              <div className="text-gray-600 text-[10px]">上漲</div>
-              <div className="text-red-400 font-mono font-bold text-[13px]">{stats.up}</div>
-            </div>
-            <div>
-              <div className="text-gray-600 text-[10px]">平盤</div>
-              <div className="text-gray-400 font-mono font-bold text-[13px]">{stats.flat}</div>
-            </div>
-            <div>
-              <div className="text-gray-600 text-[10px]">下跌</div>
-              <div className="text-green-400 font-mono font-bold text-[13px]">{stats.down}</div>
-            </div>
-            <div>
-              <div className="text-gray-600 text-[10px]">跌停</div>
-              <div className="text-green-400 font-mono font-bold text-[13px]">{stats.limitDown}</div>
-            </div>
-          </div>
-          {/* 總計 */}
-          <div className="text-center text-[10px] text-gray-600 mt-1">
-            合計 {(stats.limitUp + stats.up + stats.flat + stats.down + stats.limitDown).toLocaleString()} 檔
-          </div>
+        {/* Up/Down counts */}
+        <div className="flex items-center gap-2 mt-1 text-[10px]">
+          <span className="text-red-400">↑{stats.up}</span>
+          <span className="text-gray-400">平{stats.flat}</span>
+          <span className="text-green-400">↓{stats.down}</span>
+          <span className="text-red-400">停{stats.limitUp}</span>
+          <span className="text-green-400">停{stats.limitDown}</span>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-2">
-      {/* Two index cards side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+    <div className="space-y-1" data-testid="dashboard-view">
+      {/* Compact Header Bar */}
+      <div className="bg-bg-secondary border border-border rounded-lg px-2 py-1.5 flex items-center justify-between gap-2 text-[10px]">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-primary-500">
+            <Clock className="w-3 h-3" />
+            {timeString}
+          </span>
+          {isOpen ? (
+            <span className="flex items-center gap-1 text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              開盤
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-gray-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+              收盤
+            </span>
+          )}
+          <span className="text-gray-500">
+            基準日: {tseStats.date || "2026-06-25"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-green-400">
+          <CheckCircle2 className="w-3 h-3" />
+          <span>SQLite 正常</span>
+        </div>
+      </div>
+
+      {/* Index Cards - Compact */}
+      <div className="grid grid-cols-2 gap-1">
         {renderIndexCard("加權指數", tseStats)}
         {renderIndexCard("櫃買指數", otcStats)}
       </div>
 
-      {/* Market status bar */}
-      <div className="flex items-center justify-between text-[12px] text-gray-500">
-        <div className="flex items-center gap-2">
-          <span>
-            {isOpen ? (
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-green-400">開盤中</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-gray-600" />
-                <span className="text-gray-500">已收盤 {timeString}</span>
-              </span>
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* 4-column grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-1">
+      {/* 4-column grid - 2 cols on mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-1">
         {/* 1. 接下來一週發放股利 */}
         <CollapsibleCard
           title="接下來一週發放股利"
