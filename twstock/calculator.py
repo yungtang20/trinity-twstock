@@ -332,3 +332,64 @@ class ATRCalculator:
         for stock_id in stock_ids:
             result[stock_id] = self.calculate(stock_id)
         return result
+
+
+# ============================================================================
+# VWAPCalculator — Issue 010 (日 VWAP = amount / volume)
+# ============================================================================
+
+class VWAPCalculator:
+    """日 VWAP 計算器，vwap = amount / volume"""
+
+    def __init__(self, db):
+        self.db = db
+
+    def calculate(self, stock_id):
+        """
+        計算 stock_id 的日 VWAP，UPSERT 到 stock_indicators.vwap。
+
+        vwap = amount / volume
+        volume = 0 → vwap = NULL
+        """
+        cur = self.db.execute(
+            "SELECT date, volume, amount FROM stock_history "
+            "WHERE stock_id=? ORDER BY date ASC",
+            (stock_id,)
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+
+        import math
+
+        updates = 0
+        for date, volume, amount in rows:
+            vwap = None
+            if volume and volume > 0:
+                vwap = float(amount) / float(volume)
+                if math.isnan(vwap) or math.isinf(vwap):
+                    vwap = None
+
+            self.db.execute(
+                """INSERT INTO stock_indicators (stock_id, date, vwap)
+                VALUES (?, ?, ?)
+                ON CONFLICT(stock_id, date) DO UPDATE SET vwap=excluded.vwap""",
+                (stock_id, date, vwap)
+            )
+            updates += 1
+
+        self.db.commit()
+        return updates
+
+    def calculate_all(self):
+        """
+        對 stock_history 所有 stock_id 執行 calculate()。
+        回傳 dict：{stock_id: count}
+        """
+        cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
+        stock_ids = [row[0] for row in cur.fetchall()]
+
+        result = {}
+        for stock_id in stock_ids:
+            result[stock_id] = self.calculate(stock_id)
+        return result
