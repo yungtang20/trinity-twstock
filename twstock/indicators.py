@@ -75,3 +75,62 @@ class TechnicalIndicators:
             ema_val = data[i]["close"] * k + ema_val * (1 - k)
             result.append({"stock_id": stock_id, "date": data[i]["date"], key: round(ema_val, 4)})
         return result
+
+    def rsi(self, stock_id, period=6):
+        """
+        計算 RSI(stock_id, period)。
+        使用 Wilder's smoothing: alpha = 1/period。
+        回傳 list of dict：[{"stock_id": ..., "date": ..., "rsi_6": ...}, ...]
+        第 1 天（無前日）→ rsi = None。
+        """
+        data = self._get_prices(stock_id)
+        if not data:
+            return []
+
+        key = f"rsi_{period}"
+        result = []
+        avg_gain = None
+        avg_loss = None
+
+        for i, row in enumerate(data):
+            if i == 0:
+                result.append({"stock_id": stock_id, "date": row["date"], key: None})
+                continue
+
+            delta = row["close"] - data[i-1]["close"]
+            gain = max(delta, 0)
+            loss = max(-delta, 0)
+
+            if i < period:
+                result.append({"stock_id": stock_id, "date": row["date"], key: None})
+            elif avg_gain is None:
+                # 用前 period 天的平均 gain/loss 作為初始值
+                gains = []
+                losses = []
+                for j in range(1, period + 1):
+                    d = data[j]["close"] - data[j-1]["close"]
+                    gains.append(max(d, 0))
+                    losses.append(max(-d, 0))
+                avg_gain = sum(gains) / period
+                avg_loss = sum(losses) / period
+                if avg_loss == 0:
+                    rsi_val = 100.0
+                elif avg_gain == 0:
+                    rsi_val = 0.0
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi_val = 100 - (100 / (1 + rs))
+                result.append({"stock_id": stock_id, "date": row["date"], key: round(rsi_val, 4)})
+            else:
+                avg_gain = (avg_gain * (period - 1) + gain) / period
+                avg_loss = (avg_loss * (period - 1) + loss) / period
+                if avg_loss == 0:
+                    rsi_val = 100.0
+                elif avg_gain == 0:
+                    rsi_val = 0.0
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi_val = 100 - (100 / (1 + rs))
+                result.append({"stock_id": stock_id, "date": row["date"], key: round(rsi_val, 4)})
+
+        return result
