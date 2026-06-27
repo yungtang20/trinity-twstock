@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getSyncStatus, startBackgroundSync } from '../services/syncService';
-import { getDb } from '../db';
+import { config } from '../config';
 
 const router = Router();
 
@@ -13,7 +13,7 @@ router.post('/sync-daily', (req, res) => {
 // ── Trigger Update ─────────────────────────────────────────
 
 router.post('/trigger-update', async (req, res) => {
-  const webhookUrl = process.env.VITE_UPDATE_WEBHOOK_URL;
+  const webhookUrl = config.update.webhookUrl;
   const result = await startBackgroundSync(webhookUrl);
 
   if (result.alreadyRunning) {

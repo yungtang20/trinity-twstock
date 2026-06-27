@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { config } from '../config';
 
 const router = Router();
 
@@ -7,11 +8,11 @@ const router = Router();
 router.get('/settings', (_req, res) => {
   res.json({
     success: true,
-    longcatApiKey: process.env.VITE_LONGCAT_API_KEY ? '***' + process.env.VITE_LONGCAT_API_KEY.slice(-8) : '',
-    longcatBaseUrl: process.env.VITE_LONGCAT_BASE_URL || '',
-    longcatModel: process.env.VITE_LONGCAT_MODEL || '',
-    finmindApiKey: process.env.VITE_FINMIND_API_KEY ? '***' + process.env.VITE_FINMIND_API_KEY.slice(-8) : '',
-    webhookUrl: process.env.VITE_UPDATE_WEBHOOK_URL || '',
+    longcatApiKey: config.longcat.apiKey ? '***' + config.longcat.apiKey.slice(-8) : '',
+    longcatBaseUrl: config.longcat.baseUrl || '',
+    longcatModel: config.longcat.model || '',
+    finmindApiKey: config.finmind.apiKey ? '***' + config.finmind.apiKey.slice(-8) : '',
+    webhookUrl: config.update.webhookUrl || '',
   });
 });
 

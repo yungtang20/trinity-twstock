@@ -2,13 +2,15 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-let db: InstanceType<typeof Database> | null = null;
+type DbInstance = InstanceType<typeof Database>;
 
-export function getDb(): Database.Database | null {
+let db: DbInstance | null = null;
+
+export function getDb(): DbInstance | null {
   return db;
 }
 
-export function initializeDatabase(): Database.Database | null {
+export function initializeDatabase(): DbInstance | null {
   if (db) return db;
 
   try {

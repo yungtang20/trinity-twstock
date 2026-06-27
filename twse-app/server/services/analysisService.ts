@@ -1,5 +1,5 @@
-import { CREDENTIALS } from '../../src/config/credentials';
-import { supabase } from '../../src/lib/supabase';
+import { config } from '../config';
+import { getSupabase } from '../infrastructure/supabaseClient';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -59,6 +59,7 @@ export interface AIContext {
 }
 
 async function buildAIContext(stockId: string): Promise<AIContext | null> {
+  const supabase = getSupabase();
   if (!supabase) return null;
 
   // Get stock meta
@@ -138,7 +139,7 @@ export async function getAIAnalysis(
       financial_date: 'N/A',
     },
     prompt_version: templateConfig.version,
-    model_version: CREDENTIALS.LONGCAT_MODEL,
+    model_version: config.longcat.model,
   };
 }
 
@@ -183,14 +184,14 @@ ${recentTdcc.map((t) => `${t.date}: whale=${t.whale_ratio}%`).join('\n')}
 `;
 
   try {
-    const res = await fetch(`${CREDENTIALS.LONGCAT_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${config.longcat.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${CREDENTIALS.LONGCAT_API_KEY}`,
+        Authorization: `Bearer ${config.longcat.apiKey}`,
       },
       body: JSON.stringify({
-        model: CREDENTIALS.LONGCAT_MODEL,
+        model: config.longcat.model,
         messages: [
           { role: 'system', content: '你是一位專業的台股分析師，請根據提供的數據進行分析。' },
           { role: 'user', content: prompt },
@@ -214,6 +215,7 @@ ${recentTdcc.map((t) => `${t.date}: whale=${t.whale_ratio}%`).join('\n')}
 // ── Save Analysis History ──────────────────────────────────
 
 export async function saveAnalysisHistory(result: AnalysisResult): Promise<void> {
+  const supabase = getSupabase();
   if (!supabase) return;
 
   try {
@@ -240,6 +242,7 @@ export async function getAnalysisHistory(
   stockId: string,
   limit = 10
 ): Promise<AnalysisHistory[]> {
+  const supabase = getSupabase();
   if (!supabase) return [];
 
   try {

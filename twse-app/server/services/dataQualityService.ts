@@ -1,4 +1,4 @@
-import { supabase } from '../../src/lib/supabase';
+import { getSupabase } from '../infrastructure/supabaseClient';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ export interface DataQualityReport {
 async function validatePriceData(stockId: string): Promise<DataQualityReport['checks']> {
   const checks: DataQualityReport['checks'] = [];
 
+  const supabase = getSupabase();
   if (!supabase) {
     checks.push({ name: 'price_connection', status: 'fail', message: 'Supabase 未連線' });
     return checks;
@@ -81,6 +82,7 @@ async function validatePriceData(stockId: string): Promise<DataQualityReport['ch
 async function validateInstitutionalData(stockId: string): Promise<DataQualityReport['checks']> {
   const checks: DataQualityReport['checks'] = [];
 
+  const supabase = getSupabase();
   if (!supabase) {
     checks.push({ name: 'inst_connection', status: 'fail', message: 'Supabase 未連線' });
     return checks;
@@ -117,6 +119,7 @@ async function validateInstitutionalData(stockId: string): Promise<DataQualityRe
 async function validateTdccData(stockId: string): Promise<DataQualityReport['checks']> {
   const checks: DataQualityReport['checks'] = [];
 
+  const supabase = getSupabase();
   if (!supabase) {
     checks.push({ name: 'tdcc_connection', status: 'fail', message: 'Supabase 未連線' });
     return checks;
@@ -153,6 +156,7 @@ async function validateTdccData(stockId: string): Promise<DataQualityReport['che
 async function validateStockMeta(stockId: string): Promise<DataQualityReport['checks']> {
   const checks: DataQualityReport['checks'] = [];
 
+  const supabase = getSupabase();
   if (!supabase) {
     checks.push({ name: 'meta_connection', status: 'fail', message: 'Supabase 未連線' });
     return checks;
