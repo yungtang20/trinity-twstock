@@ -84,6 +84,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
 
 def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
     """抓取上櫃公司當日收盤行情（目標欄位：volume 張、amount 千萬元）"""
+    roc_year = date_int // 10000 - 1911
     roc_date = f"{roc_year}/{date_int % 10000 // 100:02d}/{date_int % 100:02d}"
     url = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php"
     resp = retry_get(

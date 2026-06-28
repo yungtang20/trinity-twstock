@@ -66,6 +66,7 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
 
 def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
     """上櫃三大法人（單位：張）"""
+    roc_year = date_int // 10000 - 1911
     roc_date = f"{roc_year}/{date_int % 10000 // 100:02d}/{date_int % 100:02d}"
     url = "https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php"
     resp = retry_get(
