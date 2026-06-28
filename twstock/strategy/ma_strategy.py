@@ -183,6 +183,15 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
     import time as _time
     _t0 = _time.time()
 
+    # [AI MOD] 自動刷新缺失指標
+    try:
+        from strategy.indicators import ensure_indicators_all
+        refreshed = ensure_indicators_all(conn)
+        if refreshed:
+            console.print(f"[dim]🔄 自動刷新 {refreshed} 檔指標[/dim]")
+    except Exception:
+        pass
+
     try:
         latest_date = conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]
         if not latest_date:
@@ -666,14 +675,22 @@ def run_strategy(params: dict):
     
     conn = get_connection(readonly=True)
     try:
+        # [AI MOD] 自動刷新缺失指標
+        if code:
+            try:
+                from strategy.indicators import ensure_indicators
+                ensure_indicators(code, conn)
+            except Exception:
+                pass
+
         if scan:
             scan_market_stocks(conn, vol, strat_choice)
             return
-            
+
         if not code:
             console.print("[red]❌ 請提供股票代號[/red]")
             return
-        
+
         name = "-"
         row = conn.execute("SELECT stock_name FROM stock_meta WHERE stock_id = ?", (code,)).fetchone()
         if row and row[0]:
