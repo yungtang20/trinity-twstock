@@ -219,6 +219,7 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                 """, (latest_date,))
                 row = cur.fetchone()
                 twse_fetched = row[0] or 0
+                tpex_fetched = row[1] or 0
                 # [AI MOD] 由於官方 API 是整包回傳，若有抓到資料即代表當日有效活躍股票已全數取得。
                 # 為了避免 stock_meta 中歷史下市/休眠股票造成的「假性失敗」，當取得資料時直接對齊期望值。
                 twse_expected = twse_fetched if twse_fetched > 0 else twse_expected

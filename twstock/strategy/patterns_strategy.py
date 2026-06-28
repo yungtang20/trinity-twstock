@@ -47,6 +47,7 @@ if _TWSTOCK_DIR not in sys.path:
 
 from db import get_connection, DB_PATH  # [AI MOD]
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
+from strategy.chips_strategy import _fetch_klines  # [AI MOD]
 from display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
 
 # ══════════════════════════════════════════════════════════
@@ -89,6 +90,47 @@ QUALITY_FLOOR  = 0.45
 
 _DIR_STYLE = {"bullish": "bright_red", "bearish": "bright_green", "neutral": "bright_yellow"}
 _DIR_ICON  = {"bullish": "🔴", "bearish": "🟢", "neutral": "🟡"}
+
+
+# ── Stub classes for type hints ──────────────────────────
+class _BarView:
+    """Minimal wrapper for pandas DataFrame used by pivot scanner."""
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+
+    @classmethod
+    def from_pandas(cls, df: pd.DataFrame) -> "_BarView":
+        return cls(df)
+
+    def __getitem__(self, key):
+        return self.df[key]
+
+
+@dataclass
+class PatternInfo:
+    """Container for detected chart pattern metadata."""
+    code: str
+    name: str
+    pattern: str
+    direction: str
+    neckline: float
+    target: float
+    stop_loss: float
+    quality: float = 0.0
+
+
+@dataclass
+class BreakoutCandidate:
+    """Container for breakout pattern candidates."""
+    code: str
+    name: str
+    pattern: str
+    direction: str
+    price: float
+    volume: int
+    target: float
+    stop_loss: float
+    confidence: float = 0.0
 
 
 # ══════════════════════════════════════════════════════════

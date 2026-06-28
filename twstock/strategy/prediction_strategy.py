@@ -27,6 +27,13 @@ from rich import box
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from terminal import rconsole
 
+# [AI MOD] Import from sibling modules
+from strategy.chips_strategy import _fetch_klines
+try:
+    from strategy.patterns_strategy import StockPredictionAnalyzer
+except ImportError:
+    StockPredictionAnalyzer = None
+
 # [AI MOD] AI Prediction session scan cache to make switching sorting instantly fast
 _PRED_CACHE = {
     'date': None,

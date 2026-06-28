@@ -29,7 +29,7 @@ def fetch_single_stock_tdcc_from_portal(stock_id: str, date_str: str, session: r
                 'Host': 'www.tdcc.com.tw',
                 'Content-Type': 'application/x-www-form-urlencoded'
             })
-            return _fetch_from_portal(stock_id, date_str, local_session)
+            return fetch_single_stock_tdcc_from_portal(stock_id, date_str, local_session)
 
     try:
         # 1. 取得查詢頁面以擷取 CSRF Token 與下拉選單日期
