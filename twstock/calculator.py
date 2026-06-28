@@ -393,3 +393,102 @@ class VWAPCalculator:
         for stock_id in stock_ids:
             result[stock_id] = self.calculate(stock_id)
         return result
+
+
+
+class MACalculator:
+    """
+    MA 計算器 — 供 test_008_ma.py 使用
+    介面：MACalculator(db=conn) → calculate(stock_id) → int
+    """
+
+    def __init__(self, db):
+        self.db = db
+
+    def calculate(self, stock_id: str) -> int:
+        """
+        計算 stock_id 的 MA 指標並寫入 stock_indicators。
+        回傳寫入列數。
+        """
+        # 用 pd.read_sql 從 db 讀取
+        df = pd.read_sql(
+            "SELECT date, open, high, low, close, volume FROM stock_history "
+            "WHERE stock_id = ? ORDER BY date ASC LIMIT 200",
+            self.db, params=(stock_id,)
+        )
+        if df.empty:
+            return 0
+
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").reset_index(drop=True)
+        df = df[df["close"] > 0].copy()
+        if df.empty:
+            return 0
+
+        close = df["close"]
+        vol = df["volume"]
+
+        # SMA
+        for period in [5, 10, 20, 25, 60, 120, 200]:
+            df[f"sma_{period}"] = close.rolling(window=period).mean()
+
+        # 成交量均線
+        df["volume_sma_5"] = vol.rolling(window=5).mean()
+        df["volume_sma_20"] = vol.rolling(window=20).mean()
+
+        # 確保表格存在
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS stock_indicators (
+                stock_id   TEXT NOT NULL,
+                date       TEXT NOT NULL,
+                ma5        REAL,
+                ma20       REAL,
+                ma25       REAL,
+                ma60       REAL,
+                ma200      REAL,
+                vol_ma5    REAL,
+                vol_ma20   REAL,
+                vol_ma60   REAL,
+                bias_ma25  REAL,
+                bias_ma60  REAL,
+                bias_ma200 REAL,
+                atr14      REAL,
+                vwap       REAL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (stock_id, date)
+            )
+        """)
+
+        # 寫入指標
+        written = 0
+        for _, row in df.iterrows():
+            date_str = str(row["date"])[:10]
+            ma5  = float(row["sma_5"])  if pd.notna(row.get("sma_5"))  else None
+            ma20 = float(row["sma_20"]) if pd.notna(row.get("sma_20")) else None
+            ma25 = float(row["sma_25"]) if pd.notna(row.get("sma_25")) else None
+            ma60 = float(row["sma_60"]) if pd.notna(row.get("sma_60")) else None
+            ma200 = float(row["sma_200"]) if pd.notna(row.get("sma_200")) else None
+            vol_ma5 = float(row["volume_sma_5"]) if pd.notna(row.get("volume_sma_5")) else None
+            vol_ma20 = float(row["volume_sma_20"]) if pd.notna(row.get("volume_sma_20")) else None
+
+            def _bias(c, m):
+                if m is None or m == 0:
+                    return None
+                return (c - m) / m * 100
+
+            close_val = float(row["close"]) if pd.notna(row.get("close")) else None
+            bias_ma25 = _bias(close_val, ma25)
+            bias_ma60 = _bias(close_val, ma60)
+            bias_ma200 = _bias(close_val, ma200)
+
+            self.db.execute("""
+                INSERT OR REPLACE INTO stock_indicators
+                (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20,
+                 bias_ma25, bias_ma60, bias_ma200, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (stock_id, date_str, ma5, ma20, ma25, ma60, ma200,
+                  vol_ma5, vol_ma20, bias_ma25, bias_ma60, bias_ma200))
+            written += 1
+
+        self.db.commit()
+        return written
