@@ -1,38 +1,47 @@
+# Database files (large, should not be in repo)
+*.db
+*.db-wal
+*.db-shm
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node modules
 node_modules/
+
+# Build artifacts
 build/
 dist/
 coverage/
+
+# IDE
 .DS_Store
 *.log
-.env*
-!.env.example
 .claude/
 .agents/
 .harness-worktrees/
 .vscode/
+
+# Project specific (monorepo sub-projects)
 kronos/
-taiwan_stock_unified.db
-taiwan_stock_unified.db-shm
-taiwan_stock_unified.db-wal
 superpowers_zh/
 superpowers_repo/
 prompt/
-paddleorc.py
-twstock/
-tests/
-.github/
-audit/
-docs/
+twse-app/
+TWSEMCPServer-main/
+vibecoding-linear-framework-main/
 twse-anytara-temp/
 twsetwse-anytara-temp/
 src/
 股市/
-*.py
-*.cjs
-findings.json
-review-findings.json
-metadata.json
-schema.sql
+
+# Root-level scripts & temp files (one-off, not part of core codebase)
+paddleorc.py
+check_db.cjs
 check_db.*
 debug_server.js
 quick_check.py
@@ -40,8 +49,11 @@ download_kronos.py
 fetch.cjs
 test_api.js
 test_history_query.cjs
+findings.json
+review-findings.json
+metadata.json
+schema.sql
 skills-lock.json
 .pre-commit-config.yaml
 .env.example
 TODO.md
-node_modules

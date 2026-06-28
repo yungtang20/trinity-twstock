@@ -1,0 +1,13 @@
+{
+  "extraPaths": ["twstock"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv",
+    "**/twse-app",
+    "**/TWSEMCPServer-main",
+    "**/vibecoding-linear-framework-main",
+    "**/superpowers_zh",
+    "**/superpowers_repo"
+  ]
+}
