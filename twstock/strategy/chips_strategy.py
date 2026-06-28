@@ -141,31 +141,180 @@ class StockAnalyzer:
 
     def analyze_institutional_buying(self, investor_type, min_consecutive_days, min_volume, sort_choice):
         """分析法人連續買超"""
-        return []
+        net_col = f"{investor_type}_net"
+        buy_col = f"{investor_type}_buy"
+        # 找出最新日期
+        latest = self.conn.execute("SELECT MAX(date) FROM institutional_data").fetchone()[0]
+        if not latest:
+            return []
+        # 找出連續買超 min_consecutive_days 天的股票
+        sql = f"""
+            WITH ranked AS (
+                SELECT stock_id, date, {net_col}, {buy_col},
+                       ROW_NUMBER() OVER (PARTITION BY stock_id ORDER BY date DESC) AS rn
+                FROM institutional_data
+                WHERE date >= date(?, '-30 days')
+            ),
+            consecutive AS (
+                SELECT stock_id,
+                       COUNT(*) AS buy_days,
+                       SUM({buy_col}) AS total_buy,
+                       MAX(date) AS last_date
+                FROM ranked
+                WHERE rn <= 15 AND {net_col} > 0
+                GROUP BY stock_id
+                HAVING COUNT(*) >= ?
+            )
+            SELECT c.stock_id, c.buy_days, c.total_buy, c.last_date, h.volume, m.name
+            FROM consecutive c
+            JOIN stock_history h ON c.stock_id = h.stock_id AND c.last_date = h.date
+            LEFT JOIN stock_meta m ON c.stock_id = m.stock_id
+            WHERE h.volume >= ?
+            ORDER BY c.buy_days DESC, c.total_buy DESC
+            LIMIT 50
+        """
+        rows = self.conn.execute(sql, (latest, min_consecutive_days, min_volume)).fetchall()
+        results = []
+        for r in rows:
+            results.append({
+                'stock_id': r[0],
+                'name': r[5] or '---',
+                'buy_days': r[1],
+                'total_buy': r[2],
+                'date': r[3],
+                'volume': r[4],
+            })
+        return results
 
     def analyze_main_force_vs_retail(self, min_volume, sort_choice):
         """分析千張大戶 vs 散戶"""
-        return []
+        # 取最近兩週的 shareholding_unified 資料
+        dates = self.conn.execute(
+            "SELECT date FROM shareholding_unified GROUP BY date HAVING COUNT(DISTINCT stock_id) > 50 ORDER BY date DESC LIMIT 2"
+        ).fetchall()
+        if len(dates) < 2:
+            return []
+        latest_date, prev_date = dates[0][0], dates[1][0]
+        sql = """
+            SELECT s1.stock_id, s1.whale_ratio AS curr_whale, s2.whale_ratio AS prev_whale,
+                   s1.whale_ratio - s2.whale_ratio AS whale_change,
+                   s1.total_people AS curr_people, s2.total_people AS prev_people,
+                   h.volume, m.name
+            FROM shareholding_unified s1
+            JOIN shareholding_unified s2 ON s1.stock_id = s2.stock_id AND s2.date = ?
+            JOIN stock_history h ON s1.stock_id = h.stock_id AND s1.date = h.date
+            LEFT JOIN stock_meta m ON s1.stock_id = m.stock_id
+            WHERE s1.date = ? AND h.volume >= ?
+              AND s1.whale_ratio IS NOT NULL AND s2.whale_ratio IS NOT NULL
+            ORDER BY whale_change DESC
+            LIMIT 50
+        """
+        rows = self.conn.execute(sql, (prev_date, latest_date, min_volume)).fetchall()
+        results = []
+        for r in rows:
+            people_change = r[4] - r[5] if r[4] and r[5] else 0
+            results.append({
+                'stock_id': r[0],
+                'name': r[6] or '---',
+                'curr_whale': r[1],
+                'prev_whale': r[2],
+                'whale_change': r[3],
+                'curr_people': r[4],
+                'prev_people': r[5],
+                'people_change': people_change,
+                'volume': r[7],
+            })
+        return results
 
     def display_institutional_results(self, results, investor_type, date):
         """顯示法人分析結果"""
+        investor_name = "投信" if investor_type == "trust" else "外資"
         if not results:
-            rconsole.print(f"[yellow]📭 無符合標的[/]")
+            rconsole.print(f"[yellow]📭 無符合{investor_name}連買條件的標的 ({date})[/]")
             return
-        rconsole.print(f"[bold]📊 {investor_type} 分析結果 ({date}):[/bold]")
+        rconsole.print(f"\n[bold]📊 {investor_name}連買分析 ({date}):[/]")
+        table = Table(box=box.SIMPLE_HEAVY)
+        table.add_column("代號", style="cyan")
+        table.add_column("名稱")
+        table.add_column("連買天數", justify="right")
+        table.add_column("買超張數", justify="right")
+        table.add_column("成交張數", justify="right")
+        table.add_column("日期", justify="center")
+        for r in results:
+            table.add_row(
+                r['stock_id'],
+                r['name'],
+                str(r['buy_days']),
+                f"{r['total_buy'] // 1000:,}",
+                f"{r['volume'] // 1000:,}",
+                r['date'],
+            )
+        rconsole.print(table)
 
     def display_main_force_results(self, results, date1, date2):
         """顯示大戶分析結果"""
         if not results:
-            rconsole.print(f"[yellow]📭 無符合條件標的[/]")
+            rconsole.print(f"[yellow]📭 無符合條件標的 ({date1} vs {date2})[/]")
             return
-        rconsole.print(f"[bold]📊 千張大戶分析結果:[/bold]")
+        rconsole.print(f"\n[bold]📊 千張大戶分析結果 ({date1} vs {date2}):[/]")
+        table = Table(box=box.SIMPLE_HEAVY)
+        table.add_column("代號", style="cyan")
+        table.add_column("名稱")
+        table.add_column("大戶比例", justify="right")
+        table.add_column("變化", justify="right")
+        table.add_column("人數變化", justify="right")
+        for r in results[:20]:
+            change_str = f"{r['whale_change']:+.2f}%" if r['whale_change'] else "N/A"
+            table.add_row(
+                r['stock_id'],
+                r['name'],
+                f"{r['curr_whale']:.2f}%" if r['curr_whale'] else "N/A",
+                change_str,
+                f"{r['people_change']:+d}",
+            )
+        rconsole.print(table)
 
     def display_single_stock(self, code, compact=False, mobile=False):
         """顯示單股分析"""
         name = get_stock_name(self.conn, code)
-        rconsole.print(f"[bold]{code} {name} 分析[/bold]")
-        rconsole.print("  [dim]此功能需要完整 klines 資料[/]")
+        rconsole.print(f"\n[bold]{code} {name} 籌碼分析[/bold]")
+        # 法人買賣超
+        rows = self.conn.execute(
+            "SELECT date, foreign_net, trust_net, dealer_net, institutional_net "
+            "FROM institutional_data WHERE stock_id = ? ORDER BY date DESC LIMIT 10",
+            (code,)
+        ).fetchall()
+        if rows:
+            rconsole.print("\n[bold cyan]📈 近10日法人買賣超 (千股):[/]")
+            tbl = Table(box=box.SIMPLE)
+            tbl.add_column("日期")
+            tbl.add_column("外資", justify="right")
+            tbl.add_column("投信", justify="right")
+            tbl.add_column("自營", justify="right")
+            tbl.add_column("合計", justify="right")
+            for row in rows:
+                tbl.add_row(row[0], f"{row[1]//1000:+,}", f"{row[2]//1000:+,}", f"{row[3]//1000:+,}", f"{row[4]//1000:+,}")
+            rconsole.print(tbl)
+        # 集保資料
+        sh = self.conn.execute(
+            "SELECT date, whale_ratio, total_people, whale_people, whale_shares "
+            "FROM shareholding_unified WHERE stock_id = ? ORDER BY date DESC LIMIT 5",
+            (code,)
+        ).fetchall()
+        if sh:
+            rconsole.print("\n[bold cyan]📊 集保持股分布:[/]")
+            tbl2 = Table(box=box.SIMPLE)
+            tbl2.add_column("日期")
+            tbl2.add_column("大戶比例", justify="right")
+            tbl2.add_column("總人數", justify="right")
+            tbl2.add_column("大戶人數", justify="right")
+            for row in sh:
+                tbl2.add_row(row[0], f"{row[1]:.2f}%" if row[1] else "N/A",
+                             f"{row[2]:,}" if row[2] else "N/A",
+                             f"{row[3]:,}" if row[3] else "N/A")
+            rconsole.print(tbl2)
+        else:
+            rconsole.print("  [dim]查不到法人/集保資料[/]")
 
 
 def scan_market(analyzer: StockAnalyzer, min_vol: int = 500, strat_choice: str = None):

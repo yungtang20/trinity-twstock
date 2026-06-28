@@ -105,31 +105,46 @@ class _BarView:
     def __getitem__(self, key):
         return self.df[key]
 
+    @property
+    def index(self):
+        return self.df.index
+
+    @property
+    def columns(self):
+        return self.df.columns
+
+    def __len__(self):
+        return len(self.df)
+
 
 @dataclass
 class PatternInfo:
     """Container for detected chart pattern metadata."""
-    code: str
-    name: str
-    pattern: str
-    direction: str
-    neckline: float
-    target: float
-    stop_loss: float
+    code: str = ""
+    name: str = ""
+    pattern: str = ""
+    direction: str = ""
+    neckline: float = 0.0
+    target: float = 0.0
+    stop_loss: float = 0.0
     quality: float = 0.0
+    extreme: float = 0.0
+    confidence: float = 0.0
+    points: list = field(default_factory=list)
+    zone: str = ""
 
 
 @dataclass
 class BreakoutCandidate:
     """Container for breakout pattern candidates."""
-    code: str
-    name: str
-    pattern: str
-    direction: str
-    price: float
-    volume: int
-    target: float
-    stop_loss: float
+    code: str = ""
+    name: str = ""
+    pattern: str = ""
+    direction: str = ""
+    price: float = 0.0
+    volume: int = 0
+    target: float = 0.0
+    stop_loss: float = 0.0
     confidence: float = 0.0
 
 
