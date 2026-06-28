@@ -254,7 +254,7 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                         FROM klines
                         WHERE stock_id = ?
                         ORDER BY date ASC
-                        LIMIT 200
+                        LIMIT 250
                     """, conn, params=(code,))
                     fetch_count += 1
 

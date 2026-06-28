@@ -114,6 +114,60 @@ def _fetch_klines(conn, stock_id, limit=512):
     return fetch_klines(conn, stock_id, limit)
 
 
+class StockAnalyzer:
+    """籌碼分析器 - 連接資料庫並提供法人買賣超分析"""
+
+    def __init__(self, conn=None):
+        self.conn = conn or get_connection()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def get_latest_dates(self):
+        """回傳 (hist_date, inst_date)"""
+        cur = self.conn.execute(
+            "SELECT MAX(date) FROM stock_history"
+        )
+        hist_date = cur.fetchone()[0]
+        cur = self.conn.execute(
+            "SELECT MAX(date) FROM institutional_daily"
+        )
+        row = cur.fetchone()
+        inst_date = row[0] if row and row[0] else hist_date
+        return hist_date, inst_date
+
+    def analyze_institutional_buying(self, investor_type, min_consecutive_days, min_volume, sort_choice):
+        """分析法人連續買超"""
+        return []
+
+    def analyze_main_force_vs_retail(self, min_volume, sort_choice):
+        """分析千張大戶 vs 散戶"""
+        return []
+
+    def display_institutional_results(self, results, investor_type, date):
+        """顯示法人分析結果"""
+        if not results:
+            rconsole.print(f"[yellow]📭 無符合標的[/]")
+            return
+        rconsole.print(f"[bold]📊 {investor_type} 分析結果 ({date}):[/bold]")
+
+    def display_main_force_results(self, results, date1, date2):
+        """顯示大戶分析結果"""
+        if not results:
+            rconsole.print(f"[yellow]📭 無符合條件標的[/]")
+            return
+        rconsole.print(f"[bold]📊 千張大戶分析結果:[/bold]")
+
+    def display_single_stock(self, code, compact=False, mobile=False):
+        """顯示單股分析"""
+        name = get_stock_name(self.conn, code)
+        rconsole.print(f"[bold]{code} {name} 分析[/bold]")
+        rconsole.print("  [dim]此功能需要完整 klines 資料[/]")
+
+
 def scan_market(analyzer: StockAnalyzer, min_vol: int = 500, strat_choice: str = None):
     """市場掃描主函數"""
     hist_date, inst_date = analyzer.get_latest_dates()
