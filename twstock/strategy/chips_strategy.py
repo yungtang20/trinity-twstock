@@ -430,10 +430,10 @@ class StockAnalyzer:
                     _fmt_close(dt),
                     _fmt_vol(dt),
                     _fmt_amount(dt),
-                    self._fmt_change(int(row[1]) // 1000, "", "d"),
-                    self._fmt_change(int(row[2]) // 1000, "", "d"),
-                    self._fmt_change(int(row[3]) // 1000, "", "d"),
-                    self._fmt_change(int(row[4]) // 1000, "", "d"),
+                    self._fmt_change(int(row[1] or 0) // 1000, "", "d"),
+                    self._fmt_change(int(row[2] or 0) // 1000, "", "d"),
+                    self._fmt_change(int(row[3] or 0) // 1000, "", "d"),
+                    self._fmt_change(int(row[4] or 0) // 1000, "", "d"),
                 )
             rconsole.print(tbl)
         # 集保資料
