@@ -662,14 +662,14 @@ def render_dashboard():
     console.print(Align.left(tight_group, width=target_width))
 
 def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four=True):
-    from input_helper import get_interactive_input as _ih_input
+    from input_helper import get_interactive_input as _ih_input, msvcrt as _msvcrt
 
     global MARKET_CACHE
     if not HAS_MSVCRT:
         return input(prompt).strip()
 
-    while msvcrt.kbhit():
-        msvcrt.getwch()
+    while _msvcrt.kbhit():
+        _msvcrt.getwch()
 
     sys.stdout.write(prompt)
     sys.stdout.flush()
@@ -683,8 +683,8 @@ def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four
             sys.stdout.flush()
             last_cache = MARKET_CACHE
 
-        if msvcrt.kbhit():
-            ch = msvcrt.getwch()
+        if _msvcrt.kbhit():
+            ch = _msvcrt.getwch()
             if ch == '\r' or ch == '\n':
                 return buf.strip()
             elif ch == '\b':
@@ -703,8 +703,8 @@ def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four
                         start_wait = time.time()
                         is_single = True
                         while time.time() - start_wait < 0.4:
-                            if msvcrt.kbhit():
-                                next_ch = msvcrt.getwch()
+                            if _msvcrt.kbhit():
+                                next_ch = _msvcrt.getwch()
                                 if next_ch in ('\r', '\n'):
                                     break # Swallow the Enter
                                 is_single = False
@@ -717,8 +717,8 @@ def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four
                         has_interrupted = False
                         # Extend delay to 1.2 seconds for superior typing comfort [AI MOD]
                         while time.time() - start_wait < 1.2:
-                            if msvcrt.kbhit():
-                                next_ch = msvcrt.getwch()
+                            if _msvcrt.kbhit():
+                                next_ch = _msvcrt.getwch()
                                 if next_ch in ('\r', '\n'):
                                     break  # Immediately submit
                                 elif next_ch == '\b':
