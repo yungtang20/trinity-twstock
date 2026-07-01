@@ -169,16 +169,16 @@ display.py          ← 畫面輸出（Rich Console）
 |------|------|------|------|
 | stock_id | TEXT NOT NULL | 股票代號 | |
 | date | TEXT NOT NULL | 日期 | |
-| foreign_net | INTEGER DEFAULT 0 | 外資買賣超淨額 | 張 |
-| trust_net | INTEGER DEFAULT 0 | 投信買賣超淨額 | 張 |
-| dealer_net | INTEGER DEFAULT 0 | 自營商買賣超淨額 | 張 |
-| foreign_buy | INTEGER DEFAULT 0 | 外資買進 | 張 |
-| foreign_sell | INTEGER DEFAULT 0 | 外資賣出 | 張 |
-| trust_buy | INTEGER DEFAULT 0 | 投信買進 | 張 |
-| trust_sell | INTEGER DEFAULT 0 | 投信賣出 | 張 |
-| dealer_buy | INTEGER DEFAULT 0 | 自營商買進 | 張 |
-| dealer_sell | INTEGER DEFAULT 0 | 自營商賣出 | 張 |
-| institutional_net | INTEGER DEFAULT 0 | 三大法人合計 | 張 |
+| foreign_net | INTEGER DEFAULT 0 | 外資買賣超淨額 | 股 |
+| trust_net | INTEGER DEFAULT 0 | 投信買賣超淨額 | 股 |
+| dealer_net | INTEGER DEFAULT 0 | 自營商買賣超淨額 | 股 |
+| foreign_buy | INTEGER DEFAULT 0 | 外資買進 | 股 |
+| foreign_sell | INTEGER DEFAULT 0 | 外資賣出 | 股 |
+| trust_buy | INTEGER DEFAULT 0 | 投信買進 | 股 |
+| trust_sell | INTEGER DEFAULT 0 | 投信賣出 | 股 |
+| dealer_buy | INTEGER DEFAULT 0 | 自營商買進 | 股 |
+| dealer_sell | INTEGER DEFAULT 0 | 自營商賣出 | 股 |
+| institutional_net | INTEGER DEFAULT 0 | 三大法人合計 | 股 |
 | source | TEXT | 資料來源 | |
 | updated_at | TEXT | 更新時間 | |
 | **PRIMARY KEY** | **(stock_id, date)** | |

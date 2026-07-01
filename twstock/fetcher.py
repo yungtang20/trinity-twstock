@@ -4,9 +4,10 @@
 fetcher.py — Trinity 資料萃取層
 提供 DataFetcher 類別，從 FinMind / TDCC / Supabase 取得台股資料。
 
-單位轉換：
-  - 成交量: 股 → 張 (除以 1000)
-  - 成交金額: 元 → 千萬元 (除以 1e7)
+單位說明：
+  - volume: 股（原始值，不轉換，顯示層才轉張）
+  - amount: 元（原始值，不轉換）
+  - foreign_buy/sell/trust_buy/sell: 股（原始值，不轉換）
 """
 
 from __future__ import annotations

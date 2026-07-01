@@ -8,9 +8,8 @@ calculator.py — 技術指標計算引擎
 
 import pandas as pd
 import numpy as np
-import sqlite3
 import os
-from db import DB_PATH
+from db import get_connection, DB_PATH
 from db_admin import create_tables  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
 
 
@@ -24,7 +23,7 @@ class IndicatorEngine:
 
     def _load_data(self):
         """從 stock_history 讀取 date, open, high, low, close, volume，按 date 升序排列"""
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection(readonly=True)
         query = """
             SELECT date, open, high, low, close, volume
             FROM stock_history
@@ -130,7 +129,7 @@ class IndicatorEngine:
         if self.df.empty:
             return
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_connection(readonly=True)
             tables_to_join = [
                 ("institutional_data", ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]),
                 ("shareholding_data", ["foreign_shares", "foreign_ratio"]),
