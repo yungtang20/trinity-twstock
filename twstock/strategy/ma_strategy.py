@@ -168,9 +168,9 @@ def _render_full_ma(data, code, name):
 
     t.add_row("目前收盤", price_two_lines, f"[{data['color']}]{trend_val}[/]")
     if ma25:
-        t.add_row("MA25 (月線)", f"{ma25['ma']:.2f}", f"[{ma_color(ma25['trend'])}]{ma25['trend']}[/]")
-    t.add_row("MA60 (季線)", f"{ma60['ma']:.2f}", f"[{ma_color(ma60['trend'])}]{ma60['trend']}[/]")
-    t.add_row("MA200 (年線)", f"{ma200['ma']:.2f}", f"[{ma_color(ma200['trend'])}]{ma200['trend']}[/]")
+        t.add_row("MA25 (月線)", f"[{ma_color(ma25['trend'])}]{ma25['ma']:.2f}[/]", f"[{ma_color(ma25['trend'])}]{ma25['trend']}[/]")
+    t.add_row("MA60 (季線)", f"[{ma_color(ma60['trend'])}]{ma60['ma']:.2f}[/]", f"[{ma_color(ma60['trend'])}]{ma60['trend']}[/]")
+    t.add_row("MA200 (年線)", f"[{ma_color(ma200['trend'])}]{ma200['ma']:.2f}[/]", f"[{ma_color(ma200['trend'])}]{ma200['trend']}[/]")
 
     bias_color = "bright_red" if abs(bias) > 20 else "white"
     bias_label = "⚠過熱" if abs(bias) > 20 else "正常"
