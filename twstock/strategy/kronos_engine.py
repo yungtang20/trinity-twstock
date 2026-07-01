@@ -7,6 +7,8 @@ kronos_engine.py - Kronos 預測引擎
 
 import os
 import sys
+import io
+import contextlib
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
@@ -159,7 +161,9 @@ class KronosRealEngine:
             self._load_error = _kronos_engine_singleton._load_error
             return
         try:
-            _, _, self._predictor = load_kronos(self.model_path, self.tokenizer_path)
+            # 抑制 HuggingFace from_pretrained 的 "Loading weights..." stdout
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, _, self._predictor = load_kronos(self.model_path, self.tokenizer_path)
             _kronos_engine_singleton = self
         except Exception as e:
             self._load_error = e

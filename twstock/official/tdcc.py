@@ -234,7 +234,7 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
                     whale_shares = 0
                     whale_people = 0 # [AI MOD]
                     for lvl, lv_data in levels.items():
-                        if lvl == 16:  # TDCC OpenAPI 合計是 level 16（非 17）
+                        if lvl == 17:  # TDCC OpenAPI 合計是 level 17
                             total_shares = lv_data["shares"]
                             total_people = lv_data["people"]
                         elif lvl == 15:  # 大股東 (持股 > 1000張) 持股比例

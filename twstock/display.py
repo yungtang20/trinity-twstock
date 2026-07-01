@@ -131,13 +131,13 @@ def ma_color(trend: str) -> str:
     """
     均線趨勢配色：上揚紅 / 下降綠 / 走平白。
     Args:
-        trend: "up" | "down" | "flat"
+        trend: "up" | "↑ 上揚" | "上揚" | "down" | "↓ 下彎" | "下彎" | "flat" | "→ 走平" | "走平"
     Returns:
         Rich style string
     """
-    if trend == "up":
+    if trend in ("up", "↑ 上揚", "上揚"):
         return "bright_red"         # 均線上揚：紅
-    elif trend == "down":
+    elif trend in ("down", "↓ 下彎", "下彎"):
         return "bright_green"       # 均線下降：綠
     return "white"                  # 均線走平：白
 

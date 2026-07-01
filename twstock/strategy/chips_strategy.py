@@ -358,9 +358,9 @@ class StockAnalyzer:
         """顯示單股分析"""
         name = get_stock_name(self.conn, code)
         rconsole.print(f"\n[bold]{code} {name} 籌碼分析[/bold]")
-        # 法人買賣超
+        # 法人買賣超（TWSE T86 不提供自營商明細，只顯示外資/投信/合計）
         rows = self.conn.execute(
-            "SELECT date, foreign_net, trust_net, dealer_net, institutional_net "
+            "SELECT date, foreign_net, trust_net, institutional_net "
             "FROM institutional_data WHERE stock_id = ? ORDER BY date DESC LIMIT 10",
             (code,)
         ).fetchall()
@@ -435,7 +435,6 @@ class StockAnalyzer:
             tbl.add_column("額(億)", justify="right")
             tbl.add_column("外資", justify="right")
             tbl.add_column("投信", justify="right")
-            tbl.add_column("自營", justify="right")
             tbl.add_column("合計", justify="right")
             for row in rows:
                 dt = row[0]
@@ -447,7 +446,6 @@ class StockAnalyzer:
                     self._fmt_change(int(row[1] or 0) // 1000, "", "d"),
                     self._fmt_change(int(row[2] or 0) // 1000, "", "d"),
                     self._fmt_change(int(row[3] or 0) // 1000, "", "d"),
-                    self._fmt_change(int(row[4] or 0) // 1000, "", "d"),
                 )
             rconsole.print(tbl)
         # 集保資料
