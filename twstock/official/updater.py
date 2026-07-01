@@ -191,6 +191,25 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             conn_meta = get_connection()
             cur = conn_meta.cursor()
             latest_date = cur.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+
+            # [FIX] 即使 stock_history 已最新，仍應確認三大法人是否也同步。
+            # 三大法人資料收盤後隔日才公佈，常 lag 1 日。
+            if latest_date:
+                inst_max = cur.execute("SELECT MAX(date) FROM institutional_data").fetchone()[0]
+                if inst_max is None or str(inst_max) < str(latest_date):
+                    parts = str(latest_date).split("-")
+                    d_int = int(parts[0]) * 10000 + int(parts[1]) * 100 + int(parts[2])
+                    print(f"\n⚡ 補抓三大法人資料（最新交易日 {latest_date}，目前在庫 {inst_max or 'N/A'}）...", flush=True)
+                    try:
+                        inst_df = institutional.fetch_all_institutional(d_int)
+                        if inst_df is not None and not inst_df.empty:
+                            upsert_dataframe('institutional_data', inst_df)
+                            print(f"  ✅ 三大法人補抓: {len(inst_df)} 筆", flush=True)
+                        else:
+                            print("  ⚠️ 三大法人補抓為空（可能尚未公佈）", flush=True)
+                    except Exception as e:
+                        print(f"  ⚠️ 三大法人補抓失敗: {e}", flush=True)
+
             if latest_date:
                 cur.execute("SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4")
                 twse_expected = cur.fetchone()[0] or 1000
@@ -223,7 +242,6 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
         except Exception:
             pass
 
-        if auto_tdcc:
             _auto_update_tdcc()
         return
 
