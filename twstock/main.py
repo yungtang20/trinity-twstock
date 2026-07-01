@@ -969,7 +969,7 @@ def run_quick_analysis(stock_id: str):
     except Exception as e:
         console.print(f"[dim]K 線圖渲染跳過: {e}[/dim]")
 
-    # ── LongCat AI 視覺辨識 ──
+    # ── LongCat AI 文字分析（純文字摘要，非視覺）──
     try:
         from longcat_vision import analyze_kline_with_longcat
         ai_result = analyze_kline_with_longcat(df_kline, stock_id, "")

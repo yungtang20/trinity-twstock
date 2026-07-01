@@ -7,25 +7,25 @@ longcat_vision.py - LongCat AI 分析模組
 注意：LongCat-2.0 目前不支援圖片視覺，改送文字摘要給模型分析。
 """
 
-import os
 import logging
 from typing import Optional
 
 import pandas as pd
 
+from api_config import (
+    _ensure_loaded,
+    get_longcat_api_key,
+    get_longcat_api_url,
+    get_longcat_model,
+)
+
 logger = logging.getLogger(__name__)
 
 
 def _get_api_key() -> Optional[str]:
-    """從 api.env 或環境變數取得 LongCat API Key"""
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api.env")
-    if os.path.exists(env_path):
-        with open(env_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("LONGCAT_API_KEY="):
-                    return line.split("=", 1)[1].strip()
-    return os.environ.get("LONGCAT_API_KEY")
+    """取得 LongCat API Key（統一由 api_config 載入，dotenv 兩段式）。"""
+    _ensure_loaded()
+    return get_longcat_api_key()
 
 
 def _build_kline_summary(df: pd.DataFrame, stock_id: str, stock_name: str) -> str:
@@ -71,7 +71,9 @@ def analyze_kline_with_longcat(
     用 LongCat AI 分析 K 線資料，回傳分析文字。
     如果 API key 未設定，回傳 None。
     """
-    api_key = _get_api_key()
+    _ensure_loaded()
+
+    api_key = get_longcat_api_key()
     if not api_key:
         logger.debug("LONGCAT_API_KEY 未設定，跳過 LongCat 分析")
         return None
@@ -88,13 +90,13 @@ def analyze_kline_with_longcat(
 
     try:
         response = requests.post(
-            "https://api.longcat.chat/openai/v1/chat/completions",
+            get_longcat_api_url().rstrip("/") + "/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": "LongCat-2.0",
+                "model": get_longcat_model(),
                 "messages": [
                     {
                         "role": "user",

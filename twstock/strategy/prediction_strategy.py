@@ -394,7 +394,7 @@ class PredictionAnalysisApp:
 
 def get_latest_date() -> str:
     """供 strategies.py 查詢資料基準日"""
-    from strategy._utils import get_connection
+    from db import get_connection  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
     conn = get_connection(readonly=True)
     try:
         return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]

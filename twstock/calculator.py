@@ -173,6 +173,10 @@ class IndicatorEngine:
         # 4. 嘗試 JOIN 籌碼資料
         self._join_fundamental_chips()
 
+        # 5. 向下相容別名：main.py 盤中指標讀 latest['macd']，計算產出為 macd_dif
+        if "macd_dif" in self.df.columns and "macd" not in self.df.columns:
+            self.df["macd"] = self.df["macd_dif"]
+
         return self.df
 
 
