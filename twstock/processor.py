@@ -112,25 +112,23 @@ class DataProcessor:
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
-        sql = """
-        INSERT INTO institutional_data
-            (stock_id, date, foreign_net, trust_net, dealer_net, institutional_net,
-             foreign_buy, foreign_sell, trust_buy, trust_sell, dealer_buy, dealer_sell,
-             source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # 動態建立 SQL，只包含實際存在的欄位（避免 binding 數量不符）
+        all_expected = [
+            "stock_id", "date",
+            "foreign_net", "trust_net", "dealer_net", "institutional_net",
+            "foreign_buy", "foreign_sell", "trust_buy", "trust_sell", "dealer_buy", "dealer_sell",
+            "source",
+        ]
+        insert_cols = [c for c in all_expected if c in cols]
+        placeholders = ",".join(["?"] * len(insert_cols))
+        col_sql = ",".join(insert_cols)
+        updates = ", ".join(f"{c} = excluded.{c}" for c in insert_cols if c not in ("stock_id", "date"))
+        sql = f"""
+        INSERT INTO institutional_data ({col_sql})
+        VALUES ({placeholders})
         ON CONFLICT(stock_id, date) DO UPDATE SET
-            foreign_net        = excluded.foreign_net,
-            trust_net          = excluded.trust_net,
-            dealer_net         = excluded.dealer_net,
-            institutional_net  = excluded.institutional_net,
-            foreign_buy        = excluded.foreign_buy,
-            foreign_sell       = excluded.foreign_sell,
-            trust_buy          = excluded.trust_buy,
-            trust_sell         = excluded.trust_sell,
-            dealer_buy         = excluded.dealer_buy,
-            dealer_sell        = excluded.dealer_sell,
-            source             = excluded.source,
-            updated_at         = CURRENT_TIMESTAMP
+            {updates},
+            updated_at = CURRENT_TIMESTAMP
         """
 
         conn = get_connection()
