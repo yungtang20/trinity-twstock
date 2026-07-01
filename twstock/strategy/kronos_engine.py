@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+# 單例快取：避免重複載入 390MB 模型
+_kronos_engine_singleton: Optional["KronosRealEngine"] = None
+
+
 # 預設預測配置
 DEFAULT_CONFIG = {
     "context_len": 512,
@@ -143,13 +147,26 @@ class KronosRealEngine:
         self.tokenizer_path = tokenizer_path
         self._predictor = None
         self._load_error = None
+
+    def _ensure_loaded(self):
+        """延遲載入，只載入一次（單例）"""
+        if self._predictor is not None or self._load_error is not None:
+            return
+        global _kronos_engine_singleton
+        if _kronos_engine_singleton is not None:
+            # 複用已載入的單例
+            self._predictor = _kronos_engine_singleton._predictor
+            self._load_error = _kronos_engine_singleton._load_error
+            return
         try:
-            _, _, self._predictor = load_kronos(model_path, tokenizer_path)
+            _, _, self._predictor = load_kronos(self.model_path, self.tokenizer_path)
+            _kronos_engine_singleton = self
         except Exception as e:
             self._load_error = e
 
     @property
     def ready(self) -> bool:
+        self._ensure_loaded()
         return self._predictor is not None
 
     def predict(self, df: pd.DataFrame, config: dict) -> PredictionResult:

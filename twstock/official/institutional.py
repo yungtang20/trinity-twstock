@@ -113,9 +113,19 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
     for col in [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + ["total_net"]:
         df[col] = df[col].apply(safe_int)
         
-    # 保留 raw columns 給下游使用，延遲綁定
-    # 【推斷】暫時不處理 foreign/trust 的對應
-    
+    # TPEx → TWSE 欄位映射（讓 updater 能正確計算 net）
+    # g1 = 外資, g2 = 投信, g3+g4+g5 = 自營商（自行買賣 + 避險 + 造市）
+    df["foreign_buy"] = df["g1_buy"].fillna(0).astype(int)
+    df["foreign_sell"] = df["g1_sell"].fillna(0).astype(int)
+    df["trust_buy"] = df["g2_buy"].fillna(0).astype(int)
+    df["trust_sell"] = df["g2_sell"].fillna(0).astype(int)
+    df["dealer_buy"] = (
+        df["g3_buy"].fillna(0) + df["g4_buy"].fillna(0) + df["g5_buy"].fillna(0)
+    ).astype(int)
+    df["dealer_sell"] = (
+        df["g3_sell"].fillna(0) + df["g4_sell"].fillna(0) + df["g5_sell"].fillna(0)
+    ).astype(int)
+
     req_cols = ["stock_id", "name"] + [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + ["total_net"]
     df = df[req_cols].copy()
     date_str = str(date_int)
