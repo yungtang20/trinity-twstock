@@ -201,9 +201,9 @@ def _input_sort_ma() -> str:
 
 
 def _prompt_kronos_ai():
-    """掃描後提示：輸入股號查看 Kronos+AI 預測或按 Enter 回到上一頁"""
+    """掃描後提示：輸入股號或按 Enter 回到上一頁"""
     _flush_msvcrt()
-    ans = input("輸入股號查看 Kronos+AI 預測或按 Enter 回到上一頁: ").strip()
+    ans = input("🔍 輸入股號或按 Enter 回到上一頁: ").strip()
 
     if not ans:
         return  # 回到上一頁
@@ -394,9 +394,8 @@ def interactive_menu():
                 except Exception:
                     base_date = "N/A"
                 console.print(f"\nAI 預測選項：(資料基準日: {base_date})")
-                console.print("  請直接輸入 4 碼股號或按 Enter 回到上一頁")
                 _flush_msvcrt()
-                ans = input("👉 ").strip()
+                ans = input("🔍 輸入股號或按 Enter 回到上一頁: ").strip()
                 if not ans:
                     break
 

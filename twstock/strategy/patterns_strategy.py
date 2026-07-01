@@ -1255,7 +1255,7 @@ class PredictionAnalysisApp:
 
                     self._do_scan(conn, min_vol, direction_filter)
 
-                    prompt_str = "\n  🔍 輸入股號查看 Kronos+AI 預測或輸入 1 看漲 2.區間 3.看跌 4.全部，或按 Enter 回到上一頁: "
+                    prompt_str = "\n  🔍 輸入股號或按 Enter 回到上一頁: "
                     ans = _get_single_key_input(prompt_str, "1234", default="", auto_four=True)
                     if not ans:
                         break  # back to volume prompt
