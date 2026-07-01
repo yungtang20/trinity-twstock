@@ -257,8 +257,8 @@ def fetch_dividend_events(start_date: str, end_date: str, use_finmind_fallback: 
     return combined_df.drop_duplicates(subset=['stock_id', 'date'])
 
 def upsert_dividend_events(df: pd.DataFrame):
-    """Write ex-rights/ex-dividends events into SQLite database"""
-    if df.empty:
+    """Write ex-rights/ex-dividends events into SQLite database (batch UPSERT)"""
+    if df is None or df.empty:
         return
     df = df.copy()
     if 'event_date' in df.columns:
@@ -272,19 +272,6 @@ def upsert_dividend_events(df: pd.DataFrame):
     if 'source' not in df.columns:
         df['source'] = 'official'
 
-    if 'date' in df.columns:
-        df['date'] = df['date'].astype(str)
-
-    cols = ['stock_id', 'date', 'before_price', 'after_price', 'reference_price', 'cash_dividend', 'stock_dividend', 'source']
-    df = df[[c for c in cols if c in df.columns]]
-
-    # [AI MOD] Ensure DB path is dynamically and correctly resolved and use explicit columns for INSERT to support defaults like updated_at
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        for _, row in df.iterrows():
-            cursor.execute("DELETE FROM dividend_events WHERE stock_id=? AND date=?", (row['stock_id'], row['date']))
-            cols_str = ','.join(row.index)
-            placeholders = ','.join(['?'] * len(row))
-            cursor.execute(f"INSERT INTO dividend_events ({cols_str}) VALUES ({placeholders})", tuple(row))
-        conn.commit()
-    # print(f"[SUCCESS] Wrote {len(df)} dividend events to database")
+    # 使用 processor.py 的批量 UPSERT（ON CONFLICT DO UPDATE），不再逐筆 DELETE+INSERT
+    from processor import DataProcessor
+    DataProcessor().upsert_dividend_events(df)

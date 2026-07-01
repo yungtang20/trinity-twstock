@@ -14,7 +14,7 @@ import logging
 from typing import Iterable, List, Dict, Optional, Sequence
 
 import pandas as pd
-from db import DB_PATH # Import unified database path [AI MOD]
+from db import DB_PATH, get_connection  # [FIX] Reuse the single connection entrypoint (was: local sqlite3.connect() with no busy_timeout/WAL)
 
 logger = logging.getLogger(__name__)
 
@@ -207,12 +207,6 @@ VIEWS_SQL = [
     SELECT * FROM institutional_data
     """,
 ]
-
-def get_connection() -> sqlite3.Connection:
-    import db as db_module
-    conn = sqlite3.connect(db_module.DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def create_tables(conn: sqlite3.Connection) -> None:
     """建立所有資料表（若不存在）。可重複執行（idempotent）。"""

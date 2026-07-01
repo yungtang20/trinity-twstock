@@ -46,7 +46,8 @@ def _to_date_int(val) -> int:
 
 warnings.filterwarnings('ignore')
 
-_SR_CACHE = {'date': None, 'min_volume': None, 'results': None}
+_CACHE_TTL = 300  # 5 分鐘
+_SR_CACHE = {'date': None, 'min_volume': None, 'results': None, 'ts': 0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from terminal import console
@@ -514,7 +515,10 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
     except Exception as e:
         console.print(f"[red]❌ 資料庫錯誤: {e}[/red]")
         return
-    if _SR_CACHE['date'] == latest_date and _SR_CACHE['min_volume'] == min_volume and _SR_CACHE['results'] is not None:
+    if (_SR_CACHE['date'] == latest_date
+        and _SR_CACHE['min_volume'] == min_volume
+        and _SR_CACHE['results'] is not None
+        and time.time() - _SR_CACHE.get('ts', 0) < _CACHE_TTL):
         all_scored = _SR_CACHE['results']
         console.print(f"\n[green]⚡ 已載入今日撐壓分析掃描快取數據 (基準日: {latest_date}) [0.00s][/green]")
     else:
@@ -536,7 +540,7 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
         except:
             name_map = {}
         all_scored = _scan_with_progress_basic(conn, stocks, name_map, min_volume)
-        _SR_CACHE['date'], _SR_CACHE['min_volume'], _SR_CACHE['results'] = latest_date, min_volume, all_scored
+        _SR_CACHE['date'], _SR_CACHE['min_volume'], _SR_CACHE['results'], _SR_CACHE['ts'] = latest_date, min_volume, all_scored, time.time()
 
     if not all_scored:
         console.print("[yellow]📭 未發現符合基本條件的標的[/yellow]")

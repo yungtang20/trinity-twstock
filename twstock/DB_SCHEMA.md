@@ -47,11 +47,8 @@
 | amount | INTEGER | NO | | 成交金額（元，非千萬元） |
 | trade_count | INTEGER | YES | | 成交筆數 |
 | spread | REAL | YES | | 差價 |
-| adj_factor | REAL | YES | DEFAULT 1.0 | 前復權因子 |
 | source | TEXT | YES | | 資料來源 |
 | updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
-
-**沒有 adj_close 欄位。** adj_close 由下游計算：close * adj_factor
 
 **去重**：INSERT OR REPLACE，唯一鍵 (stock_id, date)
 
@@ -140,18 +137,15 @@ WHERE source = 'tdcc';
 
 ## Views（向後相容層）
 
-### klines — 日 K + 前復權
+### klines — 日 K（原始價，無復權）
 
 ```
 CREATE VIEW klines AS
 SELECT
-    stock_id, date, open, high, low, close, volume, amount,
-    COALESCE(adj_factor, 1.0) AS adj_factor,
-    open  * COALESCE(adj_factor, 1.0) AS adj_open,
-    high  * COALESCE(adj_factor, 1.0) AS adj_high,
-    low   * COALESCE(adj_factor, 1.0) AS adj_low,
-    close * COALESCE(adj_factor, 1.0) AS adj_close,
-    source, updated_at
+    stock_id, date,
+    open, high, low, close,
+    CAST(volume AS REAL) AS volume,
+    CAST(amount AS REAL) AS amount
 FROM stock_history
 ```
 
@@ -162,8 +156,6 @@ CREATE VIEW klines_indicators AS
 SELECT
     k.stock_id, k.date,
     k.open, k.high, k.low, k.close, k.volume, k.amount,
-    k.adj_factor, k.adj_open, k.adj_high, k.adj_low, k.adj_close,
-    k.source,
     i.ma5, i.ma20, i.ma25, i.ma60, i.ma200,
     i.vol_ma5, i.vol_ma20, i.vol_ma60,
     i.bias_ma25, i.bias_ma60, i.bias_ma200,
@@ -240,16 +232,6 @@ SELECT * FROM institutional_data
 
 ---
 
-## 前復權公式
-
-```
-adj_factor(date) = 所有 event_date > date 的 (reference_price / before_price) 的連乘積
-adj_close = close * adj_factor
-最新日期 adj_factor = 1.0
-```
-
----
-
 ## FinMind 欄位對應
 
 | stock_history 欄位 | FinMind 欄位 | 換算 |
@@ -264,7 +246,6 @@ adj_close = close * adj_factor
 | amount | Trading_money | 直接存（元） |
 | trade_count | Trading_turnover | 直接 |
 | spread | spread | 直接 |
-| adj_factor | — | 寫死 1.0 |
 | source | — | 寫死 'finmind' |
 
 > FinMind Trading_Volume 單位是股，跟 DB 一致，不做換算

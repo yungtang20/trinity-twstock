@@ -82,14 +82,6 @@ except ImportError:
     msvcrt = None  # type: ignore[assignment]
     HAS_MSVCRT = False
 
-# 自動初始化資料庫
-if not os.path.exists(get_path()):
-    console.print("[yellow]首次執行，初始化資料庫...[/yellow]")
-    init_db()
-else:
-    migrate_db()
-
-
 # ==================== Utility Functions ====================
 
 def safe_float(val, default=0.0):
@@ -783,7 +775,7 @@ def run_quick_analysis(stock_id: str):
     # ── 檢查 DB 是否過期 ── [AI MOD]
     try:
         now = datetime.now()
-        with sqlite3.connect(get_path()) as conn:
+        with get_connection(readonly=True) as conn:
             latest_db = conn.execute(
                 "SELECT MAX(date) FROM stock_history"
             ).fetchone()[0]
@@ -818,7 +810,7 @@ def run_quick_analysis(stock_id: str):
     #  rows[2] = two days before
     # ═══════════════════════════════════════════
     try:
-        with sqlite3.connect(get_path()) as conn:
+        with get_connection(readonly=True) as conn:
             rows = conn.execute(
                 "SELECT date, close, volume FROM stock_history "
                 "WHERE stock_id = ? ORDER BY date DESC LIMIT 3",
@@ -1075,9 +1067,9 @@ def intraday_command(stock_id: str, token: str | None = None):
 
     today_str = datetime.today().strftime('%Y-%m-%d')
     with get_connection(readonly=True) as conn:
-        # [AI MOD] 統一資料庫：dividend_events 表使用 ex_date 欄位
+        # dividend_events 表使用 date 欄位
         row = conn.execute(
-            "SELECT 1 FROM dividend_events WHERE stock_id = ? AND ex_date = ?",
+            "SELECT 1 FROM dividend_events WHERE stock_id = ? AND date = ?",
             (stock_id, today_str),
         ).fetchone()
         has_div = row is not None
@@ -1362,6 +1354,13 @@ def tui_interactive_menu():
 
 
 if __name__ == '__main__':
+    # 自動初始化資料庫（只在直接執行時觸發，import 不觸發）
+    if not os.path.exists(get_path()):
+        console.print("[yellow]首次執行，初始化資料庫...[/yellow]")
+        init_db()
+    else:
+        migrate_db()
+
     if len(sys.argv) == 1:
         tui_interactive_menu()
     else:

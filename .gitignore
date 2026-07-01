@@ -9,8 +9,7 @@ twstock.db
 # Model files (large binary files)
 models/
 
-# Test files
-twstock/tests/
+# Snapshot
 snapshot/
 
 # Temporary scripts

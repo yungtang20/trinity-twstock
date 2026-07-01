@@ -30,11 +30,15 @@ from terminal import console
 from db import get_connection
 
 # [AI MOD] Unified session scan cache to make switching strategy lightning-fast
+import time as _time_mod
+_CACHE_TTL = 300  # 5 分鐘
+
 _SCAN_CACHE = {
     'date': None,
     'min_volume': None,
     'strat_choice': None,
-    'results': None
+    'results': None,
+    'ts': 0,
 }
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 from display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
@@ -228,7 +232,11 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
 
     # Check session cache hit
     cache_hit = False
-    if _SCAN_CACHE['date'] == latest_date and _SCAN_CACHE['min_volume'] == min_volume and _SCAN_CACHE['strat_choice'] == strat_choice and _SCAN_CACHE['results'] is not None:
+    if (_SCAN_CACHE['date'] == latest_date
+        and _SCAN_CACHE['min_volume'] == min_volume
+        and _SCAN_CACHE['strat_choice'] == strat_choice
+        and _SCAN_CACHE['results'] is not None
+        and _time_mod.time() - _SCAN_CACHE.get('ts', 0) < _CACHE_TTL):
         cache_hit = True
         all_results = _SCAN_CACHE['results']
         console.print(f"\n[green]⚡ 已載入今日全市場掃描快取數據 (基準日: {latest_date}) [0.00s][/green]")
@@ -424,6 +432,7 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
         _SCAN_CACHE['hit_stocks'] = len(hit_list)
         _SCAN_CACHE['fetch_count'] = fetch_count
         _SCAN_CACHE['old_time'] = _time.time() - _t0
+        _SCAN_CACHE['ts'] = _time_mod.time()
 
     strat_names = {"1": "突破年線", "2": "突破季線", "3": "2560戰法"}
     strat_filters = {
@@ -697,7 +706,7 @@ def _display_scan_results(results: list, latest_date: int, sort_choice: str, str
 
 def get_latest_date() -> str:
     """供 strategies.py 查詢資料基準日"""
-    from strategy._utils import get_connection
+    from db import get_connection  # [FIX] _utils does not export get_connection
     conn = get_connection(readonly=True)
     try:
         return conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]

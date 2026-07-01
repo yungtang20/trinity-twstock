@@ -80,5 +80,5 @@
 □ 所有 Strategy 可執行
 □ Rich Console 輸出正常
 □ JSON Output 格式正確
-□ 單位換算一致（股→張）
+□ 單位換算一致（存原始值：股/元）
 ```

@@ -148,9 +148,9 @@ class DataFetcher:
                 df[c] = 0
 
         df = df[required].copy()
-        # 單位轉換: 股→張 (/1000), 元→千萬元 (/1e7)
-        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int) // 1000
-        df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0) / 10000000.0
+        # 存原始值（股/元），顯示層才轉換
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
+        df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0)
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
         return df
 
@@ -178,7 +178,7 @@ class DataFetcher:
 
         df = df[required].copy()
         for col in ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int) // 1000
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
         df["dealer_buy"] = 0
         df["dealer_sell"] = 0
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")

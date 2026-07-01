@@ -15,6 +15,7 @@
 - `fetcher.py` institutional col_map 大小寫（`Foreign_Investor_Buy/Sell`, `Investment_Trust_Buy/Sell`）
 - `processor.py` `upsert_history` 不關閉外部 connection
 - `API_SPEC.md` institutional 欄位名稱大小寫
+- 移除文件中已過時的「前復權 / adj_factor」規格描述（ARCHITECTURE.md、DB_SCHEMA.md、VERSION.md）。功能本身已在稍早的版本中從程式碼移除，這次只是把文件同步更新，避免與現況（stock_history 無 adj_factor 欄位、klines VIEW 無復權欄位）不一致。
 
 ### 新增（前期）
 - AGENTS.md — AI Agent 啟動入口

@@ -140,7 +140,6 @@ display.py          ← 畫面輸出（Rich Console）
 | amount | INTEGER | 成交金額（元，非千萬元） |
 | trade_count | INTEGER | 成交筆數 |
 | spread | REAL | 差價 |
-| adj_factor | REAL DEFAULT 1.0 | 前復權因子 |
 | source | TEXT | 資料來源 |
 | updated_at | TEXT | 更新時間 |
 | **PRIMARY KEY** | **(stock_id, date)** | |
@@ -326,7 +325,7 @@ def scan_market(vol: int = 500) -> list[dict]:
 |------|------|------|
 | `fetch_xxx()` | 抓資料（外部 API） | `fetch_twse_quotes()` |
 | `update_xxx()` | 更新資料（寫入 DB） | `update_official_daily()` |
-| `compute_xxx()` | 數值運算 | `compute_adj_factor()` |
+| `compute_xxx()` | 數值運算 | `compute_ma()` |
 | `build_xxx()` | 建立 DataFrame | `build()` (IndicatorEngine) |
 | `save_xxx()` | 寫 DB | `save_stock_meta()` |
 | `run_xxx()` | 執行（策略 / 主流程） | `run_strategy()` |
@@ -454,45 +453,23 @@ dividend          # 除權息更新
 - [ ] CLI 是否仍可正常執行
 - [ ] SQLite 是否正常開啟
 - [ ] 所有 strategy 是否仍可執行
-- [ ] 單位換算是否一致（股→張）
+- [ ] 單位換算是否一致（存原始值：股/元）
 
 ---
 
 ## 單位換算規範
 
-DB 內所有量值一律為以下單位：
+DB 內所有量值一律存原始值（不轉換），顯示層才轉換：
 
 | 欄位 | DB 單位 | API 原始單位 | 換算公式 |
 |------|---------|-------------|---------|
-| volume | 張 | 股 | `raw // 1000` |
-| amount | 千萬元 | 元 | `raw / 1e7` |
-| foreign_buy/sell | 張 | 股 | `raw // 1000` |
-| trust_buy/sell | 張 | 股 | `raw // 1000` |
-| dealer_buy/sell | 張 | 股 | `raw // 1000` |
+| volume | 股 | 股 | 直接存，不轉換 |
+| amount | 元 | 元 | 直接存，不轉換 |
+| foreign_buy/sell | 股 | 股 | 直接存，不轉換 |
+| trust_buy/sell | 股 | 股 | 直接存，不轉換 |
+| dealer_buy/sell | 股 | 股 | 直接存，不轉換 |
 
-**所有 ingestion 路徑都必須在寫入 DB 前完成換算**。
-
----
-
-## 前復權計算規範
-
-### 公式
-
-```
-factor_i = reference_price_i / before_price_i
-adj_factor(date) = ∏(factor_i for all i where event_date_i > date)
-adj_close = close × adj_factor
-```
-
-### 規則
-
-1. 從最新事件往回累乘（suffix product）
-2. 最新日期 adj_factor = 1.0
-3. 越早的日期 factor 越小（< 1）
-4. 缺少 reference_price 時：
-   - `ref_price = (prev_close - cash_div) / (1 + stock_div / 10.0)`
-   - 必須同時考慮現金股利與股票股利
-5. 新增除權息事件後，受影響股票必須重算整段歷史
+**所有 ingestion 路徑直接存原始值，不做單位轉換。顯示層才轉換（display.py 的 vol_fmt）。**
 
 ---
 

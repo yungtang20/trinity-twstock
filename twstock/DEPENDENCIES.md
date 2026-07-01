@@ -37,17 +37,8 @@
 
 ---
 
-## 前端套件（twse-app）
-
-| 套件 | 最低版本 | 用途 |
-|------|---------|------|
-| react | 18.2.0 | UI 框架 |
-| vite | 5.0.0 | 構建工具 |
-| typescript | 5.3.0 | 型別系統 |
-| tailwindcss | 3.4.0 | 樣式 |
-| lightweight-charts | 4.1.0 | K 線圖 |
-| framer-motion | 10.18.0 | 動畫 |
-| lucide-react | 0.340.0 | 圖標 |
+## 前端相關套件
+前端專案（twse-app / twse-anytara）為獨立 repo，其依賴版本請參考該專案自己的 package.json / DEPENDENCIES.md，不記錄在本文件。
 
 ---
 
@@ -70,9 +61,6 @@ pip install pandas numpy rich requests beautifulsoup4 python-dotenv urllib3
 
 # 可選（polars 若未安裝會自動 fallback 到 pandas）
 pip install polars
-
-# 前端
-cd twse-app && npm install
 ```
 
 ---

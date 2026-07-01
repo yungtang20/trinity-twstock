@@ -35,10 +35,12 @@ except ImportError:
     StockPredictionAnalyzer = None
 
 # [AI MOD] AI Prediction session scan cache to make switching sorting instantly fast
+_CACHE_TTL = 300  # 5 分鐘
 _PRED_CACHE = {
     'date': None,
     'min_volume': None,
-    'results': None
+    'results': None,
+    'ts': 0,
 }
 
 # Import shared engine components to eliminate duplication
@@ -109,7 +111,10 @@ class MarketScanner:
 
             # Check cache hit
             cache_hit = False
-            if _PRED_CACHE['date'] == latest_date and _PRED_CACHE['min_volume'] == min_volume and _PRED_CACHE['results'] is not None:
+            if (_PRED_CACHE['date'] == latest_date
+                and _PRED_CACHE['min_volume'] == min_volume
+                and _PRED_CACHE['results'] is not None
+                and time.time() - _PRED_CACHE.get('ts', 0) < _CACHE_TTL):
                 cache_hit = True
                 preds = _PRED_CACHE['results']
                 rconsole.print(f"\n[green]⚡ 已載入今日AI預測掃描快取數據 (基準日: {latest_date}) [0.00s][/green]")
@@ -129,6 +134,7 @@ class MarketScanner:
                 _PRED_CACHE['date'] = latest_date
                 _PRED_CACHE['min_volume'] = min_volume
                 _PRED_CACHE['results'] = preds
+                _PRED_CACHE['ts'] = time.time()
 
             sort_choice = "1"
             if preds:

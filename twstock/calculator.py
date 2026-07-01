@@ -11,6 +11,7 @@ import numpy as np
 import sqlite3
 import os
 from db import DB_PATH
+from db_admin import create_tables  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
 
 
 class IndicatorEngine:
@@ -338,10 +339,10 @@ class MACalculator:
         計算 stock_id 的 MA 指標並寫入 stock_indicators。
         回傳寫入列數。
         """
-        # 用 pd.read_sql 從 db 讀取
+        # 用 pd.read_sql 從 db 讀取（不加 LIMIT，確保全部歷史資料都被計算）
         df = pd.read_sql(
             "SELECT date, open, high, low, close, volume FROM stock_history "
-            "WHERE stock_id = ? ORDER BY date ASC LIMIT 200",
+            "WHERE stock_id = ? ORDER BY date ASC",
             self.db, params=(stock_id,)
         )
         if df.empty:
@@ -363,29 +364,10 @@ class MACalculator:
         # 成交量均線
         df["volume_sma_5"] = vol.rolling(window=5).mean()
         df["volume_sma_20"] = vol.rolling(window=20).mean()
+        df["volume_sma_60"] = vol.rolling(window=60).mean()
 
-        # 確保表格存在
-        self.db.execute("""
-            CREATE TABLE IF NOT EXISTS stock_indicators (
-                stock_id   TEXT NOT NULL,
-                date       TEXT NOT NULL,
-                ma5        REAL,
-                ma20       REAL,
-                ma25       REAL,
-                ma60       REAL,
-                ma200      REAL,
-                vol_ma5    REAL,
-                vol_ma20   REAL,
-                vol_ma60   REAL,
-                bias_ma25  REAL,
-                bias_ma60  REAL,
-                bias_ma200 REAL,
-                atr14      REAL,
-                vwap       REAL,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (stock_id, date)
-            )
-        """)
+        # 確保表格存在（改用 db_admin.py 的唯一 schema 定義，避免兩處定義漂移）
+        create_tables(self.db)
 
         # 寫入指標
         written = 0
@@ -398,6 +380,7 @@ class MACalculator:
             ma200 = float(row["sma_200"]) if pd.notna(row.get("sma_200")) else None
             vol_ma5 = float(row["volume_sma_5"]) if pd.notna(row.get("volume_sma_5")) else None
             vol_ma20 = float(row["volume_sma_20"]) if pd.notna(row.get("volume_sma_20")) else None
+            vol_ma60 = float(row["volume_sma_60"]) if pd.notna(row.get("volume_sma_60")) else None
 
             def _bias(c, m):
                 if m is None or m == 0:
@@ -411,19 +394,34 @@ class MACalculator:
 
             self.db.execute("""
                 INSERT INTO stock_indicators
-                (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20,
+                (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20, vol_ma60,
                  bias_ma25, bias_ma60, bias_ma200, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(stock_id, date) DO UPDATE SET
                     ma5=excluded.ma5, ma20=excluded.ma20, ma25=excluded.ma25,
                     ma60=excluded.ma60, ma200=excluded.ma200,
-                    vol_ma5=excluded.vol_ma5, vol_ma20=excluded.vol_ma20,
+                    vol_ma5=excluded.vol_ma5, vol_ma20=excluded.vol_ma20, vol_ma60=excluded.vol_ma60,
                     bias_ma25=excluded.bias_ma25, bias_ma60=excluded.bias_ma60,
                     bias_ma200=excluded.bias_ma200,
                     updated_at=CURRENT_TIMESTAMP
             """, (stock_id, date_str, ma5, ma20, ma25, ma60, ma200,
-                  vol_ma5, vol_ma20, bias_ma25, bias_ma60, bias_ma200))
+                  vol_ma5, vol_ma20, vol_ma60, bias_ma25, bias_ma60, bias_ma200))
             written += 1
 
         self.db.commit()
         return written
+
+    def calculate_all(self):
+        """
+        對 stock_history 所有 stock_id 執行 calculate()。
+        回傳 dict：{stock_id: count}
+        """
+        from db_admin import create_tables
+        create_tables(self.db)  # 只呼叫一次，避免每支股票重複 catalog 檢查
+        cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
+        stock_ids = [row[0] for row in cur.fetchall()]
+
+        result = {}
+        for stock_id in stock_ids:
+            result[stock_id] = self.calculate(stock_id)
+        return result

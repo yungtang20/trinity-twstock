@@ -4,13 +4,16 @@ backfill_indicators.py — 一次性灌入 stock_indicators
 """
 import sqlite3
 import time
+import sys
+import os
 
-DB_PATH = r"D:\twse\twstock\taiwan_stock_unified.db"
+# 使用 db.py 的唯一入口取得路徑（避免寫死 Windows 路徑）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from db import get_path, get_connection
 
 
 def main():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = get_connection()
     conn.execute("PRAGMA synchronous=NORMAL")
 
     # 確認 stock_history 有多少支股票
@@ -85,7 +88,7 @@ def main():
         print("\n2330 無資料（stock_history 可能無此股票）")
 
     conn.close()
-    total_elapsed = elapsed1 + elapsed2 + elapsed3 + elapsed4
+    total_elapsed = elapsed2 + elapsed3 + elapsed4
     print(f"\n全部完成，耗時 {total_elapsed:.1f}s")
 
 

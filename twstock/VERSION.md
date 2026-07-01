@@ -9,7 +9,7 @@
 | 項目 | 值 |
 |------|-----|
 | 專案版本 | v3.3 |
-| 規範版本 | v1.0 |
+| 規範版本 | v2.0 |
 | 最後更新 | 2026-06-26 |
 
 ---
@@ -28,7 +28,6 @@
 | Error Policy | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
 | DB Operation Rules | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
 | Unit Conversion | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| Forward Adjustment | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
 
 ---
 

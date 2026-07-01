@@ -44,7 +44,7 @@
 |---------|------|------|
 | `fetch_` | 抓資料（外部 API） | `fetch_twse_quotes()` |
 | `update_` | 更新資料（寫入 DB） | `update_official_daily()` |
-| `compute_` | 數值運算 | `compute_adj_factor()` |
+| `compute_` | 數值運算 | `compute_ma()` |
 | `build_` | 建立 DataFrame | `build()` |
 | `save_` | 寫 DB | `save_stock_meta()` |
 | `run_` | 執行（策略 / 主流程） | `run_strategy()` |

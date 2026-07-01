@@ -1,5 +1,10 @@
 # PROJECT_AUDIT.md — TRINITY 台股分析平台完整稽核報告
 
+> ⚠️ 更新紀錄（2026-07-01）：
+> - 第 16 節「chips_strategy.py 缺少 StockAnalyzer」已於 2026-06-28 修復（見 git log d1fd6cf），此項已解決。
+> - 第 11 節提到的 `official/price_adjuster.py` 檔案已不存在（隨 adj_factor 功能移除）。
+> - 其餘項目尚未針對現況重新驗證，使用本報告前請自行抽查。
+
 > 稽核日期：2026-06-27
 > 專案路徑：`D:\twse\twstock\`
 > 程式碼規模：~10,854 行 Python（32 個檔案）

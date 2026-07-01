@@ -318,7 +318,7 @@ def _auto_update_tdcc():
         latest_sat = today - timedelta(days=days_to_subtract)
         this_sat_str = latest_sat.strftime("%Y-%m-%d")
         
-        if last_tdcc_date is None or last_tdcc_date < this_sat_str:
+        if not last_tdcc_date or str(last_tdcc_date) < this_sat_str:
             print(f"\n📊 檢查到新的 TDCC 集保資料（最新: {last_tdcc_date or '無'}，本週六: {this_sat_str}），一併更新...", flush=True)
             update_tdcc_weekly()
         else:

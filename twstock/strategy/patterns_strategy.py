@@ -31,10 +31,13 @@ from rich import box
 from terminal import rconsole
 
 # [AI MOD] Pattern session scan cache to make switching sorting instantly fast
+import time as _time_mod
+_CACHE_TTL = 300  # 5 分鐘
 _PATTERN_CACHE = {
     'date': None,
     'min_volume': None,
-    'results': None
+    'results': None,
+    'ts': 0,
 }
 
 warnings.filterwarnings('ignore')
@@ -72,11 +75,7 @@ try:
 except ImportError:
     load_kronos = None
 
-try:
-    from strategy.prediction_strategy import StockPredictionAnalyzer, MarketScanner
-except ImportError:
-    StockPredictionAnalyzer = None
-    MarketScanner = None
+# [FIX] 移除循環依賴：patterns_strategy 自帶 MarketScanner (L822)，不需要從 prediction_strategy 匯入
 
 CONTEXT_LEN    = 512
 PATTERN_WINDOW = 90
@@ -921,7 +920,10 @@ class PatternBreakoutScanner:
 
             # Check session cache
             cache_hit = False
-            if _PATTERN_CACHE['date'] == ld and _PATTERN_CACHE['min_volume'] == min_volume and _PATTERN_CACHE['results'] is not None:
+            if (_PATTERN_CACHE['date'] == ld
+                and _PATTERN_CACHE['min_volume'] == min_volume
+                and _PATTERN_CACHE['results'] is not None
+                and _time_mod.time() - _PATTERN_CACHE.get('ts', 0) < _CACHE_TTL):
                 cache_hit = True
                 cands_with_data = _PATTERN_CACHE['results']
                 rconsole.print(f"\n[green]⚡ 已載入今日幾何型態掃描快取數據 (基準日: {ld}) [0.00s][/green]")
@@ -951,6 +953,7 @@ class PatternBreakoutScanner:
                 _PATTERN_CACHE['date'] = ld
                 _PATTERN_CACHE['min_volume'] = min_volume
                 _PATTERN_CACHE['results'] = cands_with_data
+                _PATTERN_CACHE['ts'] = _time_mod.time()
                 rconsole.print(f"\n  [dim]✨ 完成 {time.time() - t0:.1f}s · {len(cands_with_data)} 檔命中[/]")
 
             cands = [c for c, _ in cands_with_data]
@@ -1161,70 +1164,19 @@ class PredictionAnalysisApp:
             if not compact:
                 try:
                     try:
-                        from strategy.prediction_strategy import StockPredictionAnalyzer as RealPredictionAnalyzer
-                    except ImportError:
+                        RealPredictionAnalyzer = StockPredictionAnalyzer  # [FIX] use local class; avoids cross-module re-import
+                    except NameError:
                         RealPredictionAnalyzer = None
                     if RealPredictionAnalyzer is None:
-                        raise ImportError("prediction_strategy.StockPredictionAnalyzer 不存在")
+                        raise ImportError("patterns_strategy.StockPredictionAnalyzer 不存在")
                     real_pred_analyzer = RealPredictionAnalyzer(self.config)
                     real_pred_analyzer.analyze_single_stock(code, name, df, compact=False, mobile=mobile)
                 except Exception as pe:
                     rconsole.print(f"[red]❌ Kronos 預測加載失敗: {pe}[/]")
 
-            # 3. LongCat AI 深度視覺辨識 (60日) [AI MOD]
-            rconsole.print("\n[bold yellow]🧠 LongCat AI 深度視覺辨識 (60日)...[/bold yellow]")
-            with rconsole.status("[bold cyan]正在分析市場數據...[/bold cyan]"):
-                try:
-                    from strategy.vision_engine import VISION_ENGINE
-                    import pandas as pd
-
-                    # [FIX] 已经是 pandas DataFrame，直接使用
-                    df_pd = df.copy()
-
-                    if 'date' in df_pd.columns:
-                        df_pd['date'] = df_pd['date'].astype(str)
-
-                    # 获取Kronos预测路径和漂移修正
-                    pred_paths = None
-                    correction = 0.0
-                    sr_lines = {}
-
-                    try:
-                        # 获取预测结果
-                        from strategy.kronos_engine import KronosRealEngine, DriftMonitor, DEFAULT_CONFIG  # [AI MOD]
-                        _pred_engine = KronosRealEngine()  # [AI MOD]
-                        _pred_result = _pred_engine.predict(df, DEFAULT_CONFIG)  # [AI MOD]
-                        if _pred_result and hasattr(_pred_result, 'paths') and _pred_result.paths is not None:
-                            pred_paths = np.median(_pred_result.paths, axis=0)
-
-                        # 获取漂移修正
-                        _drift = DriftMonitor(DEFAULT_CONFIG)
-                        _drift.update(float(df['close'].iloc[-1]), _pred_result.benchmark if _pred_result else float(df['close'].iloc[-1]))
-                        correction = _drift.status.correction
-                    except Exception as pred_err:
-                        rconsole.print(f"[dim yellow]⚠️ 預測路徑載入失敗: {pred_err}[/dim yellow]")
-
-                    # 获取支撑压力线
-                    try:
-                        from strategy.sr_analyzer import get_sr_levels
-                        sr = get_sr_levels(code)
-                        if sr:
-                            sr_lines['resistance'] = sr.get('short_resistance')
-                            sr_lines['support'] = sr.get('short_support')
-                    except Exception:
-                        pass
-
-                    vision_result = VISION_ENGINE.analyze_pattern(
-                        df_pd, code, name,
-                        predictions=pred_paths,
-                        correction=correction,
-                        sr_lines=sr_lines,
-                    )
-                    rconsole.print(Panel(vision_result, title="[bold yellow]AI 視覺分析報告[/bold yellow]", border_style="yellow", expand=False, padding=(0, 1)))
-                except ImportError as ie:
-                    rconsole.print(f"[dim red]⚠️ AI 視覺分析模組未安裝: {ie}[/dim red]")
-                except Exception as ve:
-                    rconsole.print(f"[dim red]⚠️ AI 視覺分析暫時無法使用: {ve}[/dim red]")
+            # 3. LongCat AI 深度視覺辨識 (60日) [AI MOD] — 已移除
+            # [FIX] vision_engine.py 已刪，此功能停用，保留 placeholder 供未來重構
+            rconsole.print("\n[bold yellow]🧠 LongCat AI 深度視覺辨識 (60日) — 已停用[/bold yellow]")
 
             if not compact:
                 rconsole.print()
