@@ -1174,9 +1174,20 @@ class PredictionAnalysisApp:
                 except Exception as pe:
                     rconsole.print(f"[red]❌ Kronos 預測加載失敗: {pe}[/]")
 
-            # 3. LongCat AI 深度視覺辨識 (60日) [AI MOD] — 已移除
-            # [FIX] vision_engine.py 已刪，此功能停用，保留 placeholder 供未來重構
-            rconsole.print("\n[bold yellow]🧠 LongCat AI 深度視覺辨識 (60日) — 已停用[/bold yellow]")
+            # 3. LongCat AI 深度視覺辨識 (60日)
+            try:
+                from longcat_vision import analyze_kline_with_longcat
+                ai_result = analyze_kronos_with_longcat(df, code, name)
+                if ai_result:
+                    rconsole.print()
+                    rconsole.print(Panel(
+                        ai_result,
+                        title="🧠 LongCat AI 深度視覺辨識",
+                        border_style="magenta", box=box.DOUBLE))
+                else:
+                    rconsole.print("[dim]  LongCat AI 未設定 API key 或 mplfinance 未安裝[/]")
+            except Exception as pe:
+                rconsole.print(f"[dim]  LongCat AI 分析跳過: {pe}[/]")
 
             if not compact:
                 rconsole.print()

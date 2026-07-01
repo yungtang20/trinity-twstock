@@ -45,7 +45,7 @@ from terminal import console
 # [AI MOD] Import unified Taiwan Stock colors & formatters
 from display import (
     price_rich, chg_color, vol_fmt, vol_diff_rich,
-    vol_color, price_color
+    vol_color, price_color, render_kline
 )
 
 # [AI MOD] 統一 db 模組取代 phone.* 與 trinity_db
@@ -957,6 +957,28 @@ def run_quick_analysis(stock_id: str):
             mod.run_strategy(params)
         except Exception as e:
             console.print(f"[red]❌ 分析失敗: {e}[/red]")
+
+    # ── K 線圖 ──
+    try:
+        from strategy._utils import fetch_klines
+        df_kline = fetch_klines(conn, stock_id, limit=60)
+        df_kline = df_kline.dropna(subset=["close"]).sort_values("date")
+        if not df_kline.empty:
+            console.print()
+            console.print(render_kline(df_kline, stock_id, ""))
+    except Exception as e:
+        console.print(f"[dim]K 線圖渲染跳過: {e}[/dim]")
+
+    # ── LongCat AI 視覺辨識 ──
+    try:
+        from longcat_vision import analyze_kline_with_longcat
+        ai_result = analyze_kline_with_longcat(df_kline, stock_id, "")
+        if ai_result:
+            from rich.panel import Panel
+            console.print()
+            console.print(Panel(ai_result, title="🤖 LongCat AI 分析", border_style="magenta"))
+    except Exception as e:
+        console.print(f"[dim]LongCat AI 分析跳過: {e}[/dim]")
 
     input("\n按 Enter 鍵返回主選單...")
 

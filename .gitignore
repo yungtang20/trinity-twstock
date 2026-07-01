@@ -69,4 +69,5 @@ schema.sql
 skills-lock.json
 .pre-commit-config.yaml
 .env.example
+api.env
 TODO.md
