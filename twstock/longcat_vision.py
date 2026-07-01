@@ -110,7 +110,7 @@ def analyze_kline_with_longcat(
                         ),
                     }
                 ],
-                "max_tokens": 500,
+                "max_tokens": 2000,
                 "temperature": 0.7,
             },
             timeout=30,

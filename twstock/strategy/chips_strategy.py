@@ -473,7 +473,9 @@ class StockAnalyzer:
                     _fmt_amount(dt),
                     f"{row[1]:.2f}%" if row[1] is not None else "N/A",
                     f"{row[2]:,}" if row[2] is not None else "N/A",
-                    f"{row[3]:,}" if row[3] is not None else "N/A")
+                    # whale_people 若為 NULL，用 whale_ratio 推算
+                    f"{int(row[3] * row[1] / 100):,}" if (row[3] is not None and row[1] is not None) else "N/A",
+                )
             rconsole.print(tbl2)
         else:
             rconsole.print("  [dim]查不到法人/集保資料[/]")
