@@ -974,7 +974,6 @@ def run_quick_analysis(stock_id: str):
         from longcat_vision import analyze_kline_with_longcat
         ai_result = analyze_kline_with_longcat(df_kline, stock_id, "")
         if ai_result:
-            from rich.panel import Panel
             console.print()
             console.print(Panel(ai_result, title="🤖 LongCat AI 分析", border_style="magenta"))
     except Exception as e:

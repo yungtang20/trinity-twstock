@@ -1177,7 +1177,7 @@ class PredictionAnalysisApp:
             # 3. LongCat AI 深度視覺辨識 (60日)
             try:
                 from longcat_vision import analyze_kline_with_longcat
-                ai_result = analyze_kronos_with_longcat(df, code, name)
+                ai_result = analyze_kline_with_longcat(df, code, name)
                 if ai_result:
                     rconsole.print()
                     rconsole.print(Panel(
