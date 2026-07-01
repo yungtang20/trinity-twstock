@@ -11,9 +11,6 @@ import sqlite3
 import warnings
 import signal
 from typing import List, Dict, Optional, Tuple
-import urllib.request
-import json
-
 import pandas as pd
 from rich.table import Table
 from rich import box
@@ -118,13 +115,16 @@ class StockAnalyzer:
     """籌碼分析器 - 連接資料庫並提供法人買賣超分析"""
 
     def __init__(self, conn=None):
+        self._owns_conn = conn is None
         self.conn = conn or get_connection()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        if self._owns_conn and self.conn:
+            self.conn.close()
+            self.conn = None
 
     def get_latest_dates(self):
         """回傳 (hist_date, inst_date)"""
@@ -364,17 +364,27 @@ class StockAnalyzer:
             "FROM institutional_data WHERE stock_id = ? ORDER BY date DESC LIMIT 10",
             (code,)
         ).fetchall()
-        # 取得近10日股價（收盤、成交量）供表格顯示
+        # 取得近60日股價（收盤、成交量）供表格顯示
+        # 集保資料每月公佈，需要更多交易日才能匹配到每月對應日期
         kline_rows = self.conn.execute(
-            "SELECT date, close, volume FROM stock_history WHERE stock_id = ? ORDER BY date DESC LIMIT 10",
+            "SELECT date, close, volume FROM stock_history WHERE stock_id = ? ORDER BY date DESC LIMIT 60",
             (code,)
         ).fetchall()
-        kline_map = {r[0]: (r[1], r[2]) for r in kline_rows}  # date -> (close, volume)
+        # NULL 防護：DB 回傳的 close/volume 可能為 NULL，用 0 替代
+        kline_map = {r[0]: (float(r[1] or 0), int(r[2] or 0)) for r in kline_rows}  # date -> (close, volume)
         kline_dates = [r[0] for r in kline_rows]  # 依日期 DESC
 
         def _get_kline(date, idx=0):
-            """取得該日 kline 資料，idx=0 為 close, 1 為 volume"""
-            v = kline_map.get(date, (0, 0))
+            """取得該日 kline 資料，idx=0 為 close, 1 為 volume。
+            若 exact match 找不到（例如集保日期為週末），找最近的交易日（<= date）。"""
+            v = kline_map.get(date)
+            if v is None:
+                # 找最近的交易日（kline_dates 是 DESC，所以找第一個 <= date 的）
+                nearest = next((d for d in kline_dates if d <= date), None)
+                if nearest is not None:
+                    v = kline_map.get(nearest)
+            if v is None:
+                return 0
             return v[idx] if v else 0
 
         def _prev_kline(date, idx=0):
@@ -383,6 +393,10 @@ class StockAnalyzer:
                 i = kline_dates.index(date)
                 if i + 1 < len(kline_dates):
                     return _get_kline(kline_dates[i + 1], idx)
+            # exact match 找不到，找小於 date 的最近交易日
+            prev = next((d for d in kline_dates if d < date), None)
+            if prev is not None:
+                return _get_kline(prev, idx)
             return _get_kline(date, idx)
 
         def _fmt_close(date):
@@ -459,9 +473,9 @@ class StockAnalyzer:
                     _fmt_close(dt),
                     _fmt_vol(dt),
                     _fmt_amount(dt),
-                    f"{row[1]:.2f}%" if row[1] else "N/A",
-                    f"{row[2]:,}" if row[2] else "N/A",
-                    f"{row[3]:,}" if row[3] else "N/A")
+                    f"{row[1]:.2f}%" if row[1] is not None else "N/A",
+                    f"{row[2]:,}" if row[2] is not None else "N/A",
+                    f"{row[3]:,}" if row[3] is not None else "N/A")
             rconsole.print(tbl2)
         else:
             rconsole.print("  [dim]查不到法人/集保資料[/]")
