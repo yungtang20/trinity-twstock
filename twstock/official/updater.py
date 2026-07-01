@@ -52,12 +52,18 @@ def upsert_dataframe(table_name: str, df):
         # 確保必要欄位存在
         if 'amount' not in df.columns and 'turnover' in df.columns:
             df['amount'] = df['turnover']
-        required = ['stock_id', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount',
-                    'trade_count', 'spread', 'source']
-        for col in required:
+        num_cols = ['stock_id', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+        for col in num_cols:
             if col not in df.columns:
                 df[col] = 0
-        df = df[required]
+        # 非數值欄位特別處理（ponytail: source 必須是字串 'official'）
+        if 'trade_count' not in df.columns:
+            df['trade_count'] = None
+        if 'spread' not in df.columns:
+            df['spread'] = None
+        if 'source' not in df.columns:
+            df['source'] = 'official'
+        df = df[num_cols + ['trade_count', 'spread', 'source']]
     elif table_name == 'institutional_data':
         if 'foreign_buy' in df.columns and 'foreign_sell' in df.columns:
             df['foreign_net'] = df['foreign_buy'] - df['foreign_sell']
@@ -66,11 +72,17 @@ def upsert_dataframe(table_name: str, df):
         if 'dealer_buy' in df.columns and 'dealer_sell' in df.columns:
             df['dealer_net'] = df['dealer_buy'] - df['dealer_sell']
         df['institutional_net'] = df.get('foreign_net', 0) + df.get('trust_net', 0) + df.get('dealer_net', 0)
-        required = ['stock_id', 'date', 'foreign_net', 'trust_net', 'dealer_net', 'institutional_net']
-        for col in required:
+        # 保留所有可用欄位（含買賣明細），避免資料丟失
+        all_cols = ['stock_id', 'date',
+                    'foreign_net', 'trust_net', 'dealer_net', 'institutional_net',
+                    'foreign_buy', 'foreign_sell', 'trust_buy', 'trust_sell',
+                    'dealer_buy', 'dealer_sell']
+        for col in all_cols:
             if col not in df.columns:
                 df[col] = 0
-        df = df[required]
+        if 'source' not in df.columns:
+            df['source'] = 'official'
+        df = df[all_cols + ['source']]
     elif table_name == 'shareholding_unified':
         required = ['stock_id', 'date', 'source', 'total_shares', 'whale_ratio', 'total_people', 'whale_shares']
         for col in required:
