@@ -83,8 +83,11 @@ def fetch_klines(conn: sqlite3.Connection, stock_id: str, limit: int = 512, incl
     if include_amount:
         cols += ", amount"
     df = pd.read_sql(
-        f"SELECT {cols} FROM klines_indicators WHERE stock_id = ? ORDER BY date ASC LIMIT ?",
+        f"SELECT {cols} FROM klines_indicators WHERE stock_id = ? ORDER BY date DESC LIMIT ?",
         conn,
         params=(stock_id, limit),
     )
+    # ponytail: DESC LIMIT 取最新 N 筆，再 sort 回 ASC 讓 iloc[-1]=最新
+    df['date'] = pd.to_datetime(df['date'])
+    df = df.sort_values('date').reset_index(drop=True)
     return df
