@@ -66,21 +66,10 @@ warnings.filterwarnings("ignore")
 TERM_WIDTH = shutil.get_terminal_size((80, 24)).columns
 MOBILE = TERM_WIDTH < 52
 
-# Windows Encoding Fix
-if sys.platform == "win32":
-    os.system('chcp 65001 > nul')
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
-        sys.stdin.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
-    except AttributeError:
-        pass
+# 跨平台輸入層（Windows msvcrt / Termux+termios / fallback input）
+from input_helper import setup_console_encoding, HAS_MSVCRT
 
-try:
-    import msvcrt  # type: ignore[import-untyped]
-    HAS_MSVCRT = True
-except ImportError:
-    msvcrt = None  # type: ignore[assignment]
-    HAS_MSVCRT = False
+setup_console_encoding()  # Windows: chcp 65001; 非 Windows: 跳過
 
 # ==================== Utility Functions ====================
 
@@ -673,6 +662,8 @@ def render_dashboard():
     console.print(Align.left(tight_group, width=target_width))
 
 def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four=True):
+    from input_helper import get_interactive_input as _ih_input
+
     global MARKET_CACHE
     if not HAS_MSVCRT:
         return input(prompt).strip()
