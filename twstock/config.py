@@ -1,38 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-config.py - 統一設定管理模組
+config.py — 統一設定管理介面（re-export 薄封裝）
 
-所有設定集中由此模組讀取，只從環境變數取得，
-不讀取任何檔案，避免 fallback 到 repo 中的明文 secret。
-"""
+ production 路徑由 api_config.py（dotenv 兩段式 bridge）載入；
+ 本模組提供統一的 Settings dataclass 視圖，供 production 與 tests 使用。
+ """
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
+
+from api_config import _ensure_loaded
 
 
 @dataclass
 class Settings:
-    """應用程式設定。所有欄位皆為可選，未設定時為 None 或空字串。"""
-
-    # ── API Tokens ──────────────────────────────────────────
     finmind_api_token: Optional[str] = None
     longcat_api_key: Optional[str] = None
-
-    # ── LongCat API ─────────────────────────────────────────
     longcat_api_url: str = "https://api.longcat.chat/openai"
     longcat_model: str = "LongCat-2.0-Preview"
-
-    # ── Supabase ────────────────────────────────────────────
     supabase_url: str = ""
     supabase_key: str = ""
-
-    # ── Kronos AI ───────────────────────────────────────────
     kronos_model_id: str = "NeoQuasar/Kronos-base"
     kronos_tokenizer_id: str = "NeoQuasar/Kronos-Tokenizer-base"
-
-    # ── 官方 API 端點（公開，無需金鑰）─────────────────────
     twse_base_url: str = "https://www.twse.com.tw"
     tpex_base_url: str = "https://www.tpex.org.tw"
     tdcc_openapi_url: str = "https://openapi.tdcc.com.tw/v1/opendata/1-5"
@@ -40,7 +31,6 @@ class Settings:
 
 
 def _clean(value: Optional[str]) -> Optional[str]:
-    """清除空白，空字串視為 None。"""
     if value is None:
         return None
     stripped = value.strip()
@@ -48,7 +38,13 @@ def _clean(value: Optional[str]) -> Optional[str]:
 
 
 def load_settings() -> Settings:
-    """從環境變數載入設定。不讀取任何檔案。"""
+    """
+    透過 api_config._ensure_loaded() 橋接 dotenv 後，用 os.environ 封裝為 Settings。
+
+    注意：api_config 的 getter（get_finmind_token 等）在 key 不存在時會 raise，
+    所以這裡用 os.environ.get() 安全取值（_dotenv 已 ensure_loaded 過）。
+    """
+    _ensure_loaded()
     return Settings(
         finmind_api_token=_clean(os.getenv("FINMIND_API_TOKEN")),
         longcat_api_key=_clean(os.getenv("LONGCAT_API_KEY")),
