@@ -2,6 +2,20 @@
 *.db
 *.db-wal
 *.db-shm
+taiwan_stock_unified*.db
+twstock.db
+*.sqlite*
+
+# Model files (large binary files)
+models/
+
+# Test files
+twstock/tests/
+snapshot/
+
+# Temporary scripts
+_run_*.py
+_test_*.py
 
 # Virtual environment
 .venv/
