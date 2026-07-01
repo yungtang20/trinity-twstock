@@ -240,7 +240,7 @@ def interactive_menu():
                 console.print("  [5] 前低支撐上10%")
                 console.print("  [Enter] 回到上一頁")
                 ans = get_single_key_input(
-                    "篩選條件 (或 4 碼股號): ",
+                    "🔍 輸入股號或按 Enter 回到上一頁: ",
                     "12345", auto_four=True
                 )
                 if not ans:
@@ -271,7 +271,7 @@ def interactive_menu():
                 console.print("  [3] 2560戰法")
                 console.print("  [Enter] 回到上一頁")
                 ans = get_single_key_input(
-                    "篩選條件 (或 4 碼股號): ",
+                    "🔍 輸入股號或按 Enter 回到上一頁: ",
                     "123", auto_four=True
                 )
                 if not ans:
@@ -304,7 +304,7 @@ def interactive_menu():
                 console.print("  [3] 集保人數下降，千張大戶增")
                 console.print("  [Enter] 回到上一頁")
                 ans = get_single_key_input(
-                    "篩選條件 (或 4 碼股號): ",
+                    "🔍 輸入股號或按 Enter 回到上一頁: ",
                     "123", auto_four=True
                 )
                 if not ans:
@@ -368,7 +368,7 @@ def interactive_menu():
                 console.print("  [4] 全部")
                 console.print("  [Enter] 回到上一頁")
                 ans = get_single_key_input(
-                    "篩選條件 (或 4 碼股號): ",
+                    "🔍 輸入股號或按 Enter 回到上一頁: ",
                     "1234", auto_four=True
                 )
                 if not ans:

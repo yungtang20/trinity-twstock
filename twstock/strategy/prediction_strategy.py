@@ -360,7 +360,7 @@ class PredictionAnalysisApp:
                 latest_str = str(latest_date) if latest_date else "N/A"
                 rconsole.print(f"[dim]基準日期: {latest_str}[/dim]\n")
 
-                cmd = rconsole.input("[bold cyan]指令: [4碼股號] | [Enter] 全市場掃描 | [0] 退出 >> [/]").strip()
+                cmd = rconsole.input("[bold cyan]🔍 輸入股號或按 Enter 回到上一頁: [/]").strip()
 
                 if cmd == "0":
                     break
