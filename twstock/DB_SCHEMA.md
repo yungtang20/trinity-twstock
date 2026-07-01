@@ -138,6 +138,50 @@ WHERE source = 'tdcc';
 
 ---
 
+## Views（向後相容層）
+
+### klines — 日 K + 前復權
+
+```
+CREATE VIEW klines AS
+SELECT
+    stock_id, date, open, high, low, close, volume, amount,
+    COALESCE(adj_factor, 1.0) AS adj_factor,
+    open  * COALESCE(adj_factor, 1.0) AS adj_open,
+    high  * COALESCE(adj_factor, 1.0) AS adj_high,
+    low   * COALESCE(adj_factor, 1.0) AS adj_low,
+    close * COALESCE(adj_factor, 1.0) AS adj_close,
+    source, updated_at
+FROM stock_history
+```
+
+### klines_indicators — 日 K + 技術指標
+
+```
+CREATE VIEW klines_indicators AS
+SELECT
+    k.stock_id, k.date,
+    k.open, k.high, k.low, k.close, k.volume, k.amount,
+    k.adj_factor, k.adj_open, k.adj_high, k.adj_low, k.adj_close,
+    k.source,
+    i.ma5, i.ma20, i.ma25, i.ma60, i.ma200,
+    i.vol_ma5, i.vol_ma20, i.vol_ma60,
+    i.bias_ma25, i.bias_ma60, i.bias_ma200,
+    i.atr14, i.vwap
+FROM klines k
+LEFT JOIN stock_indicators i
+    ON k.stock_id = i.stock_id AND k.date = i.date
+```
+
+### institutional_daily — 向後相容（同 institutional_data）
+
+```
+CREATE VIEW institutional_daily AS
+SELECT * FROM institutional_data
+```
+
+---
+
 ## per_data — 本益比（1,545 筆）
 
 | 欄位 | 型別 | Null | Key | 說明 |

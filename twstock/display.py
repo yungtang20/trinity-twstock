@@ -125,6 +125,29 @@ def vol_fmt(vol: int) -> str:
     return f"{sheets:,.1f}張" if sheets % 1 != 0 else f"{int(sheets):,}張"
 
 
+# ── MA Colors ──────────────────────────────────────────
+
+def ma_color(trend: str) -> str:
+    """
+    均線趨勢配色：上揚紅 / 下降綠 / 走平白。
+    Args:
+        trend: "up" | "down" | "flat"
+    Returns:
+        Rich style string
+    """
+    if trend == "up":
+        return "bright_red"         # 均線上揚：紅
+    elif trend == "down":
+        return "bright_green"       # 均線下降：綠
+    return "white"                  # 均線走平：白
+
+
+def ma_str(value: float, trend: str) -> str:
+    """Rich markup for MA value with trend color."""
+    c = ma_color(trend)
+    return f"[{c}]{value:.2f}[/]"
+
+
 def vol_fmt_short(vol: int) -> str:
     """Short volume. Expects volume in shares (股), formats as sheets (張)."""
     sheets = vol / 1000.0

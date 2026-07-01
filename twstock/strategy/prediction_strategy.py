@@ -156,11 +156,12 @@ class MarketScanner:
             rconsole.print(f"[red]❌ 掃描失敗: {e}[/]")
 
     def _get_targets(self, latest_date: str, min_volume: int) -> List[str]:
-        # [AI MOD] parameterized query, converted min_volume from sheets (張) to shares (股)
+        # min_volume 單位為張，stock_history.volume 單位為股（1張=1000股）
+        min_volume_shares = min_volume * 1000
         rows = self.conn.execute(
             "SELECT stock_id FROM stock_history "
             "WHERE date = ? AND volume >= ? AND stock_id GLOB '[1-9][0-9][0-9][0-9]'",
-            (latest_date, min_volume),
+            (latest_date, min_volume_shares),
         ).fetchall()
         return [r[0] for r in rows]
 
@@ -232,10 +233,10 @@ class MarketScanner:
             expand=False,
         )
         table.add_column("代號", style="magenta", justify="left", no_wrap=True)
-        table.add_column("股名", justify="left", no_wrap=True)
-        table.add_column("現價", justify="right", no_wrap=True)
-        table.add_column("量(張)", justify="right", no_wrap=True)
-        table.add_column("金額(億)", style="bright_green", justify="right", no_wrap=True)
+        table.add_column("名稱", justify="left", no_wrap=True)
+        table.add_column("收盤", justify="right", no_wrap=True)
+        table.add_column("成交張數", justify="right", no_wrap=True)
+        table.add_column("額(億)", style="bright_green", justify="right", no_wrap=True)
         table.add_column("潛力估值", justify="right", no_wrap=True)
         table.add_column("預期目標", justify="right", no_wrap=True)
         table.add_column("模型信心", justify="right", no_wrap=True)
@@ -258,15 +259,15 @@ class MarketScanner:
 
             try:
                 # Compare raw volume to prev_volume
-                raw_vol = p.volume
+                raw_vol = p.volume  # 股
                 vc = vol_color(raw_vol, p.prev_volume if p.prev_volume else raw_vol)
-                disp_vol_colored = f"[{vc}]{p.volume:,}[/]"
+                disp_vol_colored = f"[{vc}]{raw_vol // 1000:,}[/]"  # 換算成張顯示
             except Exception:
                 disp_vol_colored = f"{p.volume:,}"
 
             table.add_row(
                 p.code,
-                p.name[:4],
+                p.name,
                 disp_price_colored,
                 disp_vol_colored,
                 f"{p.amount:.2f}",
@@ -334,6 +335,16 @@ class PredictionAnalysisApp:
                 rconsole.print(f"[red]❌ 執行錯誤: {e}[/]")
                 time.sleep(2)
 
+        conn.close()
+
+
+def get_latest_date() -> str:
+    """供 strategies.py 查詢資料基準日"""
+    from strategy._utils import get_connection
+    conn = get_connection(readonly=True)
+    try:
+        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+    finally:
         conn.close()
 
 

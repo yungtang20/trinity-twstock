@@ -18,36 +18,27 @@ def main():
     total_stocks = cur.fetchone()[0]
     print(f"stock_history 共 {total_stocks} 支股票")
 
-    # ====== Step 1: AdjFactorCalculator ======
-    from calculator import AdjFactorCalculator
-    print("\n[1/4] AdjFactorCalculator (dividend_events → stock_history.adj_factor)")
-    t0 = time.time()
-    calc1 = AdjFactorCalculator(db=conn)
-    result1 = calc1.calculate_all()
-    elapsed1 = time.time() - t0
-    print(f"  完成：{len(result1)} 支股票，{elapsed1:.1f}s")
-
-    # ====== Step 2: MACalculator ======
+    # ====== Step 1: MACalculator ======
     from calculator import MACalculator
-    print("\n[2/4] MACalculator (stock_history → stock_indicators MA/vol_ma/bias)")
+    print("\n[1/3] MACalculator (stock_history → stock_indicators MA/vol_ma/bias)")
     t0 = time.time()
     calc2 = MACalculator(db=conn)
     result2 = calc2.calculate_all()
     elapsed2 = time.time() - t0
     print(f"  完成：{len(result2)} 支股票，{elapsed2:.1f}s")
 
-    # ====== Step 3: ATRCalculator ======
+    # ====== Step 2: ATRCalculator ======
     from calculator import ATRCalculator
-    print("\n[3/4] ATRCalculator (stock_history → stock_indicators atr14)")
+    print("\n[2/3] ATRCalculator (stock_history → stock_indicators atr14)")
     t0 = time.time()
     calc3 = ATRCalculator(db=conn)
     result3 = calc3.calculate_all()
     elapsed3 = time.time() - t0
     print(f"  完成：{len(result3)} 支股票，{elapsed3:.1f}s")
 
-    # ====== Step 4: VWAPCalculator ======
+    # ====== Step 3: VWAPCalculator ======
     from calculator import VWAPCalculator
-    print("\n[4/4] VWAPCalculator (stock_history → stock_indicators vwap)")
+    print("\n[3/3] VWAPCalculator (stock_history → stock_indicators vwap)")
     t0 = time.time()
     calc4 = VWAPCalculator(db=conn)
     result4 = calc4.calculate_all()

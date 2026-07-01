@@ -30,7 +30,7 @@ if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
 from db import get_connection, DB_PATH
-from display import price_rich, chg_color, vol_fmt
+from display import price_rich, chg_color, vol_fmt, price_color, vol_color
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 
 def _to_date_int(val) -> int:
@@ -434,10 +434,10 @@ def _render_mobile_sr(data, code, name):
     resistances = data.get('merged_resistance_levels', [])
     if supports:
         parts = '|'.join(f"{s['level']:.2f}(強:{s['count']})" for s in supports[:3])
-        console.print(f"[bright_green]綜合支撐: {parts}[/]")
+        console.print(f"[bright_green]綜合支撐: {parts}[/]")  # 支撐：綠
     if resistances:
         parts = '|'.join(f"{r['level']:.2f}(強:{r['count']})" for r in resistances[:3])
-        console.print(f"[bright_red]綜合壓力: {parts}[/]")
+        console.print(f"[bright_red]綜合壓力: {parts}[/]")  # 壓力：紅
     s_range = data.get('acceleration_support_band')
     if s_range:
         console.print(f"加速帶 {s_range['band_low']:.2f}~{s_range['band_high']:.2f}")
@@ -490,8 +490,8 @@ def _show_indicators(data):
     nr_val, short_res_val, long_res_val = _calc_levels(res_lvls, True, lc)
     ns_val, short_sup_val, long_sup_val = _calc_levels(sup_lvls, False, lc)
     console.print(f"\n[bold]📊 綜合撐壓標[/bold]")
-    console.print(f"前高/短期/長期壓力：[bright_green]{nr_val:.2f}/{short_res_val:.2f}/{long_res_val:.2f}[/]")
-    console.print(f"前低/短期/長期支撐：[bright_red]{ns_val:.2f}/{short_sup_val:.2f}/{long_sup_val:.2f}[/]")
+    console.print(f"前高/短期/長期壓力：[bright_red]{nr_val:.2f}/{short_res_val:.2f}/{long_res_val:.2f}[/]")  # 壓力：紅
+    console.print(f"前低/短期/長期支撐：[bright_green]{ns_val:.2f}/{short_sup_val:.2f}/{long_sup_val:.2f}[/]")  # 支撐：綠
 
 def _show_extras(data):
     accel = data['acceleration_support_band']
@@ -502,10 +502,10 @@ def _show_extras(data):
         b = density['boxes'][0]
         console.print(f"vop(量價密集): {b['box_low']:.2f}~{b['box_high']:.2f}")
 
-def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME):
+def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME, init_filter=None):
     """全市場掃描"""
-    # [AI MOD] Database volume is already in 張 (not 股), no need to multiply by 1000
-    min_volume = min_volume_zhang
+    # stock_history.volume 單位為股，min_volume_zhang 單位為張（1張=1000股）
+    min_volume = min_volume_zhang * 1000
     try:
         latest_date = conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
         if not latest_date:
@@ -545,15 +545,36 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME)
     console.print(f"\n[green]✅ 掃描完成：共 {len(all_scored)} 檔符合基本條件[/green]")
     console.print(f"資料庫日期：{latest_date} │ 最小成交量：{min_volume_zhang:,} 張")
 
-    import msvcrt as _msvcrt
+    # 初始篩選（外部指定）
+    labels = {'poc': 'POC量價密集區', 'vwap': 'VWAP', 'long_sup': '長期支撐', 'short_sup': '短期支撐', 'front_low': '前低支撐'}
+    current_results = all_scored[:]
+    current_filters = []
+    if init_filter:
+        filtered = [r for r in all_scored if _passes_filter(r, init_filter)]
+        if filtered:
+            current_results = filtered
+            current_filters = [init_filter]
+            sample = filtered[0]
+            low_val = sample.get('filter_levels', {}).get(init_filter, 0)
+            console.print(f"[green]✅ 已套用 {labels[init_filter]} 篩選：{len(filtered)} / {len(all_scored)} 檔[/green]")
+        else:
+            console.print(f"[yellow]⚠️ 沒有股票符合 {labels[init_filter]} 篩選條件[/yellow]")
+
+    # 初始掃描結果先顯示
+    current_results.sort(key=lambda x: x['dist'] if x['dist'] else 0)
+    _display_results(current_results, latest_date, "1", min_volume_zhang, current_filters)
+
+    try:
+        import msvcrt as _msvcrt
+    except ImportError:
+        _msvcrt = None  # type: ignore[assignment]
     while True:
         console.print("\n[bold yellow]📋 選擇進階篩選條件（套用後重新顯示結果）：[/bold yellow]")
         console.print("  [1] POC 量價密集區上10%")
-        console.print("  [2] VSBC 加速帶上10%")
+        console.print("  [2] VWAP上10%")
         console.print("  [3] 長期支撐上10%")
         console.print("  [4] 短期支撐上10%")
         console.print("  [5] 前低支撐上10%")
-        console.print("  [0] 清除篩選（顯示全部）")
         console.print("  [Enter] 結束篩選")
         console.print("👉 ", end="")
 
@@ -568,13 +589,8 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME)
         if not ch or ch == '\r' or ch == '\n':
             break
 
-        filter_map = {'1': 'poc', '2': 'vsbc', '3': 'long_sup', '4': 'short_sup', '5': 'front_low'}
-        labels = {'poc': 'POC量價密集區', 'vsbc': 'VSBC加速帶', 'long_sup': '長期支撐', 'short_sup': '短期支撐', 'front_low': '前低支撐'}
-        if ch == '0':
-            current_results = all_scored[:]
-            current_filters = []
-            console.print("[cyan]✅ 已清除篩選，顯示全部結果[/cyan]")
-        elif ch in filter_map:
+        filter_map = {'1': 'poc', '2': 'vwap', '3': 'long_sup', '4': 'short_sup', '5': 'front_low'}
+        if ch in filter_map:
             key = filter_map[ch]
             filtered = [r for r in all_scored if _passes_filter(r, key)]
             if filtered:
@@ -605,7 +621,7 @@ def _passes_filter(r, key, threshold=10.0):
 
 def _scan_with_progress_basic(conn, stocks, name_map, min_volume=StrategyConfig.DEFAULT_MIN_VOLUME):
     results = []
-    with Progress(SpinnerColumn(), TextColumn("[cyan]🚀 掃描中..."), BarColumn(), TimeElapsedColumn()) as prog:
+    with Progress(SpinnerColumn(), TextColumn("[cyan]Scanning..."), BarColumn(), TimeElapsedColumn()) as prog:
         task = prog.add_task("掃描市場", total=len(stocks))
         for code in stocks:
             try:
@@ -633,6 +649,7 @@ def _analyze_one(conn, code, name_map):
 
 def _score(code, name, a, df):
     price = a['last_close']
+    prev_close = float(df['close'].iloc[-2]) if len(df) >= 2 else price
     vol = float(df['volume'].iloc[-1]) if 'volume' in df.columns else 0
     tags, score = [], 0
 
@@ -666,9 +683,12 @@ def _score(code, name, a, df):
     if boxes:
         filter_levels['poc'] = boxes[0]['box_low']
 
-    band = a.get('acceleration_support_band')
-    if band:
-        filter_levels['vsbc'] = band['band_low']
+    # VWAP 濾網：收盤在 VWAP 上方 10% 以內
+    accel_band = a.get('acceleration_support_band')
+    if accel_band:
+        vwap_val = accel_band.get('vwap_center')
+        if vwap_val and vwap_val > 0:
+            filter_levels['vwap'] = vwap_val
 
     merged_s = a.get('merged_support_levels', [])
     if merged_s:
@@ -684,6 +704,7 @@ def _score(code, name, a, df):
 
     return {
         'code': code, 'name': name, 'close': price,
+        'prev_close': prev_close,
         'vol': int(vol), 'raw_vol': int(vol), 'amount': (price * vol) / 1e8,
         'dist': dist,
         'tags': "/".join(tags), 'score': score,
@@ -703,8 +724,8 @@ def _display_results(results, latest_date=0, sort_choice="1", min_volume=Strateg
 
     title_line = f"📈 系統掃描結果 (排序: {sort_names.get(sort_choice, '距支撐由近到遠')})"
 
-    labels = {'poc': 'POC', 'vsbc': 'VSBC', 'long_sup': '長期支撐', 'short_sup': '短期支撐', 'front_low': '前低支撐'}
-    dist_labels = {'poc': 'POC數值', 'vsbc': 'VSBC數值', 'long_sup': '長期支撐數值', 'short_sup': '短期支撐數值', 'front_low': '前低數值'}
+    labels = {'poc': 'POC', 'vwap': 'VWAP', 'long_sup': '長期支撐', 'short_sup': '短期支撐', 'front_low': '前低支撐'}
+    dist_labels = {'poc': 'POC數值', 'vwap': 'VWAP數值', 'long_sup': '長期支撐數值', 'short_sup': '短期支撐數值', 'front_low': '前低數值'}
     if current_filters:
         filter_label = " + ".join(labels.get(k, k) for k in current_filters)
         dist_col = dist_labels.get(current_filters[0], '距支撐')
@@ -727,8 +748,8 @@ def _display_results(results, latest_date=0, sort_choice="1", min_volume=Strateg
         padding=(0, 0),
         title_style="bold white",
     )
-    for col, style, nw in [("強", "cyan", True), ("代號", "magenta", True), ("名稱", "white", False),
-                          ("收盤", "bright_yellow", True), ("量(張)", "green", True), ("額(億)", "yellow", True),
+    for col, style, nw in [("代號", "magenta", True), ("名稱", "white", False),
+                          ("收盤", "bright_yellow", True), ("成交張數", "white", True), ("額(億)", "yellow", True),
                           (dist_col, "bright_red", True)]:
         table.add_column(col, justify="left", style=style, no_wrap=nw, overflow="fold" if not nw else None)
     for r in results[:StrategyConfig.MAX_SCAN_RESULTS]:
@@ -741,9 +762,23 @@ def _display_results(results, latest_date=0, sort_choice="1", min_volume=Strateg
             else:
                 dist_display = "-"
         else:
-            dist_display = f"{r['dist']:+.2f}%" if r.get('dist') is not None else "-"
-        table.add_row(str(r['score']), r['code'], r['name'], f"{r['close']:.2f}",
-                      f"{r['vol']:,}", f"{r['amount']:.2f}", dist_display)
+            dist_val = r.get('dist')
+            if dist_val is not None:
+                dist_color = "bright_red" if dist_val >= 0 else "bright_green"
+                dist_display = f"[{dist_color}]{dist_val:+.2f}%[/]"
+            else:
+                dist_display = "-"
+        # 收盤價著色（統一 price_color）
+        price_change = r['close'] - r.get('prev_close', r['close'])
+        prev_close = r.get('prev_close', r['close'])
+        pct = (price_change / prev_close * 100) if prev_close else 0.0
+        row_close = f"[{price_color(price_change, pct)}]{r['close']:.2f}[/]"
+        # 成交量著色（統一 vol_color，張數比較）
+        vol_sheets = r['vol'] // 1000
+        prev_vol_sheets = r.get('prev_vol', r['vol']) // 1000
+        vol_str = f"[{vol_color(vol_sheets, prev_vol_sheets)}]{vol_sheets:,}[/]"
+        table.add_row(r['code'], r['name'], row_close,
+                      vol_str, f"{r['amount']:.2f}", dist_display)
     console.print(table)
 
 
@@ -793,16 +828,26 @@ def _handle_input(conn):
         time.sleep(1)
 
 
+def get_latest_date() -> str:
+    """供 strategies.py 查詢資料基準日"""
+    conn = get_connection(readonly=True)
+    try:
+        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+    finally:
+        conn.close()
+
+
 def run_strategy(params):
     code = params.get('code')
     scan = params.get('scan', False)
     vol = params.get('vol', StrategyConfig.DEFAULT_MIN_VOLUME)
+    init_filter = params.get('filter')
     compact = params.get('compact', False)
     mobile = params.get('mobile', False)
     conn = get_connection(readonly=True)
     try:
         if scan:
-            scan_market_stocks(conn, vol)
+            scan_market_stocks(conn, vol, init_filter=init_filter)
         elif code:
             df = _fetch_history(conn, code)
             if df.empty:
@@ -828,6 +873,53 @@ def get_sr_levels(code):
         return {'short_resistance': result.get('nearest_resistance'), 'short_support': result.get('nearest_support')}
     except:
         return {}
+
+
+class SupportResistanceStrategy:
+    """撐壓策略 wrapper - 提供統一的 analyze() 介面。"""
+
+    def analyze(self, stock_id: str) -> dict:
+        """分析撐壓信號。回傳 strategy/stock_id/signal。"""
+        conn = get_connection(readonly=True)
+        try:
+            df = _fetch_history(conn, stock_id)
+            if df.empty:
+                return {
+                    "strategy": "sr",
+                    "stock_id": stock_id,
+                    "signal": "neutral",
+                    "reason": "無資料",
+                }
+            engine = SupportResistanceEngine(df)
+            result = engine.analyze()
+
+            # 根據最近支撐/壓力與現價的關係判斷信號
+            nearest_res = result.get('nearest_resistance')
+            nearest_sup = result.get('nearest_support')
+            last_close = float(df['close'].iloc[-1]) if not df.empty else 0
+
+            if nearest_res and last_close > nearest_res:
+                signal = "bullish"
+            elif nearest_sup and last_close < nearest_sup:
+                signal = "bearish"
+            else:
+                signal = "neutral"
+
+            return {
+                "strategy": "sr",
+                "stock_id": stock_id,
+                "signal": signal,
+                "nearest_resistance": nearest_res,
+                "nearest_support": nearest_sup,
+            }
+        except Exception:
+            return {
+                "strategy": "sr",
+                "stock_id": stock_id,
+                "signal": "neutral",
+            }
+        finally:
+            conn.close()
 
 
 if __name__ == "__main__":

@@ -2,65 +2,31 @@
 # [AI MOD]
 """
 ETL data processing and high-performance database writing engine.
-Performs batch upserts using 'INSERT OR REPLACE' inside a single transaction,
-providing 3x+ performance improvement compared to serial DELETE + INSERT.
+Uses INSERT ... ON CONFLICT DO UPDATE to preserve existing column values
+when a new write doesn't provide them (prevents NULL/empty overwrite bugs).
 """
 import sqlite3
 import pandas as pd
 import logging
-import bisect
 from db import get_connection
 
 logger = logging.getLogger(__name__)
 
 
 class DataProcessor:
-    """Unified database writing engine and price adjustment processor."""
+    """Unified database writing engine."""
 
     def __init__(self):
         pass
 
-    # ================== Forward-Adjusted Price Computation ==================
-    def compute_adj_factor(self, df_price: pd.DataFrame, df_div: pd.DataFrame) -> pd.DataFrame:
-        """
-        Computes the forward adjustment factors and adjusted close prices.
-        Matches original production business logic exactly.
-        """
-        if df_price.empty:
-            return df_price
-        df = df_price.sort_values('date').copy().reset_index(drop=True)
-        df['adj_factor'] = 1.0
-        if df_div.empty:
-            df['adj_close'] = df['close']
-            return df
-
-        events = []
-        for _, row in df_div.iterrows():
-            b = float(row['before_price'])
-            r = float(row['reference_price'])
-            if b > 0 and r > 0 and abs(b - r) > 1e-8:
-                events.append({'date': pd.to_datetime(row['date']), 'factor': r / b})
-        if not events:
-            df['adj_close'] = df['close']
-            return df
-
-        events.sort(key=lambda x: x['date'])
-        event_dates = [e['date'] for e in events]
-        factors = [e['factor'] for e in events]
-
-        suffix = [1.0] * (len(factors) + 1)
-        for i in range(len(factors)-1, -1, -1):
-            suffix[i] = suffix[i+1] * factors[i]
-
-        df['adj_factor'] = df['date'].apply(lambda d: suffix[bisect.bisect_right(event_dates, d)])
-        df['adj_close'] = (df['close'] * df['adj_factor']).round(2)
-        return df
-
-    # ================== Core Batch Upsert Engine ==================
+    # ================== Core Batch Upsert Engine (kept for reference) ==================
     @staticmethod
     def _batch_upsert(table_name: str, df: pd.DataFrame, conn: sqlite3.Connection):
         """
-        Executes a high-speed batch 'INSERT OR REPLACE' inside a single transaction.
+        Legacy: INSERT OR REPLACE — deletes the whole row then inserts.
+        Can clobber columns not present in the incoming df. Not used by any
+        upsert_* method anymore; retained only as a utility for callers that
+        genuinely want full-row replacement.
         """
         if df.empty:
             return 0
@@ -70,7 +36,6 @@ class DataProcessor:
         col_names = ", ".join(cols)
         sql = f"INSERT OR REPLACE INTO {table_name} ({col_names}) VALUES ({placeholders})"
 
-        # Convert DataFrame to list of tuples, mapping NaN to None (SQL NULL)
         records = df.where(df.notna(), None).values.tolist()
 
         cursor = conn.cursor()
@@ -83,7 +48,7 @@ class DataProcessor:
 
     # ================== Public Upsert Methods ==================
     def upsert_history(self, df: pd.DataFrame) -> int:
-        """Upserts daily K-line prices and trading parameters into stock_history."""
+        """Upserts daily K-line prices into stock_history."""
         if df is None or df.empty:
             return 0
         df_write = df.copy()
@@ -92,17 +57,40 @@ class DataProcessor:
         expected = [
             "stock_id", "date", "open", "high", "low", "close",
             "volume", "amount", "trade_count", "spread",
-            "adj_factor", "source"
+            "source"
         ]
         cols = [c for c in expected if c in df_write.columns]
         df_write = df_write[cols].copy()
         if 'date' in df_write.columns:
             df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
-        # 停牌股 close=NaN 不寫入 DB，避免 NOT NULL 約束錯誤
         df_write = df_write.dropna(subset=['close'])
 
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        sql = """
+        INSERT INTO stock_history
+            (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            open        = excluded.open,
+            high        = excluded.high,
+            low         = excluded.low,
+            close       = excluded.close,
+            volume      = excluded.volume,
+            amount      = excluded.amount,
+            trade_count = CASE WHEN excluded.trade_count IS NOT NULL THEN excluded.trade_count ELSE stock_history.trade_count END,
+            spread      = CASE WHEN excluded.spread      IS NOT NULL THEN excluded.spread      ELSE stock_history.spread END,
+            source      = excluded.source,
+            updated_at  = CURRENT_TIMESTAMP
+        """
+
         conn = get_connection()
-        return self._batch_upsert("stock_history", df_write, conn)
+        try:
+            conn.executemany(sql, records)
+            conn.commit()
+            return len(records)
+        finally:
+            conn.close()
 
     def upsert_institutional(self, df: pd.DataFrame) -> int:
         """Upserts institutional flow data into institutional_data."""
@@ -122,109 +110,190 @@ class DataProcessor:
         if 'date' in df_write.columns:
             df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
 
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        sql = """
+        INSERT INTO institutional_data
+            (stock_id, date, foreign_net, trust_net, dealer_net, institutional_net,
+             foreign_buy, foreign_sell, trust_buy, trust_sell, dealer_buy, dealer_sell,
+             source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            foreign_net        = excluded.foreign_net,
+            trust_net          = excluded.trust_net,
+            dealer_net         = excluded.dealer_net,
+            institutional_net  = excluded.institutional_net,
+            foreign_buy        = excluded.foreign_buy,
+            foreign_sell       = excluded.foreign_sell,
+            trust_buy          = excluded.trust_buy,
+            trust_sell         = excluded.trust_sell,
+            dealer_buy         = excluded.dealer_buy,
+            dealer_sell        = excluded.dealer_sell,
+            source             = excluded.source,
+            updated_at         = CURRENT_TIMESTAMP
+        """
+
         conn = get_connection()
         try:
-            return self._batch_upsert("institutional_data", df_write, conn)
+            conn.executemany(sql, records)
+            conn.commit()
+            return len(records)
+        finally:
+            conn.close()
+
+    def _upsert_shareholding_unified(self, df: pd.DataFrame, extra_cols_sql: str, extra_cols_values: str):
+        """
+        Internal helper for upsert_tdcc / upsert_shareholding / upsert_shareholding_unified.
+        All three write to shareholding_unified with the same ON CONFLICT logic.
+        extra_cols_sql: additional column names for INSERT column list
+        extra_cols_values: additional ? placeholders for VALUES
+        """
+        if df.empty:
+            return
+        df_write = df.copy()
+        if 'date' in df_write.columns:
+            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
+
+        # Build the full column list
+        base_cols = ["stock_id", "date", "source"]
+        extra_cols_list = [c.strip() for c in extra_cols_sql.split(",") if c.strip()]
+        all_cols = base_cols + extra_cols_list
+
+        # Filter to only columns present in df
+        cols = [c for c in all_cols if c in df_write.columns]
+        df_write = df_write[cols].copy()
+
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        # Build dynamic SQL based on actual columns present
+        placeholders = ", ".join(["?"] * len(cols))
+        col_names = ", ".join(cols)
+
+        # Build SET clause — protect NULLs with CASE WHEN
+        set_clauses = []
+        for col in cols:
+            if col in ("stock_id", "date", "source"):
+                continue  # skip PK columns
+            set_clauses.append(
+                f"{col} = CASE WHEN excluded.{col} IS NOT NULL THEN excluded.{col} ELSE shareholding_unified.{col} END"
+            )
+        set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+
+        sql = f"""
+        INSERT INTO shareholding_unified ({col_names})
+        VALUES ({placeholders})
+        ON CONFLICT(stock_id, date, source) DO UPDATE SET
+            {", ".join(set_clauses)}
+        """
+
+        conn = get_connection()
+        try:
+            conn.executemany(sql, records)
+            conn.commit()
         finally:
             conn.close()
 
     def upsert_tdcc(self, df: pd.DataFrame):
-        """Write TDCC shareholding data to shareholding_unified (physical table). [AI MOD]"""
+        """Write TDCC shareholding data to shareholding_unified."""
         if df.empty:
             return
-        # Ensure 'source' column exists so data lands with source='tdcc'
         df_write = df.copy()
         if 'source' not in df_write.columns:
             df_write['source'] = 'tdcc'
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
-        # Remove columns that don't exist in shareholding_unified
         expected = [
             "stock_id", "date", "source",
             "total_shares", "whale_ratio", "retail_ratio",
-            "total_people", "whale_shares", "whale_people", # [AI MOD]
-            "updated_at",
+            "total_people", "whale_shares", "whale_people",
         ]
         cols = [c for c in expected if c in df_write.columns]
-        df_write = df_write[cols]
-
-        conn = get_connection()
-        try:
-            self._batch_upsert("shareholding_unified", df_write, conn)
-        finally:
-            conn.close()
+        df_write = df_write[cols].copy()
+        self._upsert_shareholding_unified(
+            df_write,
+            "total_shares, whale_ratio, retail_ratio, total_people, whale_shares, whale_people",
+            ""
+        )
 
     def upsert_shareholding(self, df: pd.DataFrame):
-        """Upserts foreign shareholding details into shareholding_unified physical table [AI MOD]."""
+        """Upserts foreign shareholding into shareholding_unified."""
         if df.empty:
             return
         expected = [
             "stock_id", "date",
             "foreign_shares", "foreign_ratio",
-            "source", "updated_at"
+            "source"
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
-        # Force source to 'twse_foreign' to satisfy VIEW filter and physical table constraint
         df_write['source'] = 'twse_foreign'
-
-        conn = get_connection()
-        try:
-            self._batch_upsert("shareholding_unified", df_write, conn)
-        finally:
-            conn.close()
+        self._upsert_shareholding_unified(
+            df_write,
+            "foreign_shares, foreign_ratio",
+            ""
+        )
 
     def upsert_shareholding_unified(self, df: pd.DataFrame):
-        """Upserts weekly concentrations and foreign details into shareholding_unified. [AI MOD]"""
+        """Upserts weekly concentrations and foreign details into shareholding_unified."""
         if df.empty:
             return
         expected = [
             "stock_id", "date", "source",
             "total_shares", "whale_ratio", "retail_ratio",
             "foreign_shares", "foreign_ratio",
-            "total_people", "whale_shares", "whale_people", # [AI MOD]
-            "updated_at"
+            "total_people", "whale_shares", "whale_people",
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
-
-        conn = get_connection()
-        try:
-            self._batch_upsert("shareholding_unified", df_write, conn)
-        finally:
-            conn.close()
+        self._upsert_shareholding_unified(
+            df_write,
+            "total_shares, whale_ratio, retail_ratio, foreign_shares, foreign_ratio, total_people, whale_shares, whale_people",
+            ""
+        )
 
     def upsert_dividend_events(self, df: pd.DataFrame):
-        """Upserts dividend actions and corporate events into dividend_events."""
+        """Upserts dividend events into dividend_events."""
         if df.empty:
             return
         expected = [
             "stock_id", "date",
             "before_price", "after_price", "reference_price",
             "cash_dividend", "stock_dividend",
-            "source", "updated_at"
+            "source"
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
         if 'date' in df_write.columns:
             df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
 
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        sql = """
+        INSERT INTO dividend_events
+            (stock_id, date, before_price, after_price, reference_price,
+             cash_dividend, stock_dividend, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            before_price    = CASE WHEN excluded.before_price    IS NOT NULL THEN excluded.before_price    ELSE dividend_events.before_price END,
+            after_price     = CASE WHEN excluded.after_price     IS NOT NULL THEN excluded.after_price     ELSE dividend_events.after_price END,
+            reference_price = CASE WHEN excluded.reference_price IS NOT NULL THEN excluded.reference_price ELSE dividend_events.reference_price END,
+            cash_dividend   = excluded.cash_dividend,
+            stock_dividend  = excluded.stock_dividend,
+            source          = excluded.source,
+            updated_at      = CURRENT_TIMESTAMP
+        """
+
         conn = get_connection()
         try:
-            self._batch_upsert("dividend_events", df_write, conn)
+            conn.executemany(sql, records)
+            conn.commit()
         finally:
             conn.close()
 
     def upsert_per_data(self, df: pd.DataFrame):
-        """Upserts Price-to-Earnings (PE) ratios and valuations into per_data. [AI MOD]"""
+        """Upserts PE/PBR valuation data into per_data."""
         if df.empty:
             return
         df_write = df.copy()
-        # Dynamic mapping for aliases [AI MOD]
+        # Dynamic mapping for aliases
         if 'per' in df_write.columns:
             df_write['pe_ratio'] = df_write['per']
         elif 'pe_ratio' in df_write.columns:
@@ -237,33 +306,68 @@ class DataProcessor:
 
         expected = [
             "stock_id", "date", "per", "pbr", "pe_ratio", "pb_ratio", "dividend_yield",
-            "source", "updated_at"
+            "source"
         ]
         cols = [c for c in expected if c in df_write.columns]
-        df_write = df_write[cols]
+        df_write = df_write[cols].copy()
         if 'date' in df_write.columns:
             df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
 
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        sql = """
+        INSERT INTO per_data
+            (stock_id, date, per, pbr, pe_ratio, pb_ratio, dividend_yield, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            per            = CASE WHEN excluded.per            IS NOT NULL THEN excluded.per            ELSE per_data.per END,
+            pbr            = CASE WHEN excluded.pbr            IS NOT NULL THEN excluded.pbr            ELSE per_data.pbr END,
+            pe_ratio       = CASE WHEN excluded.pe_ratio       IS NOT NULL THEN excluded.pe_ratio       ELSE per_data.pe_ratio END,
+            pb_ratio       = CASE WHEN excluded.pb_ratio       IS NOT NULL THEN excluded.pb_ratio       ELSE per_data.pb_ratio END,
+            dividend_yield = CASE WHEN excluded.dividend_yield IS NOT NULL THEN excluded.dividend_yield ELSE per_data.dividend_yield END,
+            source         = excluded.source,
+            updated_at     = CURRENT_TIMESTAMP
+        """
+
         conn = get_connection()
         try:
-            self._batch_upsert("per_data", df_write, conn)
+            conn.executemany(sql, records)
+            conn.commit()
         finally:
             conn.close()
 
     def upsert_meta(self, df: pd.DataFrame):
-        """Upserts basic stock information into stock_meta."""
+        """Upserts stock metadata into stock_meta.
+        Critical: market/type/stock_name must NOT be overwritten by empty strings.
+        """
         if df.empty:
             return
         expected = [
             "stock_id", "stock_name", "industry_category",
-            "market", "type", "source", "updated_at"
+            "market", "type", "source"
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
 
+        records = df_write.where(df_write.notna(), None).values.tolist()
+
+        sql = """
+        INSERT INTO stock_meta
+            (stock_id, stock_name, industry_category, market, type, source)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stock_id) DO UPDATE SET
+            stock_name        = CASE WHEN excluded.stock_name        IS NOT NULL AND excluded.stock_name        != '' THEN excluded.stock_name        ELSE stock_meta.stock_name END,
+            industry_category = CASE WHEN excluded.industry_category IS NOT NULL AND excluded.industry_category != '' THEN excluded.industry_category ELSE stock_meta.industry_category END,
+            market            = CASE WHEN excluded.market            IS NOT NULL AND excluded.market            != '' THEN excluded.market            ELSE stock_meta.market END,
+            type              = CASE WHEN excluded.type              IS NOT NULL AND excluded.type              != '' THEN excluded.type              ELSE stock_meta.type END,
+            source            = excluded.source,
+            updated_at        = CURRENT_TIMESTAMP
+        """
+
         conn = get_connection()
         try:
-            self._batch_upsert("stock_meta", df_write, conn)
+            conn.executemany(sql, records)
+            conn.commit()
         finally:
             conn.close()
 

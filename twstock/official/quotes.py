@@ -18,7 +18,7 @@ def _get_session():
 SESSION = _get_session()
 
 def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
-    """抓取上市公司當日收盤行情（目標欄位：volume 張、amount 千萬元）"""
+    """抓取上市公司當日收盤行情（DB 存原始值：volume 股、amount 元）"""
     date_str = str(date_int)
     url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
     resp = retry_get(
@@ -70,10 +70,10 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TWSE"
     
-    # 單位轉換: volume(股) / 1000 -> 張, amount(元) / 1e7 -> 千萬元
-    df["volume"] = df["volume"].apply(lambda x: safe_int(x) // 1000)
-    df["amount"] = df["amount"].apply(lambda x: safe_int(x) / 10000000.0)
-    
+    # DB 存原始值（股/元），顯示層才轉換
+    df["volume"] = df["volume"].apply(safe_int)
+    df["amount"] = df["amount"].apply(safe_int)
+
     for col in ["open", "high", "low", "close"]:
         df[col] = df[col].apply(safe_float)
 
@@ -83,7 +83,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
     return df
 
 def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
-    """抓取上櫃公司當日收盤行情（目標欄位：volume 張、amount 千萬元）"""
+    """抓取上櫃公司當日收盤行情（DB 存原始值：volume 股、amount 元）"""
     roc_year = date_int // 10000 - 1911
     roc_date = f"{roc_year}/{date_int % 10000 // 100:02d}/{date_int % 100:02d}"
     url = "https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php"
@@ -137,10 +137,10 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TPEx"
     
-    # 單位轉換: volume(股) / 1000 -> 張, amount(元) / 1e7 -> 千萬元
-    df["volume"] = df["volume"].apply(lambda x: safe_int(x) // 1000)
-    df["amount"] = df["amount"].apply(lambda x: safe_int(x) / 10000000.0)
-    
+    # DB 存原始值（股/元），顯示層才轉換
+    df["volume"] = df["volume"].apply(safe_int)
+    df["amount"] = df["amount"].apply(safe_int)
+
     for col in ["open", "high", "low", "close"]:
         df[col] = df[col].apply(safe_float)
 
@@ -160,14 +160,19 @@ def update_stock_meta_from_df(df: pd.DataFrame):
     """從行情 df 擷取 stock_id, name, market → 更新 stock_meta"""
     if df.empty:
         return
-    # 【推斷】假設 db_admin 提供 save_stock_meta
     from db_admin import save_stock_meta
-    
-    meta_df = df[["stock_id", "name"]].copy()
+
+    # 需要的欄位：stock_id, name（必要）；market 由 updater.py 在 concat 前標記
+    needed = ["stock_id", "name"]
+    if "market" in df.columns:
+        needed.append("market")
+    meta_df = df[needed].copy()
     meta_df["stock_name"] = meta_df["name"]
-    meta_df["type"] = "stock"
+    meta_df["type"] = "COMMON"          # 與 trading_calendar.py / updater.py 查詢條件一致
     meta_df["source"] = "quotes"
     meta_df["industry_category"] = ""
-    meta_df["market"] = ""
-    
+    # market 若沒帶入（舊呼叫端相容），保留空字串；否則用標記值（TSE/OTC）
+    if "market" not in meta_df.columns:
+        meta_df["market"] = ""
+
     save_stock_meta(meta_df)

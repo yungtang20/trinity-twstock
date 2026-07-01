@@ -344,7 +344,6 @@ class FinMindFetcher:
                 "amount": row["Trading_money"],
                 "trade_count": row["Trading_turnover"],
                 "spread": row["spread"],
-                "adj_factor": 1.0,
                 "source": "finmind",
             })
         return rows
@@ -354,10 +353,10 @@ class FinMindFetcher:
         sql = """
         INSERT OR REPLACE INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
-             trade_count, spread, adj_factor, source)
+             trade_count, spread, source)
         VALUES
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
-             :trade_count, :spread, :adj_factor, :source)
+             :trade_count, :spread, :source)
         """
         self.db.executemany(sql, rows)
         self.db.commit()
@@ -449,7 +448,6 @@ class TWSEFetcher:
                 "amount": parse_num(row[2], True),
                 "trade_count": parse_num(row[8], True),
                 "spread": parse_num(row[7], False),
-                "adj_factor": 1.0,
                 "source": "official",
             })
         return rows
@@ -459,10 +457,10 @@ class TWSEFetcher:
         sql = """
         INSERT OR REPLACE INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
-             trade_count, spread, adj_factor, source)
+             trade_count, spread, source)
         VALUES
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
-             :trade_count, :spread, :adj_factor, :source)
+             :trade_count, :spread, :source)
         """
         self.db.executemany(sql, rows)
         self.db.commit()

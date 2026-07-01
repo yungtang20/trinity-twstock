@@ -15,7 +15,7 @@ def _get_session():
 SESSION = _get_session()
 
 def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
-    """上市三大法人（單位：張）"""
+    """上市三大法人（DB 存原始值：股）"""
     date_str = str(date_int)
     url = "https://www.twse.com.tw/rwd/zh/fund/T86"
     resp = retry_get(
@@ -56,16 +56,16 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TWSE"
     
-    # 轉換為張 (TWSE 原始為股數)
+    # DB 存原始值（股），顯示層才轉換
     for col in ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]:
-        df[col] = df[col].apply(lambda x: safe_int(x) // 1000)
-        
+        df[col] = df[col].apply(safe_int)
+
     df["dealer_buy"] = 0
     df["dealer_sell"] = 0
     return df
 
 def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
-    """上櫃三大法人（單位：張）"""
+    """上櫃三大法人（DB 存原始值：股）"""
     roc_year = date_int // 10000 - 1911
     roc_date = f"{roc_year}/{date_int % 10000 // 100:02d}/{date_int % 100:02d}"
     url = "https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php"

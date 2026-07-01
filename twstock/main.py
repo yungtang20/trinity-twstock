@@ -59,8 +59,6 @@ from strategy.strategies import interactive_menu as strategies_menu, run_strateg
 from official import update_official_daily, update_tdcc_weekly, update_tdcc_historical
 from official.trading_calendar import get_nth_trading_day_back  # [AI MOD]
 from official.dividend_crawler import fetch_dividend_events, upsert_dividend_events
-from official.price_adjuster import update_all_adjusted_prices
-from retry import retry_get
 
 warnings.filterwarnings("ignore")
 
@@ -77,13 +75,12 @@ if sys.platform == "win32":
     except AttributeError:
         pass
 
-HAS_MSVCRT = False
-if sys.platform == "win32":
-    try:
-        import msvcrt
-        HAS_MSVCRT = True
-    except ImportError:
-        HAS_MSVCRT = False
+try:
+    import msvcrt  # type: ignore[import-untyped]
+    HAS_MSVCRT = True
+except ImportError:
+    msvcrt = None  # type: ignore[assignment]
+    HAS_MSVCRT = False
 
 # 自動初始化資料庫
 if not os.path.exists(get_path()):
@@ -971,7 +968,7 @@ def run_quick_analysis(stock_id: str):
 
     input("\n按 Enter 鍵返回主選單...")
 
-def update_database(stock_id: str, token: str = None):
+def update_database(stock_id: str, token: str | None = None):
     console.print(f"[cyan]開始更新 {stock_id} 歷史資料...[/cyan]")
     fetcher = DataFetcher()
     processor = DataProcessor()
@@ -994,9 +991,8 @@ def update_database(stock_id: str, token: str = None):
 
     if not div_events.empty:
         processor.upsert_dividend_events(div_events)
-    df_adj = processor.compute_adj_factor(df_price, div_events if not div_events.empty else None)
-    df_adj['stock_id'] = stock_id
-    processor.upsert_history(df_adj)
+    df_price['stock_id'] = stock_id
+    processor.upsert_history(df_price)
 
     # [AI MOD] fetch_per_data 不存在，用 try-except 包覆避免崩潰
     try:
@@ -1038,7 +1034,7 @@ def update_database(stock_id: str, token: str = None):
     console.print(f"[green]✅ {stock_id} 資料更新完成[/green]")
     return True
 
-def indicators_command(stock_id: str, token: str = None):
+def indicators_command(stock_id: str, token: str | None = None):
     stock_name = get_stock_name(stock_id)
 
     with get_connection(readonly=True) as conn:
@@ -1063,7 +1059,7 @@ def indicators_command(stock_id: str, token: str = None):
         )
     print("")
 
-def intraday_command(stock_id: str, token: str = None):
+def intraday_command(stock_id: str, token: str | None = None):
     fetcher = DataFetcher()
     engine = IndicatorEngine(stock_id, limit=300)
     if engine.df.empty:
@@ -1151,7 +1147,6 @@ def official_command(args):
 def dividend_command(args):
     start_date = getattr(args, 'start_date', None)
     end_date = getattr(args, 'end_date', None)
-    force_recalc = getattr(args, 'recalculate', False)
 
     if not start_date or not end_date:
         console.print("[red]請提供 --start-date 和 --end-date 參數[/red]")
@@ -1165,9 +1160,6 @@ def dividend_command(args):
             return
         upsert_dividend_events(df)
         console.print(f"[green]✅ 已寫入 {len(df)} 筆除權息事件[/green]")
-        console.print("[cyan]計算還原價格...[/cyan]")
-        update_all_adjusted_prices(force_recalc=force_recalc)
-        console.print("[green]✅ 還原價格計算完成[/green]")
     except Exception as e:
         console.print(f"[red]❌ 處理除權息資料時發生錯誤: {e}[/red]")
 
@@ -1197,24 +1189,14 @@ def run_daily_update():
         )
 
     try:
-        update_official_daily(None, days=5, auto_tdcc=True, recalc_adj=False)
-
-        # [AI MOD] 每日執行全年度除權息公告掃描 (使用者要求每日更新)
-        try:
-            from official.dividend_daily import run_dividend_daily
-            console.print(f"  [cyan]→ 同步當年全量除權息公告 ({datetime.now().year}年)...[/cyan]")
-            run_dividend_daily(recalc_adj=False)
-        except Exception as e:
-            console.print(f"  [yellow]⚠️ 除權息全量更新失敗: {e}[/yellow]")
-
-
+        update_official_daily(None, days=5, auto_tdcc=True)
 
         console.print("[green]✅ 每日資料更新完成！[/green]")
     except Exception as e:
         console.print(f"[red]❌ 更新失敗: {e}[/red]")
     input("\n按 Enter 鍵返回主選單...")
 
-def _check_zero_volume_anomalies(suspended: set):
+def _check_zero_volume_anomalies(suspended: set | list):
     """檢查最新交易日零成交量異常"""
     # [AI MOD] 統一使用 db 模組
     conn = get_connection(readonly=True)
@@ -1281,10 +1263,10 @@ def run_historical_update_menu():
         t.add_column("說明", style="dim")
         t.add_row("1", "同步幾個歷史交易日", "快速同步多個交易日歷史官方價量與法人")
         t.add_row("2", "抓取歷史 N 週 TDCC 集保", "下載並建立大股東集保分散表歷史")
-        t.add_row("3", "同步除權息並計算還原價", "爬取特定區間除權息事件並重算前復權價")
+        t.add_row("3", "同步除權息事件", "爬取特定區間除權息事件並寫入資料庫")
         t.add_row(
             "4", "抓取當年除權息公告",
-            "爬取今年除權息預告並重算受影響股票前復權價",
+            "爬取今年除權息預告並寫入資料庫",
         )
         t.add_row("5", "檢測零量價與異常", "掃描最新交易日中非處置股票卻零量零價的異常名單")
         t.add_row("Enter", "返回主選單", "")
@@ -1310,7 +1292,7 @@ def run_historical_update_menu():
             start_date = start_dt.strftime('%Y-%m-%d')
             end_date = end_dt.strftime('%Y-%m-%d')
             console.print(f"\n[cyan]>> 同步區間: {start_date} ~ {end_date}（過去 {days} 個交易日）[/cyan]")
-            console.print("[cyan]>> 開始同步除權息與前復權資料...[/cyan]")
+            console.print("[cyan]>> 開始同步除權息事件...[/cyan]")
             try:
                 df = fetch_dividend_events(start_date, end_date)
                 if not df.empty:
@@ -1320,23 +1302,17 @@ def run_historical_update_menu():
                     )
                 else:
                     console.print("[yellow]⚠️ 此區間無除權息資料[/yellow]")
-
-                console.print(
-                    "[cyan]>> 正在重新計算並更新所有歷史前復權價格...[/cyan]"
-                )
-                update_all_adjusted_prices(force_recalc=False)
-                console.print("[green]✅ 還原價計算與資料對齊完成！[/green]")
             except Exception as e:
                 console.print(f"[red]❌ 發生錯誤: {e}[/red]")
         elif ch == "4":
             console.print(
-                "\n[cyan]>> 開始抓取當年除權息公告與重算還原因子...[/cyan]"
+                "\n[cyan]>> 開始抓取當年除權息公告...[/cyan]"
             )
             try:
                 from official.dividend_daily import run_dividend_daily
                 run_dividend_daily()
                 console.print(
-                    "[green]✅ 當年除權息公告抓取與還原價重算完成！[/green]"
+                    "[green]✅ 當年除權息公告抓取完成！[/green]"
                 )
             except Exception as e:
                 console.print(f"[red]❌ 發生錯誤: {e}[/red]")
@@ -1420,9 +1396,6 @@ if __name__ == '__main__':
         )
         parser.add_argument("--start-date", type=str, help="開始日期 (dividend)")
         parser.add_argument("--end-date", type=str, help="結束日期 (dividend)")
-        parser.add_argument(
-            "--recalculate", action="store_true", help="強制重算還原價格"
-        )
 
         args = parser.parse_args()
         token = args.token or get_token()

@@ -33,10 +33,11 @@ from db import get_connection
 _SCAN_CACHE = {
     'date': None,
     'min_volume': None,
+    'strat_choice': None,
     'results': None
 }
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from display import price_rich, price_color  # [AI MOD]
+from display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
 
 def _compute_ma_with_deduction(closes: list, period: int):
     """
@@ -200,10 +201,34 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
     except Exception as e:
         console.print(f"[red]❌ 資料庫錯誤: {e}[/red]")
         return
+    # [FIX] Prompt for strat_choice BEFORE the scan loop so the strategy check actually runs
+    if not strat_choice:
+        console.print("\n[bold yellow]🔍 請選擇掃描策略 (單鍵輸入):[/bold yellow]")
+        console.print("  [1] 突破年線 (預設)")
+        console.print("  [2] 突破季線")
+        console.print("  [3] 2560戰法")
+
+        strat_choice = "1"
+        try:
+            import msvcrt
+            if msvcrt.kbhit():
+                ch = msvcrt.getwch()
+                if ch in ('1', '2', '3'):
+                    strat_choice = ch
+        except Exception:
+            pass
+
+    # [FIX] Update target_ma_map & period after strat_choice is confirmed
+    target_ma_map = {"1": "ma200", "2": "ma60", "3": "ma25"}
+    target_ma_col = target_ma_map.get(strat_choice, "ma200")
+    period_map = {"1": 200, "2": 60, "3": 25}
+    period = period_map.get(strat_choice, 200)
+
+
 
     # Check session cache hit
     cache_hit = False
-    if _SCAN_CACHE['date'] == latest_date and _SCAN_CACHE['min_volume'] == min_volume and _SCAN_CACHE['results'] is not None:
+    if _SCAN_CACHE['date'] == latest_date and _SCAN_CACHE['min_volume'] == min_volume and _SCAN_CACHE['strat_choice'] == strat_choice and _SCAN_CACHE['results'] is not None:
         cache_hit = True
         all_results = _SCAN_CACHE['results']
         console.print(f"\n[green]⚡ 已載入今日全市場掃描快取數據 (基準日: {latest_date}) [0.00s][/green]")
@@ -216,16 +241,15 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
 
         # === 嚴格三段式掃描 ===
         # 第一段：SQL 撈 stock_history 最新一日 → snapshot (與原版一致)
-        target_ma_map = {"1": "ma200", "2": "ma60", "3": "ma25"}
-        target_ma_col = target_ma_map.get(strat_choice, "ma200")
 
         snapshot_sql = f"""
             SELECT i.stock_id, h.close, i.{target_ma_col}, i.vol_ma5, i.vol_ma60
             FROM stock_indicators i
             JOIN stock_history h ON i.stock_id = h.stock_id AND i.date = h.date
-            WHERE i.date = ? AND h.volume >= 500 AND i.stock_id GLOB '[1-9][0-9][0-9][0-9]'
+            WHERE i.date = ? AND h.volume >= ? AND i.stock_id GLOB '[1-9][0-9][0-9][0-9]'
         """
-        cursor = conn.execute(snapshot_sql, (latest_date,))
+        # h.volume 單位為股，min_volume 單位為張（1張=1000股）
+        cursor = conn.execute(snapshot_sql, (latest_date, min_volume * 1000))
         rows = cursor.fetchall()
         total_snapshots = len(rows)
 
@@ -247,8 +271,6 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
         # 第三段：只對命中股票 fetch_klines
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
         all_results = []
-        period_map = {"1": 200, "2": 60, "3": 25}
-        period = period_map.get(strat_choice, 200)
         fetch_count = 0
 
         with Progress(SpinnerColumn(), TextColumn("[cyan]🚀 正在對命中股票補讀歷史算回踩..."),
@@ -280,6 +302,19 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                     curr_vol = v[-1]
                     prev_vol = v[-2] if len(v) >= 2 else curr_vol
 
+                    # MA 趨勢方向：最後兩天 MA 比較
+                    ma_curr = ma_series[-1]
+                    ma_prev = ma_series[-2] if len(ma_series) >= 2 else ma_curr
+                    if ma_curr is not None and ma_prev is not None and ma_curr > 0 and ma_prev > 0:
+                        if ma_curr > ma_prev:
+                            ma_trend = "up"
+                        elif ma_curr < ma_prev:
+                            ma_trend = "down"
+                        else:
+                            ma_trend = "flat"
+                    else:
+                        ma_trend = "flat"
+
                     # 策略條件判斷
                     triggered = []
 
@@ -301,9 +336,11 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                                 'trend': "突破年線",
                                 'color': "bold yellow",
                                 'vol': int(curr_vol) // 1000,
+                                'prev_vol': int(prev_vol) // 1000,
                                 'amount': (curr_price * curr_vol) / 1e8,
                                 'strat_id': "1",
                                 'retraces': retraces,
+                                'ma_trend': ma_trend,
                             })
                     elif strat_choice == "2":  # 突破季線
                         if prev_price <= ma_series[-2] and curr_price > ma_series[-1] and curr_vol > prev_vol:
@@ -323,9 +360,11 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                                 'trend': "突破季線",
                                 'color': "bright_magenta",
                                 'vol': int(curr_vol) // 1000,
+                                'prev_vol': int(prev_vol) // 1000,
                                 'amount': (curr_price * curr_vol) / 1e8,
                                 'strat_id': "2",
                                 'retraces': retraces,
+                                'ma_trend': ma_trend,
                             })
                     elif strat_choice == "3":  # 2560戰法
                         vol_ma5 = df['volume'].rolling(window=5).mean().values.tolist()
@@ -360,9 +399,11 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                                     'trend': "2560戰法",
                                     'color': "cyan",
                                     'vol': int(curr_vol) // 1000,
+                                    'prev_vol': int(prev_vol) // 1000,
                                     'amount': (curr_price * curr_vol) / 1e8,
                                     'strat_id': "3",
                                     'retraces': retraces,
+                                    'ma_trend': ma_trend,
                                 })
 
                     if triggered:
@@ -377,52 +418,32 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
         # Store in session cache
         _SCAN_CACHE['date'] = latest_date
         _SCAN_CACHE['min_volume'] = min_volume
+        _SCAN_CACHE['strat_choice'] = strat_choice
         _SCAN_CACHE['results'] = all_results
         _SCAN_CACHE['total_snapshots'] = total_snapshots
         _SCAN_CACHE['hit_stocks'] = len(hit_list)
         _SCAN_CACHE['fetch_count'] = fetch_count
         _SCAN_CACHE['old_time'] = _time.time() - _t0
 
-    if not strat_choice:
-        console.print("\n[bold yellow]🔍 請選擇掃描策略 (單鍵輸入):[/bold yellow]")
-        console.print("  [1] 突破年線 (預設)")
-        console.print("  [2] 突破季線")
-        console.print("  [3] 2560戰法")
-
-        strat_choice = "1"
-        try:
-            import msvcrt
-            if msvcrt.kbhit():
-                ch = msvcrt.getwch()
-                if ch in ('1', '2', '3'):
-                    strat_choice = ch
-        except Exception:
-            pass
-
     strat_names = {"1": "突破年線", "2": "突破季線", "3": "2560戰法"}
+    strat_filters = {
+        "1": "收盤突破 MA200，今日量 > 昨日量",
+        "2": "收盤突破 MA60，今日量 > 昨日量",
+        "3": "股價突破 MA25 後回落 MA25 上 10% 內，VolMA5 上穿 VolMA60",
+    }
+    sort_names = {"1": "距目標均線由近到遠", "2": "成交金額由大到小"}
     if cache_hit:
         console.print(f"👉 已載入戰法：[cyan]{strat_names[strat_choice]}[/cyan]")
     else:
         console.print(f"👉 已選擇策略：[cyan]{strat_names[strat_choice]}[/cyan]")
+    console.print(f"   篩選條件：[cyan]{strat_filters[strat_choice]}[/cyan] │ 最小成交量 [cyan]{min_volume:,} 張[/cyan] │ 排序：[cyan]{sort_names.get(sort_choice, '距目標均線由近到遠')}[/cyan]")
 
     # Filter the consolidated results by strat_choice
     results = [r for r in all_results if r['strat_id'] == strat_choice]
 
-    # 排序：優先用呼叫者指定的，否則用互動式提示
-    if sort_choice is None:
+    # 排序：由呼叫端傳入，未提供時預設為 "1"
+    if not sort_choice:
         sort_choice = "1"
-        if results:
-            console.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
-            console.print("  [1] 距目標均線由近到遠 (預設)")
-            console.print("  [2] 成交金額由大到小")
-            try:
-                import msvcrt
-                if msvcrt.kbhit():
-                    ch = msvcrt.getwch()
-                    if ch in ('1', '2'):
-                        sort_choice = ch
-            except Exception:
-                pass
 
     if sort_choice == "1":
         results.sort(key=lambda x: abs(x['bias']))
@@ -597,12 +618,12 @@ def _count_retraces_wrapped(ma_series, closes, period):
     if breakout_start >= len(closes):
         return 0
 
-    # 計算突破後「回踩均線但沒跌破」的天數
+    # 計算突破後「回踩均線但沒跌破」的天數（突破當天起算，均線以上、均線以上 9% 以內）
     count = 0
-    for i in range(breakout_start + 1, len(closes)):
+    for i in range(breakout_start, len(closes)):
         m = ma_series[i]
         if m is not None and m > 0:
-            if m <= closes[i] <= m * 1.10:
+            if m <= closes[i] <= m * 1.09:
                 count += 1
     return count
 
@@ -643,32 +664,52 @@ def _display_scan_results(results: list, latest_date: int, sort_choice: str, str
     t.add_column("曾回踩", style="cyan", no_wrap=True) # [AI MOD]
     
     for r in results[:40]:
-        vol_ratio_val = r.get('vol_ratio', 0.0)
-        # [AI MOD] Color dynamically: red if today's volume > yesterday's, green if less
+        # 成交量顏色（統一 vol_color）
         from rich.text import Text
-        vol_color = "bright_red" if vol_ratio_val > 0 else ("bright_green" if vol_ratio_val < 0 else "white")
-        vol_growth_text = Text(f"{r['vol']:,}  ({vol_ratio_val:+.1%})", style=vol_color)
-        
-        # [AI MOD] Close price coloring based on yesterday's close
+        vol_style = vol_color(r['vol'], r.get('prev_vol', r['vol']))
+        vol_growth_text = Text(f"{r['vol']:,}  ({r.get('vol_ratio', 0.0):+.1%})", style=vol_style)
+
+        # 收盤顏色（統一 price_color：漲跌停紅/綠底白字）
         price_change = r['close'] - r.get('prev_close', r['close'])
-        price_color = "bright_red" if price_change > 0 else ("bright_green" if price_change < 0 else "white")
-        row_close = f"[{price_color}]{r['close']:.2f}[/]"
+        prev_close = r.get('prev_close', r['close'])
+        pct = (price_change / prev_close * 100) if prev_close else 0.0
+        row_close = f"[{price_color(price_change, pct)}]{r['close']:.2f}[/]"
+
+        # 乖離率著色：正=紅，負=綠
+        bias_val = r['bias']
+        bias_color = "bright_red" if bias_val >= 0 else "bright_green"
+        bias_str = f"[{bias_color}]{bias_val:+.2f}%[/]"
+
+        # MA 顏色（統一 ma_color）
+        ma_val = r.get('target_ma', 0.0)
+        ma_str = f"[{ma_color(r.get('ma_trend', 'flat'))}]{ma_val:.2f}[/]"
 
         t.add_row(
             r['code'], r['name'],
-            row_close,  # [AI MOD] Dynamically colored close
-            vol_growth_text, # [AI MOD]
+            row_close,
+            vol_growth_text,
             f"{r['amount']:.2f}",
-            f"{r.get('target_ma', 0.0):.2f}",
-            f"{r['bias']:+.2f}%",
-            f"{r.get('retraces', 0)}次" # [AI MOD]
+            ma_str,
+            bias_str,
+            f"{r.get('retraces', 0)}次"
         )
     console.print(t)
+
+def get_latest_date() -> str:
+    """供 strategies.py 查詢資料基準日"""
+    from strategy._utils import get_connection
+    conn = get_connection(readonly=True)
+    try:
+        return conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]
+    finally:
+        conn.close()
+
 
 def run_strategy(params: dict):
     code = params.get('code')
     scan = params.get('scan', False)
     strat_choice = params.get('strat_choice')
+    sort_choice = params.get('sort_choice')
     vol = params.get('vol', 500)
     compact = params.get('compact', False)
     mobile = params.get('mobile', False)
@@ -684,7 +725,7 @@ def run_strategy(params: dict):
                 pass
 
         if scan:
-            scan_market_stocks(conn, vol, strat_choice)
+            scan_market_stocks(conn, vol, strat_choice, sort_choice=sort_choice)
             return
 
         if not code:
@@ -763,6 +804,56 @@ def run_strategy(params: dict):
         _render_mobile_ma(data, code, name)
     else:
         _render_full_ma(data, code, name)
+
+class MAStrategy:
+    """均線策略 wrapper - 提供統一的 analyze() 介面。"""
+
+    def analyze(self, stock_id: str) -> dict:
+        """分析均線信號。回傳 strategy/stock_id/signal。"""
+        from db import get_connection
+        from strategy._utils import fetch_klines
+
+        conn = get_connection()
+        try:
+            df = fetch_klines(conn, stock_id, limit=250)
+            if df is None or df.empty or len(df) < 60:
+                return {
+                    "strategy": "ma",
+                    "stock_id": stock_id,
+                    "signal": "neutral",
+                    "reason": "資料不足",
+                }
+
+            c = df['close'].sort_index().tolist()
+            curr = c[-1]
+
+            ma25 = sum(c[-25:]) / 25 if len(c) >= 25 else curr
+            ma60 = sum(c[-60:]) / 60 if len(c) >= 60 else curr
+            ma200 = sum(c[-200:]) / 200 if len(c) >= 200 else curr
+
+            # 判斷排列
+            if curr > ma25 > ma60 > ma200:
+                signal = "bullish"
+                arrangement = "多頭排列"
+            elif curr < ma25 < ma60 < ma200:
+                signal = "bearish"
+                arrangement = "空頭排列"
+            else:
+                signal = "neutral"
+                arrangement = "區間震盪"
+
+            return {
+                "strategy": "ma",
+                "stock_id": stock_id,
+                "signal": signal,
+                "ma25": round(ma25, 2),
+                "ma60": round(ma60, 2),
+                "ma200": round(ma200, 2),
+                "arrangement": arrangement,
+            }
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     import sys

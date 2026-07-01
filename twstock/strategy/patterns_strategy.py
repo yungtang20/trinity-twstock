@@ -156,8 +156,12 @@ def _clear_screen():
     clear_screen()
 
 
-def _get_single_key_input(prompt: str, keys: str, default: str = "4", auto_four: bool = False) -> str:
-    """[AI MOD] Robust single-key input helper supporting Windows and fallback."""
+def _get_single_key_input(prompt: str, keys: str, default: str = "4",
+                          auto_four: bool = False, back_on_enter: bool = False) -> str:
+    """[AI MOD] Robust single-key input helper supporting Windows and fallback.
+
+    ponytail: back_on_enter=True makes Enter return "" (back signal) instead of default.
+    """
     try:
         import msvcrt
         if sys.stdin.isatty():
@@ -172,6 +176,8 @@ def _get_single_key_input(prompt: str, keys: str, default: str = "4", auto_four:
                     if ch in ('\r', '\n'):
                         sys.stdout.write('\n')
                         sys.stdout.flush()
+                        if back_on_enter:
+                            return ""  # ponytail: back signal
                         return buf if (auto_four and len(buf) > 0) else default
                     elif ch in ('\x1b', '\x03'): # ESC or Ctrl+C
                         sys.stdout.write('\n')
@@ -186,6 +192,8 @@ def _get_single_key_input(prompt: str, keys: str, default: str = "4", auto_four:
         pass
 
     val = input(prompt).strip()
+    if back_on_enter and not val:
+        return ""  # ponytail: back signal
     return val if val else default
 
 
@@ -882,14 +890,14 @@ class MarketScanner:
         preds.sort(key=lambda x: x.score, reverse=True)
         t = Table(title=f"📈 預測分析榜 (基準日: {ld})",
                   box=box.SIMPLE, border_style="cyan", expand=False)
-        for c, s in [("代號", "magenta"), ("股名", None), ("現價", None),
-                      ("量(張)", None), ("金額(億)", "bright_green"),
-                      ("潛力%", None), ("預期目標", None), ("信心度", None)]:
+        for c, s in [("代號", "magenta"), ("名稱", None), ("收盤", None),
+                      ("成交張數", None), ("額(億)", "bright_green"),
+                      ("潛力估值", None), ("預期目標", None), ("模型信心", None)]:
             t.add_column(c, style=s, justify="left", no_wrap=True)
         for p in preds[:40]:
-            c = price_color(p.score, p.score * 100)
+            c = "bright_red" if p.score > 0 else "bright_green"
             dp = f"{p.current_price:.2f}"
-            t.add_row(p.code, p.name[:4], dp, f"{p.volume:,}", f"{p.amount:.2f}",
+            t.add_row(p.code, p.name, dp, f"{p.volume // 1000:,}", f"{p.amount:.2f}",
                       f"[{c}]{p.score:.2%}[/]", f"{p.target_price:.2f}",
                       f"{p.confidence:.1%}" if p.confidence > 0 else "N/A")
         rconsole.print(t)
@@ -989,12 +997,13 @@ class PatternBreakoutScanner:
             return dr[0], {str(r[0]): str(r[1]) for r in nr}
 
     def _get_targets(self, ld, mv):
-        # [AI MOD] converted mv from sheets (張) to shares (股)
+        # mv 單位為張，stock_history.volume 單位為股（1張=1000股）
+        min_shares = mv * 1000
         return pd.read_sql_query(
             "SELECT stock_id FROM stock_history "
             "WHERE date = ? AND volume >= ? AND stock_id GLOB '[1-9][0-9][0-9][0-9]'",
             self.conn,
-            params=[ld, mv],
+            params=[ld, min_shares],
         )['stock_id'].tolist()
 
     def _scan_one(self, symbol, name):
@@ -1043,10 +1052,11 @@ class PatternBreakoutScanner:
             if not rows: return
             # [AI MOD] Formatted volume in sheets (張) and deleted Quality (品質) column
             t = Table(title=title, box=box.ROUNDED, border_style=border, title_style=f"bold {border}")
-            t.add_column("股號", width=7)
+            t.add_column("代號", width=7)
             t.add_column("名稱", width=6)
-            t.add_column("現價", width=9, justify="right")
-            t.add_column("量(張)", width=9, justify="right")
+            t.add_column("收盤", width=9, justify="right")
+            t.add_column("成交張數", width=9, justify="right")
+            t.add_column("額(億)", width=9, justify="right")
             t.add_column("型態", width=10)
             t.add_column("頸線", width=9, justify="right")
             t.add_column("目標", width=9, justify="right")
@@ -1071,7 +1081,8 @@ class PatternBreakoutScanner:
                 except Exception:
                     disp_vol_colored = f"{vol_sheets:,}"
 
-                t.add_row(r.symbol, r.name[:3], disp_price_colored, disp_vol_colored,
+                t.add_row(r.symbol, r.name, disp_price_colored, disp_vol_colored,
+                          f"{r.amount:.2f}",
                           f"[{ds}]{r.pattern}[/]", f"{r.neckline:.2f}",
                           f"[bright_cyan]{r.target:.2f}[/]", f"[bright_red]{r.stop_loss:.2f}[/]")
             rconsole.print(t)
@@ -1119,11 +1130,12 @@ class PredictionAnalysisApp:
         cmd = rconsole.input("  🔍 指令: ").strip()
         if cmd == '0': return 'exit', None
         elif cmd == '1':
-            v = rconsole.input("  📊 最小成交量 (張, 預設 500): ").strip()
+            v = rconsole.input("  📊 最小成交量 (張, 預設 500, 按 Enter 返回): ").strip()
+            if not v:
+                return None, None  # ponytail: back to main menu
             return 'predict_scan', int(v) if v.isdigit() else 500
         elif cmd == '2':
-            v = rconsole.input("  📊 最小成交量 (張, 預設 500): ").strip()
-            return 'pattern_scan', int(v) if v.isdigit() else 500
+            return 'pattern_scan', None  # ponytail: volume asked after category
         elif len(cmd) == 4 and cmd.isdigit():
             return 'analyze', cmd
         else:
@@ -1152,6 +1164,8 @@ class PredictionAnalysisApp:
                         from strategy.prediction_strategy import StockPredictionAnalyzer as RealPredictionAnalyzer
                     except ImportError:
                         RealPredictionAnalyzer = None
+                    if RealPredictionAnalyzer is None:
+                        raise ImportError("prediction_strategy.StockPredictionAnalyzer 不存在")
                     real_pred_analyzer = RealPredictionAnalyzer(self.config)
                     real_pred_analyzer.analyze_single_stock(code, name, df, compact=False, mobile=mobile)
                 except Exception as pe:
@@ -1230,42 +1244,68 @@ class PredictionAnalysisApp:
             rconsole.print(f"[red]❌ {e}[/]")
             time.sleep(2)
 
-    def pattern_scan_market(self, conn, mv):
+    def _do_scan(self, conn, min_vol, direction_filter):
+        """執行掃描並顯示結果（內部共用）"""
+        if not self.pattern_scanner:
+            self.pattern_scanner = PatternBreakoutScanner(conn)
+        return self.pattern_scanner.scan(min_vol, direction_filter=direction_filter)
+
+    def pattern_scan_market(self, conn, mv=None, pattern_filter=None):
+        """
+        型態掃描主流程。
+        - pattern_filter 由 strategies.py 傳入時：直接掃描該分類，顯示結果後返回（由 strategies.py 接手 Kronos 提示）
+        - pattern_filter 未傳入（None）：內嵌互動選單（分類 → 成交量 → 掃描 → 循環）
+        """
+        filter_map = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}
+
+        # ── 模式 A：外層指定 filter，直接掃描並返回 ──
+        if pattern_filter is not None:
+            try:
+                min_vol = mv if mv else 500
+                self._do_scan(conn, min_vol, pattern_filter)
+            except Exception as e:
+                rconsole.print(f"[red]❌ {e}[/]")
+                time.sleep(2)
+            return
+
+        # ── 模式 B：內嵌互動選單 ──
         try:
-            if not self.pattern_scanner:
-                self.pattern_scanner = PatternBreakoutScanner(conn)
+            direction_filter = None
+            while True:  # category loop
+                rconsole.print()
+                rconsole.print("  [bold]型態分類：[/]")
+                rconsole.print("  [bold][1][/] 看漲型態（W底·N字底·頸肩底·三重底·V反轉·圓弧底·上升三角·下降楔形·上升通道·牛旗）")
+                rconsole.print("  [bold][2][/] 區間整理（箱型·對稱三角）")
+                rconsole.print("  [bold][3][/] 看跌型態（M頭·頸肩頂·三重頂·倒V·圓弧頂·下降三角·上升楔形·下降通道·熊旗）")
+                rconsole.print("  [bold][4][/] 全部")
+                rconsole.print("  🔍 選擇 [1-4, 預設 4, 按 Enter 返回]: ", end="")
+                choice = _get_single_key_input("", "1234", default="4", back_on_enter=True)
+                if not choice:
+                    return  # back to main menu
+                direction_filter = filter_map.get(choice)
 
-            rconsole.print()
-            rconsole.print("  [bold]型態分類：[/]")
-            rconsole.print("  [bold][1][/] 看漲型態（W底·N字底·頸肩底·三重底·V反轉·圓弧底·上升三角·下降楔形·上升通道·牛旗）")
-            rconsole.print("  [bold][2][/] 區間整理（箱型·對稱三角）")
-            rconsole.print("  [bold][3][/] 看跌型態（M頭·頸肩頂·三重頂·倒V·圓弧頂·下降三角·上升楔形·下降通道·熊旗）")
-            rconsole.print("  [bold][4][/] 全部")
-            # [AI MOD] Use single-key input for pattern category choice
-            rconsole.print("  🔍 選擇 [1-4, 預設 4]: ", end="")
-            choice = _get_single_key_input("", "1234", default="4")
+                while True:  # volume loop
+                    v = rconsole.input("  📊 最小成交量 (張, 預設 500, 按 Enter 回上一步): ").strip()
+                    if not v:
+                        break  # back to category selection
+                    min_vol = int(v) if v.isdigit() else 500
 
-            filter_map = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}
-            direction_filter = filter_map.get(choice)
+                    self._do_scan(conn, min_vol, direction_filter)
 
-            while True:
-                cands = self.pattern_scanner.scan(mv, direction_filter=direction_filter)
+                    prompt_str = "\n  🔍 輸入股號查看 Kronos+AI 預測或輸入 1 看漲 2.區間 3.看跌 4.全部，或按 Enter 回到上一頁: "
+                    ans = _get_single_key_input(prompt_str, "1234", default="", auto_four=True)
+                    if not ans:
+                        break  # back to volume prompt
 
-                # [AI MOD] Dynamic prompt allowing switching pattern categories (1-4) or single-stock analysis (4-digit)
-                prompt_str = "\n  🔍 輸入股號查看 Kronos 預測或輸入 1 看漲 2.區間 3.看跌 4.全部，或按 Enter 回到上一頁: "
-                ans = _get_single_key_input(prompt_str, "1234", default="", auto_four=True)
-                if not ans:
-                    break
+                    if ans in ("1", "2", "3", "4"):
+                        direction_filter = filter_map.get(ans)
+                        continue  # re-scan with new category
 
-                if ans in ("1", "2", "3", "4"):
-                    direction_filter = filter_map.get(ans)
-                    continue
-
-                if len(ans) == 4 and ans.isdigit():
-                    self.analyze_single_stock(conn, ans)
-                else:
-                    rconsole.print("  [red]請輸入 4 碼股號或 1-4 分類編號[/]")
-                    time.sleep(1.5)
+                    if len(ans) == 4 and ans.isdigit():
+                        self.analyze_single_stock(conn, ans)
+                    else:
+                        rconsole.print("  [red]請輸入 4 碼股號或 1-4 分類編號[/]")
+                        time.sleep(1.5)
         except Exception as e:
             rconsole.print(f"[red]❌ {e}[/]")
             time.sleep(2)
@@ -1277,6 +1317,8 @@ class PredictionAnalysisApp:
                 while True:
                     try:
                         action, data = self.get_user_command()
+                        if action is None:
+                            continue  # ponytail: user pressed Enter to go back
                         if action == 'exit':
                             rconsole.print("\n  [dim]再見。[/]\n")
                             break
@@ -1298,21 +1340,78 @@ class PredictionAnalysisApp:
             rconsole.print(f"[bold red]❌ {e}[/]")
 
 
+def get_latest_date() -> str:
+    """供 strategies.py 查詢資料基準日"""
+    from strategy._utils import get_connection
+    conn = get_connection(readonly=True)
+    try:
+        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+    finally:
+        conn.close()
+
+
 def run_strategy(params: dict):
     code = params.get('code')
     scan = params.get('scan', False)
     vol = params.get('vol', 500)
+    pattern_filter = params.get('pattern_filter')
     compact = params.get('compact', False)
     mobile = params.get('mobile', False)
     app = PredictionAnalysisApp()
     if scan:
         with app.database_connection() as conn:
-            app.pattern_scan_market(conn, vol)
+            app.pattern_scan_market(conn, vol, pattern_filter=pattern_filter)
     elif code:
         with app.database_connection() as conn:
             app.analyze_single_stock(conn, code, compact=compact, mobile=mobile)
     else:
         app.run()
+
+
+class PatternStrategy:
+    """型態策略 wrapper - 提供統一的 analyze() 介面。"""
+
+    def analyze(self, stock_id: str) -> dict:
+        """分析型態信號。回傳 strategy/stock_id/signal。"""
+        from db import get_connection
+        from strategy._utils import fetch_klines
+
+        conn = get_connection()
+        try:
+            df = fetch_klines(conn, stock_id, limit=90)
+            if df is None or df.empty or len(df) < 30:
+                return {
+                    "strategy": "pattern",
+                    "stock_id": stock_id,
+                    "signal": "neutral",
+                    "reason": "資料不足",
+                }
+
+            scanner = PivotBasedScanner()
+            patterns = scanner.find_patterns(df)
+            best = max(patterns, key=lambda p: p.quality) if patterns else None
+
+            if best is None:
+                return {
+                    "strategy": "pattern",
+                    "stock_id": stock_id,
+                    "signal": "neutral",
+                    "reason": "無明顯型態",
+                }
+
+            signal = "bullish" if best.direction == "bullish" else ("bearish" if best.direction == "bearish" else "neutral")
+            return {
+                "strategy": "pattern",
+                "stock_id": stock_id,
+                "signal": signal,
+                "pattern": best.pattern,
+                "neckline": best.neckline,
+                "target": best.target,
+                "stop_loss": best.stop_loss,
+                "quality": best.quality,
+            }
+        finally:
+            conn.close()
 
 
 def main():

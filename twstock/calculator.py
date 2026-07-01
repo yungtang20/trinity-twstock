@@ -176,78 +176,6 @@ class IndicatorEngine:
         return self.df
 
 
-# ============================================================================
-# AdjFactorCalculator — Issue 007 (前復權因子)
-# ============================================================================
-
-class AdjFactorCalculator:
-    """前復權因子計算器，根據 dividend_events 計算 adj_factor"""
-
-    def __init__(self, db):
-        self.db = db
-
-    def calculate(self, stock_id):
-        """
-        計算 stock_id 所有歷史日期的 adj_factor，並更新 stock_history。
-
-        公式：adj_factor(d) = ∏ (ref_i / before_i) for all i where event_date_i > d and before_i > 0
-        最新日 adj_factor = 1.0
-        """
-        # 查 dividend_events（before_price > 0）
-        cur = self.db.execute(
-            "SELECT date, before_price, reference_price FROM dividend_events "
-            "WHERE stock_id = ? AND before_price > 0 "
-            "ORDER BY date DESC",
-            (stock_id,)
-        )
-        events = cur.fetchall()  # [(date, before_price, reference_price), ...]
-
-        # 查 stock_history 所有 date
-        cur = self.db.execute(
-            "SELECT date FROM stock_history WHERE stock_id = ? ORDER BY date",
-            (stock_id,)
-        )
-        dates = [row[0] for row in cur.fetchall()]
-
-        if not dates:
-            return 0
-
-        # 對每個 date 計算 adj_factor
-        update_count = 0
-        for date in dates:
-            adj_factor = 1.0
-            for event_date, before_price, reference_price in events:
-                if event_date > date:
-                    adj_factor *= (reference_price / before_price)
-                else:
-                    break  # events 已排序，後面的 event_date 更小
-
-            self.db.execute(
-                "UPDATE stock_history SET adj_factor = ? WHERE stock_id = ? AND date = ?",
-                (adj_factor, stock_id, date)
-            )
-            update_count += 1
-
-        self.db.commit()
-        return update_count
-
-    def calculate_all(self):
-        """
-        對 dividend_events 裡出現的所有 stock_id 執行 calculate()。
-        回傳 dict：{stock_id: updated_count}
-        """
-        cur = self.db.execute(
-            "SELECT DISTINCT stock_id FROM dividend_events WHERE before_price > 0"
-        )
-        stock_ids = [row[0] for row in cur.fetchall()]
-
-        result = {}
-        for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id)
-        return result
-
-
-# ============================================================================
 # ATRCalculator — Issue 009 (ATR14，Wilder's EMA)
 # ============================================================================
 
@@ -482,10 +410,17 @@ class MACalculator:
             bias_ma200 = _bias(close_val, ma200)
 
             self.db.execute("""
-                INSERT OR REPLACE INTO stock_indicators
+                INSERT INTO stock_indicators
                 (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20,
                  bias_ma25, bias_ma60, bias_ma200, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(stock_id, date) DO UPDATE SET
+                    ma5=excluded.ma5, ma20=excluded.ma20, ma25=excluded.ma25,
+                    ma60=excluded.ma60, ma200=excluded.ma200,
+                    vol_ma5=excluded.vol_ma5, vol_ma20=excluded.vol_ma20,
+                    bias_ma25=excluded.bias_ma25, bias_ma60=excluded.bias_ma60,
+                    bias_ma200=excluded.bias_ma200,
+                    updated_at=CURRENT_TIMESTAMP
             """, (stock_id, date_str, ma5, ma20, ma25, ma60, ma200,
                   vol_ma5, vol_ma20, bias_ma25, bias_ma60, bias_ma200))
             written += 1

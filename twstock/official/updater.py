@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-official/updater.py - 主更新邏輯（整合除權息事件與還原價）
+official/updater.py - 主更新邏輯（價量、法人、除權息、集保）
 工作流程：
 1. 掃描缺失交易日，依序抓取價量與法人資料
-2. 將原始價量寫入 stock_history (adj_factor=1, adj_close=close)
+2. 將原始價量寫入 stock_history
 3. 更新股票名稱表 stock_meta
 4. 抓取並合併除權息事件（若尚未有該日事件）
-5. 重新計算所有受影響股票的還原價（adj_factor, adj_close）
-6. 自動檢查並更新 TDCC 集保資料
+5. 自動檢查並更新 TDCC 集保資料
 """
 
 import os
@@ -23,7 +22,6 @@ from . import quotes
 from . import institutional
 from . import tdcc
 from .dividend_crawler import fetch_dividend_events, upsert_dividend_events
-from .price_adjuster import update_adjusted_prices_for_stock, update_all_adjusted_prices
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
@@ -54,17 +52,11 @@ def upsert_dataframe(table_name: str, df):
         # 確保必要欄位存在
         if 'amount' not in df.columns and 'turnover' in df.columns:
             df['amount'] = df['turnover']
-        if 'adj_open' not in df.columns and 'open' in df.columns:
-            df['adj_open'] = df['open']
-        if 'adj_high' not in df.columns and 'high' in df.columns:
-            df['adj_high'] = df['high']
-        if 'adj_low' not in df.columns and 'low' in df.columns:
-            df['adj_low'] = df['low']
-        required = ['stock_id', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount', 
-                    'adj_factor', 'adj_open', 'adj_high', 'adj_low', 'adj_close']
+        required = ['stock_id', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount',
+                    'trade_count', 'spread', 'source']
         for col in required:
             if col not in df.columns:
-                df[col] = 0 if col not in ('adj_factor', 'adj_open', 'adj_high', 'adj_low', 'adj_close') else (1.0 if col == 'adj_factor' else 0.0)
+                df[col] = 0
         df = df[required]
     elif table_name == 'institutional_data':
         if 'foreign_buy' in df.columns and 'foreign_sell' in df.columns:
@@ -79,8 +71,8 @@ def upsert_dataframe(table_name: str, df):
             if col not in df.columns:
                 df[col] = 0
         df = df[required]
-    elif table_name == 'tdcc_shareholding':
-        required = ['stock_id', 'date', 'total_shares', 'whale_ratio', 'total_people', 'whale_shares'] # [AI MOD]
+    elif table_name == 'shareholding_unified':
+        required = ['stock_id', 'date', 'source', 'total_shares', 'whale_ratio', 'total_people', 'whale_shares']
         for col in required:
             if col not in df.columns:
                 df[col] = 0
@@ -98,8 +90,8 @@ def upsert_dataframe(table_name: str, df):
         proc.upsert_history(df)
     elif table_name == 'institutional_data':
         proc.upsert_institutional(df)
-    elif table_name == 'tdcc_shareholding':
-        proc.upsert_tdcc(df)
+    elif table_name == 'shareholding_unified':
+        proc.upsert_shareholding(df)
 
 # ---------- 除權息事件更新 ----------
 def update_dividend_events_for_date_range(start_date: str, end_date: str):
@@ -114,25 +106,9 @@ def update_dividend_events_for_date_range(start_date: str, end_date: str):
         print("  ⚠️ 無除權息事件", flush=True)
         return []
 
-# ---------- 還原價計算 ----------
-def recalc_adjusted_prices_for_stocks(stock_ids: list):
-    """為指定的股票重新計算還原價（adj_factor, adj_close）"""
-    total = len(stock_ids)
-    print(f"  → 重新計算還原價格... [0/{total}]", end='', flush=True)
-    for i, stock_id in enumerate(stock_ids, 1):
-        print(f"\r  → 重新計算還原價格... [{i}/{total}]", end='', flush=True)
-        try:
-            update_adjusted_prices_for_stock(stock_id)
-        except Exception as e:
-            print(f"\n      ⚠️ {stock_id} 還原價計算失敗: {e}", flush=True)
-    print() # Newline after completion
-
 # ---------- 主更新函數 ----------
-def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: bool = False, auto_tdcc: bool = True, recalc_adj: bool = True):
-    """抓取官方資料（含除權息事件與還原價計算）
-    Args:
-        recalc_adj: 是否重新計算還原價 (adj_factor)。設為 False 可跳過還原因子計算。
-    """
+def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: bool = False, auto_tdcc: bool = True):
+    """抓取官方資料（價量、法人、除權息事件、集保）"""
     print("📌 開始執行官方資料更新...", flush=True)
     
     # 確保交易日曆存在
@@ -243,9 +219,6 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
     fetch_dates.reverse()
     print(f"🔄 將抓取 {len(fetch_dates)} 個交易日: {fetch_dates[:5]}...", flush=True)
     
-    # 記錄有變動的股票，以便最後重算還原價
-    affected_stocks = set()
-    
     for idx, d in enumerate(fetch_dates, 1):
         print(f"\n--- [{idx}/{len(fetch_dates)}] 處理日期 {d} ---", flush=True)
         try:
@@ -255,7 +228,13 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             import pandas as pd
             twse_df = quotes.fetch_twse_quotes(d)
             tpex_df = quotes.fetch_tpex_quotes(d)
-            
+
+            # 標記來源市場，供 update_stock_meta_from_df 寫入 stock_meta.market
+            if not twse_df.empty:
+                twse_df['market'] = 'TSE'
+            if not tpex_df.empty:
+                tpex_df['market'] = 'OTC'
+
             # [AI MOD] Calculate target counts to display fetching progress
             try:
                 conn_meta = get_connection()
@@ -291,13 +270,10 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             # 更新股票名稱表
             quotes.update_stock_meta_from_df(price_df)
             
-            # 寫入原始價量（adj_factor=1, adj_close=close）
+            # 寫入原始價量
             upsert_dataframe('stock_history', price_df)
             print(f"  ✅ 價量資料: {len(price_df)} 筆", flush=True)
-            
-            # [AI MOD] 新增的日資料(預設 adj_factor=1) 不會改變歷史除權息的向後調整乘數。
-            # 因此不需要每天無條件重算全市場(2000多檔)的還原價，只需重算有除權息異動的股票即可。
-            
+
             # 2. 抓取三大法人資料
             print("  → 抓取三大法人資料...", flush=True)
             inst_df = institutional.fetch_all_institutional(d)
@@ -318,15 +294,7 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
         year_start = f"{current_year}-01-01"
         year_end = f"{current_year}-12-31"
         print(f"\n📅 同步本年度除權息事件 ({year_start} ~ {year_end})...", flush=True)
-        div_stocks = update_dividend_events_for_date_range(year_start, year_end)
-        # 將除權息受影響的股票也加入 affected_stocks 重算還原價 [AI MOD]
-        for code in div_stocks:
-            affected_stocks.add(code)
-    
-    # 4. 重新計算受影響股票的還原價 [AI MOD]
-    if affected_stocks and recalc_adj:
-        print(f"\n📐 重新計算 {len(affected_stocks)} 檔股票的還原價格...", flush=True)
-        recalc_adjusted_prices_for_stocks(list(affected_stocks))
+        update_dividend_events_for_date_range(year_start, year_end)
 
     print(f"\n✅ 官方資料更新完成", flush=True)
     
@@ -339,7 +307,7 @@ def _auto_update_tdcc():
     try:
         conn = get_connection() # [AI MOD]
         cur = conn.cursor()
-        cur.execute("SELECT MAX(date) FROM tdcc_shareholding")
+        cur.execute("SELECT MAX(date) FROM shareholding_unified WHERE source='tdcc'")
         row = cur.fetchone()
         conn.close()
         last_tdcc_date = row[0] if row and row[0] else None
@@ -367,7 +335,7 @@ def update_tdcc_historical(weeks: int = 1):
     print(f"🔄 抓取最近 {weeks} 週 TDCC 集保資料...", flush=True)
     tdcc_df = tdcc.fetch_tdcc_historical(weeks=weeks)
     if not tdcc_df.empty:
-        upsert_dataframe('tdcc_shareholding', tdcc_df)
+        upsert_dataframe('shareholding_unified', tdcc_df)
         print(f"  ✅ TDCC 資料: {len(tdcc_df)} 筆 (涵蓋 {weeks} 週)", flush=True)
     else:
         print("  ⚠️ TDCC 資料為空", flush=True)

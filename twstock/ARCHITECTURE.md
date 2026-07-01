@@ -136,12 +136,11 @@ display.py          ← 畫面輸出（Rich Console）
 | high | REAL | 最高價 |
 | low | REAL | 最低價 |
 | close | REAL | 收盤價 |
-| volume | INTEGER | 成交量（張） |
-| amount | REAL | 成交金額（千萬元） |
+| volume | INTEGER | 成交量（股，非張） |
+| amount | INTEGER | 成交金額（元，非千萬元） |
 | trade_count | INTEGER | 成交筆數 |
 | spread | REAL | 差價 |
 | adj_factor | REAL DEFAULT 1.0 | 前復權因子 |
-| adj_close | REAL | 前復權收盤價 |
 | source | TEXT | 資料來源 |
 | updated_at | TEXT | 更新時間 |
 | **PRIMARY KEY** | **(stock_id, date)** | |
@@ -187,36 +186,36 @@ display.py          ← 畫面輸出（Rich Console）
 
 索引：`idx_institutional_stock_date (stock_id, date)`
 
-> **DB 內所有量值一律為張**。所有 ingestion 路徑都必須先轉換為張再寫入。
+> **DB 存原始值（股/元），顯示層才轉換。** 所有 ingestion 路徑不得在寫入前做單位轉換。
 
-### shareholding_data
-
-| 欄位 | 型別 | 說明 |
-|------|------|------|
-| stock_id | TEXT NOT NULL | 股票代號 |
-| date | TEXT NOT NULL | 日期 |
-| foreign_shares | REAL | 外資持股數（股） |
-| foreign_ratio | REAL | 外資持股比例（%） |
-| source | TEXT | 資料來源 |
-| updated_at | TEXT | 更新時間 |
-| **PRIMARY KEY** | **(stock_id, date)** | |
-
-索引：`idx_shareholding_stock_date (stock_id, date)`
-
-### tdcc_shareholding
+### shareholding_unified
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | stock_id | TEXT NOT NULL | 股票代號 |
 | date | TEXT NOT NULL | 日期 |
-| total_shares | INTEGER | 總股數 |
+| source | TEXT NOT NULL | 資料來源（tdcc / 集保） |
+| total_shares INTEGER | 總股數 |
 | whale_ratio | REAL | 大股東持股比例（%） |
 | retail_ratio | REAL | 散戶持股比例（%） |
-| source | TEXT | 資料來源 |
+| foreign_shares | INTEGER | 外資持股數 |
+| foreign_ratio | REAL | 外資持股比例（%） |
+| total_people | INTEGER | 總人數 |
+| whale_shares | INTEGER | 大股東持股數 |
+| whale_people | INTEGER | 大股東人數 |
 | updated_at | TEXT | 更新時間 |
-| **PRIMARY KEY** | **(stock_id, date)** | |
+| **PRIMARY KEY** | **(stock_id, date, source)** | |
 
-索引：`idx_tdcc_stock_date (stock_id, date)`
+### tdcc_shareholding（VIEW）
+
+**這是 VIEW，不是 TABLE。** 定義：
+
+```sql
+CREATE VIEW tdcc_shareholding AS
+SELECT stock_id, date, total_shares, whale_ratio, retail_ratio, source, updated_at
+FROM shareholding_unified
+WHERE source = 'tdcc'
+```
 
 ### audit_log
 
