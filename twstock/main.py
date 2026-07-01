@@ -1359,7 +1359,7 @@ def run_db_maintenance():
 def tui_interactive_menu():
     while True:
         render_dashboard()
-        ch = get_interactive_input("\n🔍 指令: ", menu_keys="01234")
+        ch = get_interactive_input("\n🔍 輸入股號 (4碼) 綜合分析 | [0] 離開 | [1-4] 功能選單: ", menu_keys="01234")
         if ch == '0':
             break
         elif ch == '1':
@@ -1372,6 +1372,8 @@ def tui_interactive_menu():
             run_db_maintenance()
         elif len(ch) == 4 and ch.isdigit():
             run_quick_analysis(ch)
+        elif ch == '':
+            continue
 
 
 if __name__ == '__main__':
