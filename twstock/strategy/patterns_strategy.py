@@ -49,6 +49,10 @@ if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
 from db import get_connection, DB_PATH  # [AI MOD]
+try:
+    from twstock.input_helper import get_blocking_key
+except ImportError:
+    from input_helper import get_blocking_key
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 # fetch_klines already imported from strategy._utils above
 from display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
@@ -157,43 +161,31 @@ def _clear_screen():
 
 def _get_single_key_input(prompt: str, keys: str, default: str = "4",
                           auto_four: bool = False, back_on_enter: bool = False) -> str:
-    """[AI MOD] Robust single-key input helper supporting Windows and fallback.
+    """向後相容包裝：統一使用 input_helper.get_blocking_key。
 
     ponytail: back_on_enter=True makes Enter return "" (back signal) instead of default.
     """
-    try:
-        import msvcrt
-        if sys.stdin.isatty():
-            while msvcrt.kbhit():
-                msvcrt.getwch()
-            sys.stdout.write(prompt)
-            sys.stdout.flush()
-            buf = ""
-            while True:
-                if msvcrt.kbhit():
-                    ch = msvcrt.getwch()
-                    if ch in ('\r', '\n'):
-                        sys.stdout.write('\n')
-                        sys.stdout.flush()
-                        if back_on_enter:
-                            return ""  # ponytail: back signal
-                        return buf if (auto_four and len(buf) > 0) else default
-                    elif ch in ('\x1b', '\x03'): # ESC or Ctrl+C
-                        sys.stdout.write('\n')
-                        sys.stdout.flush()
-                        return "0"
-                    elif ch in keys:
-                        sys.stdout.write(ch + '\n')
-                        sys.stdout.flush()
-                        return ch
-                time.sleep(0.01)
-    except Exception:
-        pass
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
 
-    val = input(prompt).strip()
-    if back_on_enter and not val:
-        return ""  # ponytail: back signal
-    return val if val else default
+    # 阻塞等待第一鍵（跨平台：msvcrt / termios / input fallback）
+    ch = get_blocking_key()
+
+    if not ch:  # Enter pressed
+        return "" if back_on_enter else default
+    if ch in keys:
+        return ch
+    # auto_four 模式：接受 4 碼股號
+    if auto_four and ch.isdigit():
+        buf = ch
+        while len(buf) < 4:
+            next_ch = get_blocking_key()
+            if not next_ch or next_ch == "\x1b":
+                break
+            if next_ch.isdigit():
+                buf += next_ch
+        return buf if buf else default
+    return default
 
 
 def _render_header(title, is_detail=False):
@@ -970,15 +962,9 @@ class PatternBreakoutScanner:
             rconsole.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
             rconsole.print("  [1] 距頸線由近到遠 (預設)")
             rconsole.print("  [2] 成交金額由大到小")
-            try:
-                import msvcrt
-                while msvcrt.kbhit():
-                    msvcrt.getwch()
-                ch = msvcrt.getwch()
-                if ch in ('1', '2'):
-                    sort_choice = ch
-            except Exception:
-                pass
+            ch = get_blocking_key()
+            if ch in ('1', '2'):
+                sort_choice = ch
 
             if sort_choice == "1":
                 cands.sort(key=lambda c: abs(c.distance_pct))

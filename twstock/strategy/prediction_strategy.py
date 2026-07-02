@@ -76,6 +76,10 @@ if _TWSTOCK_DIR not in sys.path:
 from db import get_connection  # [AI MOD]
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 from display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
+try:
+    from twstock.input_helper import get_blocking_key
+except ImportError:
+    from input_helper import get_blocking_key
 
 
 # ── Local helpers ─────────────────────────────────────────
@@ -188,15 +192,9 @@ class MarketScanner:
                 rconsole.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
                 rconsole.print("  [1] 距潛力估值由大到小 (預設)") # [AI MOD]
                 rconsole.print("  [2] 成交金額由大到小")
-                try:
-                    import msvcrt
-                    while msvcrt.kbhit():
-                        msvcrt.getwch()
-                    ch = msvcrt.getwch()
-                    if ch in ('1', '2'):
-                        sort_choice = ch
-                except Exception:
-                    pass
+                ch = get_blocking_key()
+                if ch in ('1', '2'):
+                    sort_choice = ch
 
                 if sort_choice == "1":
                     preds.sort(key=lambda x: x.score, reverse=True) # [AI MOD]

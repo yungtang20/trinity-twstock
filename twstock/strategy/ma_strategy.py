@@ -42,6 +42,10 @@ _SCAN_CACHE = {
 }
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 from display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
+try:
+    from twstock.input_helper import _kbhit_windows, _getch_windows
+except ImportError:
+    from input_helper import _kbhit_windows, _getch_windows
 
 def _compute_ma_with_deduction(closes: list, period: int):
     """
@@ -214,9 +218,8 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
 
         strat_choice = "1"
         try:
-            import msvcrt
-            if msvcrt.kbhit():
-                ch = msvcrt.getwch()
+            if _kbhit_windows():
+                ch = _getch_windows()
                 if ch in ('1', '2', '3'):
                     strat_choice = ch
         except Exception:

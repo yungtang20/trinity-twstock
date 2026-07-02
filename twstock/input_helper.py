@@ -272,9 +272,62 @@ def _get_interactive_input_unix(
                         return buf
 
 
+# ── 阻塞單鍵（供策略模組「按任意鍵選擇」使用）─────────────
+def get_blocking_key(prompt: str = "") -> str:
+    """阻塞等待第一鍵（Windows msvcrt / Unix termios / fallback input）。
+
+    與 get_interactive_input 不同：不檢查 menu_keys、不自動送出、
+    不等待第二鍵。回傳第一個按下的字元（或 input() 整行）。
+    """
+    if prompt:
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+
+    if not _IS_TTY:
+        return input().strip()
+
+    if HAS_MSVCRT:
+        _flush_input_buffer()
+        while True:
+            if msvcrt.kbhit():  # type: ignore[union-attr]
+                ch = msvcrt.getwch()  # type: ignore[union-attr]
+                if ch.isprintable() or ch in ("\r", "\n"):
+                    if ch in ("\r", "\n"):
+                        sys.stdout.write("\n")
+                        sys.stdout.flush()
+                        return ""
+                    sys.stdout.write(ch + "\n")
+                    sys.stdout.flush()
+                    return ch
+            import time as _t
+
+            _t.sleep(0.01)
+
+    if _is_unix_tty():
+        fd = sys.stdin.fileno()
+        try:
+            old_settings = termios.tcgetattr(fd)  # type: ignore[union-attr]
+            tty.setraw(fd)  # type: ignore[union-attr]
+            ch = sys.stdin.read(1)
+            if ch in ("\r", "\n"):
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return ""
+            if ch.isprintable():
+                sys.stdout.write(ch + "\n")
+                sys.stdout.flush()
+                return ch
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[union-attr]
+
+    return input().strip()
+
+
 # ── Convenience exports ────────────────────────────────
 __all__ = [
     "get_interactive_input",
+    "get_blocking_key",
     "clear_screen",
     "setup_console_encoding",
     "HAS_MSVCRT",

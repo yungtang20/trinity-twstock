@@ -33,15 +33,13 @@ from display import price_rich, vol_fmt, chg_color, vol_color, price_color
 from retry import retry_get  # [AI MOD]
 
 try:
-    import msvcrt
-    HAS_MSVCRT = True
+    from twstock.input_helper import get_interactive_input
 except ImportError:
-    HAS_MSVCRT = False
+    from input_helper import get_interactive_input
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    """向後相容包裝：統一使用 input_helper.get_single_key_input。"""
-    from twstock.input_helper import get_single_key_input as _ih
-    return _ih(prompt, keys, auto_four)
+    """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
+    return get_interactive_input(prompt=prompt, menu_keys=keys, auto_four=auto_four)
 
 
 # ── Local helpers ─────────────────────────────────────────

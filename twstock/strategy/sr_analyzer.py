@@ -52,6 +52,11 @@ _SR_CACHE = {'date': None, 'min_volume': None, 'results': None, 'ts': 0}
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from terminal import console
 
+try:
+    from twstock.input_helper import get_blocking_key
+except ImportError:
+    from input_helper import get_blocking_key
+
 FALLBACK_NAMES = {
     "2883": "凱基金", "2881": "富邦金", "2882": "國泰金",
     "2880": "華南金", "2884": "玉山金", "2885": "元大金",
@@ -565,10 +570,6 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
     current_results.sort(key=lambda x: x['dist'] if x['dist'] else 0)
     _display_results(current_results, latest_date, "1", min_volume_zhang, current_filters)
 
-    try:
-        import msvcrt as _msvcrt
-    except ImportError:
-        _msvcrt = None  # type: ignore[assignment]
     while True:
         console.print("\n[bold yellow]📋 選擇進階篩選條件（套用後重新顯示結果）：[/bold yellow]")
         console.print("  [1] POC 量價密集區上10%")
@@ -579,15 +580,8 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
         console.print("  [Enter] 結束篩選")
         console.print("👉 ", end="")
 
-        ch = ""
-        if _msvcrt and sys.stdin.isatty():
-            while _msvcrt.kbhit():
-                _msvcrt.getwch()
-            ch = _msvcrt.getwch()
-        else:
-            ch = input().strip()
-
-        if not ch or ch == '\r' or ch == '\n':
+        ch = get_blocking_key()
+        if not ch:
             break
 
         filter_map = {'1': 'poc', '2': 'vwap', '3': 'long_sup', '4': 'short_sup', '5': 'front_low'}

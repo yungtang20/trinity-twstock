@@ -90,23 +90,16 @@ def run_strategy_by_id(strategy_id, params):
     except Exception as e:
         console.print(f"[red]❌ 執行策略 {strategy_module.__name__} 失敗: {e}[/red]")
 
-# --- msvcrt for _flush_msvcrt ---
-try:
-    import msvcrt
-    HAS_MSVCRT = True
-except ImportError:
-    HAS_MSVCRT = False
+# --- 統一輸入層（input_helper）---
+from twstock.input_helper import get_interactive_input, _flush_input_buffer
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    """向後相容包裝：統一使用 input_helper.get_single_key_input。"""
-    from twstock.input_helper import get_single_key_input as _ih
-    return _ih(prompt, keys, auto_four)
+    """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
+    return get_interactive_input(prompt=prompt, menu_keys=keys, auto_four=auto_four)
 
 def _flush_msvcrt():
-    """清除 Windows 鍵盤緩衝區"""
-    if HAS_MSVCRT:
-        while msvcrt.kbhit():
-            msvcrt.getwch()
+    """清除鍵盤緩衝區（委派至 input_helper）。"""
+    _flush_input_buffer()
 
 
 def _input_vol(prompt: str = "最小成交量 (預設 500 張): ") -> int:
