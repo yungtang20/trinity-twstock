@@ -26,8 +26,9 @@ def test_stock_history_has_no_adj_close_column(db_conn, patch_db_path):
 
 
 def test_save_stock_history_does_not_write_adj_close(db_conn, patch_db_path):
-    """save_stock_history 不應嘗試寫入 adj_close 欄位。"""
-    from db_admin import init_db, save_stock_history
+    """processor.upsert_history 不應嘗試寫入 adj_close 欄位。"""
+    from db_admin import init_db
+    from processor import DataProcessor
 
     init_db()
 
@@ -48,12 +49,12 @@ def test_save_stock_history_does_not_write_adj_close(db_conn, patch_db_path):
         "volume": 32000000,
         "amount": 30500000000.0,
         "trade_count": 25000,
+        "spread": 15.0,
         "source": "official",
     }])
 
     # 不應炸
-    n = save_stock_history(df)
-    assert n == 1, f"應寫入 1 筆，實際 {n}"
+    DataProcessor().upsert_history(df)
 
     row = db_conn.execute(
         "SELECT close FROM stock_history WHERE stock_id='2330' AND date='2026-06-21'"
