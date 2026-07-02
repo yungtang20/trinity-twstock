@@ -100,293 +100,23 @@ def fetch_market_indices_cached():
     return _market_cache.get()
 
 
-# ==================== TUI Layout Components ====================
-
-def make_layout() -> Layout:
-    try:
-        term_width = shutil.get_terminal_size((80, 24)).columns
-    except Exception:
-        term_width = 80
-
-    is_narrow = term_width < 75
-    # [AI MOD] Adjusted market panel size to eliminate trailing empty space
-    market_size = 8 if is_narrow else 5
-
-    layout = Layout()
-    # [AI MOD] Reordered panels: Status -> Market -> Menu
-    layout.split(
-        Layout(name="header", size=3),
-        Layout(name="status", size=8),
-        Layout(name="market", size=market_size),
-        Layout(name="menu", size=8),
-        Layout(name="footer", size=3),
-    )
-    return layout
-
-def render_dashboard():
-    info = get_sys_info()
-    now = datetime.now()
-    current_minutes = now.hour * 60 + now.minute
-    is_live = 9 * 60 <= current_minutes <= 13 * 60 + 30
-
-    if current_minutes < 9 * 60:
-        market_mode = "🔴 未開盤"
-    elif is_live:
-        market_mode = "🟢 盤中"
-    else:
-        market_mode = "🔴 收盤後"
-
-    layout = make_layout()
-    indices = fetch_market_indices_cached()
-
-    if indices:
-        def _get_market_text(data, label):
-            _, _, color = format_price_change(
-                data['price'], data['price'] - data['change']
-            )
-            change_sign = "+" if data['change'] >= 0 else "-"
-            title = Text.assemble(
-                (f" {label} ", "bold white on grey15"),
-                (f" {data['price']:,.2f} ", f"bold {color}"),
-                (f"({change_sign}{abs(data['change']):,.0f}、{data['pct']:+.2f}%)", color),
-            )
-            amount = Text.assemble(
-                (" 成交金額: ", "white"),
-                (f"{data['amount']:,.0f} 億", "white"),
-            )
-            
-            # [AI MOD] Format None values as '-' instead of misleading '0' when API is not available
-            def _f(v):
-                return f"{v}" if v is not None else "-"
-
-            b_text = Text.assemble(
-                ("漲停", "white on red"), (f"{_f(data['l_up'])}", "white on red"),
-                (" ", "white"),
-                (f"上漲{_f(data['up'])}", "red"),
-                (" ", "white"),
-                (f"平盤{_f(data['flat'])}", "white"),
-                (" ", "white"),
-                (f"下跌{_f(data['down'])}", "green"),
-                (" ", "white"),
-                ("跌停", "white on green"), (f"{_f(data['l_down'])}", "white on green"),
-            )
-            return Group(title, amount, b_text)
-
-        m_grid = Table(box=None, show_header=False, expand=True, padding=(0, 1))
-        try:
-            term_width = shutil.get_terminal_size((80, 24)).columns
-        except Exception:
-            term_width = 80
-
-        if term_width < 75:
-            m_grid.add_column("Index", justify="left")
-            m_grid.add_row(_get_market_text(indices["TAIEX"], "加權指數"))
-            m_grid.add_row("")
-            m_grid.add_row(_get_market_text(indices["OTC"], "櫃買指數"))
-        else:
-            m_grid.add_column("T", justify="left", ratio=1)
-            m_grid.add_column("O", justify="left", ratio=1)
-            m_grid.add_row(
-                _get_market_text(indices["TAIEX"], "加權指數"),
-                _get_market_text(indices["OTC"], "櫃買指數"),
-            )
-        layout["market"].update(Panel(
-            m_grid,
-            title="[bold white] 市 場 即 時 行 情 [/]",
-            border_style="bright_blue",
-            box=box.ROUNDED,
-            padding=(0, 1),
-        ))
-    else:
-        layout["market"].update(Panel(
-            Align.left(Text("正在獲取即時數據...", style="dim")),
-            title=" 市場行情 ",
-        ))
-
-    if indices and indices.get("date"):
-        date_str = to_roc_date(indices["date"])
-    else:
-        date_str = to_roc_date(now.strftime('%Y%m%d'))
-
-    if is_live:
-        time_display = (
-            indices.get("time") if indices and indices.get("time")
-            else now.strftime("%H:%M:%S")
-        )
-    else:
-        # [AI MOD] Fallback to actual current system time instead of hardcoded 13:30:00 to prevent future-time mismatch in early morning
-        time_display = now.strftime("%H:%M:%S")
-
-    header_text = Text.assemble(
-        (" ⚡ TRINITY ", "bold cyan"),
-        ("STRATEGY SUITE ", "bold white"),
-        ("v3.3 ", "dim"),
-        (f" │ {date_str} {time_display} ", "grey70"),
-    )
-    layout["header"].update(Align.left(Panel(
-        header_text, style="on grey15", box=box.HORIZONTALS
-    )))
-
-    # [AI MOD] Set fixed widths and expand=True to ensure uniform panel sizes and aligned columns
-    menu_table = Table(box=None, show_header=False, expand=True)
-    menu_table.add_column("option", width=22)
-    menu_table.add_column("desc")
-    menu_table.add_row(
-        "[bold cyan][1][/] 每日資料更新",
-        "[dim]同步最新加權/櫃買收盤價量、法人買賣超與集保[/]",
-    )
-    menu_table.add_row(
-        "[bold cyan][2][/] 歷史資料更新",
-        "[dim]同步多個歷史交易日、集保與除權息/還原價[/]",
-    )
-    menu_table.add_row(
-        "[bold cyan][3][/] 策略分析中心",
-        "[dim]綜合分析、均線交叉、籌碼動能、型態與 AI 預測[/]",
-    )
-    menu_table.add_row(
-        "[bold cyan][4][/] 資料庫維護",
-        "[dim]物理整理與收縮 SQLite 資料庫結構 (VACUUM) 壓縮最佳化[/]",
-    )
-    menu_table.add_row("", "")
-    menu_table.add_row("[bold grey70][0][/] 退出系統", "")
-
-    layout["menu"].update(Panel(
-        menu_table,
-        title="[bold white] 主 功 能 選 單 [/]",
-        border_style="cyan",
-        padding=(0, 2),
-        box=box.ROUNDED,
-    ))
-
-    # [AI MOD] Set fixed widths and expand=True to ensure uniform panel sizes and aligned columns
-    status_table = Table(box=None, show_header=False, expand=True)
-    status_table.add_column("label", width=15)
-    status_table.add_column("value")
-    status_table.add_row("📡 狀態:", f"[bold green]{info['status']}[/]")
-    status_table.add_row("🗄️ 資料庫:", info["size"])
-    status_table.add_row("📁 路徑:", f"[dim]{info['path']}[/]")
-    status_table.add_row("📈 監控中:", f"{info['stocks']} 檔")
-    status_table.add_row(
-        "🕒 資料期間:",
-        f"[yellow]{to_roc_date(info['first'])} ~ {to_roc_date(info['last'])}[/]",
-    )
-    status_table.add_row("📊 市場:", market_mode)
-
-    layout["status"].update(Panel(
-        status_table,
-        title="[bold white] 系 統 狀 態 [/]",
-        border_style="grey37",
-        padding=(0, 1),
-        box=box.ROUNDED,
-    ))
-
-    footer_text = Text.assemble(
-        (" 💡 提示: ", "bold yellow"),
-        "直接輸入 ", ("4 碼股號", "bold cyan"), " 即可進行綜合策略分析",
-    )
-    layout["footer"].update(Panel(
-        footer_text,
-        border_style="grey15",
-        padding=(0, 1),
-    ))
-
-    try:
-        term_width = shutil.get_terminal_size().columns
-    except Exception:
-        term_width = 80
-    # [AI MOD] Set maximum target width to 88 to form a perfectly tight, unified vertical block
-    target_width = min(term_width, 88)
-    os.system("cls" if os.name == "nt" else "clear")
-    # [AI MOD] Render panels in the new order: Status -> Market -> Menu
-    tight_group = Group(
-        layout["header"].renderable,
-        layout["status"].renderable,
-        layout["market"].renderable,
-        layout["menu"].renderable,
-        layout["footer"].renderable,
-    )
-    console.print(Align.left(tight_group, width=target_width))
-
-def get_interactive_input(prompt="\n🔍 指令: ", menu_keys="01234", auto_four=True):
-    from input_helper import get_interactive_input as _ih_input, msvcrt as _msvcrt
-
-    global MARKET_CACHE
-    if not HAS_MSVCRT:
-        return input(prompt).strip()
-
-    while _msvcrt.kbhit():
-        _msvcrt.getwch()
-
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-    buf = ""
-    last_cache = MARKET_CACHE
-    while True:
-        # [AI MOD] Dynamically refresh TUI on Windows when background index fetch finishes
-        if last_cache is None and MARKET_CACHE is not None:
-            render_dashboard()
-            sys.stdout.write(prompt + buf)
-            sys.stdout.flush()
-            last_cache = MARKET_CACHE
-
-        if _msvcrt.kbhit():
-            ch = _msvcrt.getwch()
-            if ch == '\r' or ch == '\n':
-                return buf.strip()
-            elif ch == '\b':
-                if len(buf) > 0:
-                    buf = buf[:-1]
-                    sys.stdout.write('\b \b')
-                    sys.stdout.flush()
-            elif ch == '\x1b' or ch == '\x03':
-                return "0"
-            else:
-                if ch.isprintable():
-                    buf += ch
-                    sys.stdout.write(ch)
-                    sys.stdout.flush()
-                    if len(buf) == 1 and ch in menu_keys:
-                        start_wait = time.time()
-                        is_single = True
-                        while time.time() - start_wait < 0.4:
-                            if _msvcrt.kbhit():
-                                next_ch = _msvcrt.getwch()
-                                if next_ch in ('\r', '\n'):
-                                    break # Swallow the Enter
-                                is_single = False
-                                break
-                            time.sleep(0.01)
-                        if is_single:
-                            return buf
-                    if auto_four and len(buf) == 4 and buf.isdigit():
-                        start_wait = time.time()
-                        has_interrupted = False
-                        # Extend delay to 1.2 seconds for superior typing comfort [AI MOD]
-                        while time.time() - start_wait < 1.2:
-                            if _msvcrt.kbhit():
-                                next_ch = _msvcrt.getwch()
-                                if next_ch in ('\r', '\n'):
-                                    break  # Immediately submit
-                                elif next_ch == '\b':
-                                    if len(buf) > 0:
-                                        buf = buf[:-1]
-                                        sys.stdout.write('\b \b')
-                                        sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                                elif next_ch.isprintable():
-                                    buf += next_ch
-                                    sys.stdout.write(next_ch)
-                                    sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                            time.sleep(0.01)
-                        if not has_interrupted:
-                            return buf
-        time.sleep(0.01)
+# ── TUI 已搬離至 tui/ 套件 ──────────────────────────────
+from tui import render_dashboard, make_layout, TUIApp
 
 
 # ==================== Core Functions ====================
+
+# ── 策略複合分析（委託 strategy.composites）─────────────
+from strategy.composites import run_composite as run_quick_analysis
+
+
+# ── TUI 子選單（委託 tui.menu）──────────────────────────
+from tui.menu import (
+    run_daily_update,
+    run_historical_update_menu,
+    run_db_maintenance,
+)
+
 
 def _fmt_chg(pct, chg):
     c = "bright_red" if chg > 0 else ("bright_green" if chg < 0 else "white")
@@ -404,7 +134,8 @@ def _vol_str(vol):
         return f"{vol:,}張"
 
 
-def run_quick_analysis(stock_id: str):
+# 向後相容：run_quick_analysis 已移至 strategy.composites
+# 保留舊名稱作為 re-export
     """[AI MOD] 執行多重策略的綜合分析面板"""
     stock_name = get_stock_name(stock_id)
     os.system("cls" if os.name == "nt" else "clear")
@@ -618,399 +349,47 @@ def run_quick_analysis(stock_id: str):
 
     input("\n按 Enter 鍵返回主選單...")
 
-def update_database(stock_id: str, token: str | None = None):
-    console.print(f"[cyan]開始更新 {stock_id} 歷史資料...[/cyan]")
-    fetcher = DataFetcher()
-    processor = DataProcessor()
+# ── 命令已搬離至 commands/ 套件 ─────────────────────────
+from commands.update import execute as _update_exec
+from commands.indicators import execute as _indicators_exec
+from commands.intraday import execute as _intraday_exec
+from commands.official import execute as _official_exec
+from commands.dividend import execute as _dividend_exec
 
-    df_price = fetcher.fetch_history_price(stock_id, start_date="2020-01-01")
-    if df_price.empty:
-        console.print(f"[red]❌ 無法取得 {stock_id} 價格資料[/red]")
-        return False
-    df_price['stock_id'] = stock_id
 
-    # [AI MOD] Use standalone fetch_dividend_events with a 1-year window
-    try:
-        year_start = datetime.now().strftime('%Y-01-01')
-        year_end = datetime.now().strftime('%Y-%m-%d')
-        div_df = fetch_dividend_events(year_start, year_end)
-        div_events = div_df[div_df['stock_id'] == stock_id] if not div_df.empty else pd.DataFrame()
-    except Exception as e:
-        console.print(f"[yellow]⚠️ 除權息抓取失敗: {e}，跳過[/yellow]")
-        div_events = pd.DataFrame()
+def update_database(stock_id: str, token: str | None = None) -> bool:
+    """向後相容：委託 commands/update.py。"""
+    from commands.update import update_single_stock
+    return update_single_stock(stock_id, token)
 
-    if not div_events.empty:
-        processor.upsert_dividend_events(div_events)
-    df_price['stock_id'] = stock_id
-    processor.upsert_history(df_price)
 
-    # [AI MOD] fetch_per_data 不存在，用 try-except 包覆避免崩潰
-    try:
-        per = pd.DataFrame()  # TODO: 未來補上 PE/PBR 抓取實作
-        if not per.empty:
-            per['stock_id'] = stock_id
-            processor.upsert_per_data(per)
-    except Exception as e:
-        console.print(f"[yellow]⚠️ PE/PBR 資料抓取失敗: {e}，跳過[/yellow]")
+def indicators_command(stock_id: str, token: str | None = None) -> None:
+    """向後相容：委託 commands/indicators.py。"""
+    from argparse import Namespace
+    _indicators_exec(Namespace(stock_id=stock_id, token=token))
 
-    inst = fetcher.fetch_institutional(stock_id)
-    if not inst.empty:
-        inst['stock_id'] = stock_id
-        processor.upsert_institutional(inst)
 
-    shr = fetcher.fetch_shareholding(stock_id)
-    if not shr.empty:
-        shr['stock_id'] = stock_id
-        processor.upsert_shareholding(shr)
+def intraday_command(stock_id: str, token: str | None = None) -> None:
+    """向後相容：委託 commands/intraday.py。"""
+    from argparse import Namespace
+    _intraday_exec(Namespace(stock_id=stock_id, token=token))
 
-    # [AI MOD] Use official.tdcc.fetch_tdcc_historical instead of missing fetcher.fetch_tdcc
-    try:
-        from official.tdcc import fetch_tdcc_historical
-        tdcc_df = fetch_tdcc_historical(weeks=1)
-        tdcc = tdcc_df[tdcc_df['stock_id'] == stock_id] if not tdcc_df.empty else pd.DataFrame()
-    except Exception as e:
-        console.print(f"[yellow]⚠️ TDCC 抓取失敗: {e}，跳過[/yellow]")
-        tdcc = pd.DataFrame()
 
-    if not tdcc.empty:
-        processor.upsert_tdcc(tdcc)
+def official_command(args) -> None:
+    """向後相容：委託 commands/official.py。"""
+    _official_exec(args)
 
-    stock_meta = fetcher.fetch_stock_meta()
-    if not stock_meta.empty:
-        stock_meta = stock_meta[stock_meta['stock_id'] == stock_id]
-        if not stock_meta.empty:
-            processor.upsert_meta(stock_meta)
 
-    console.print(f"[green]✅ {stock_id} 資料更新完成[/green]")
-    return True
-
-def indicators_command(stock_id: str, token: str | None = None):
-    stock_name = get_stock_name(stock_id)
-
-    with get_connection(readonly=True) as conn:
-        # [AI MOD] 統一資料庫：使用 klines 視圖取得原始價
-        df = pd.read_sql(
-            "SELECT date, close FROM klines "
-            "WHERE stock_id = ? ORDER BY date DESC LIMIT 5",
-            conn, params=(stock_id,),
-        )
-    if df.empty:
-        console.print(f"[yellow]⚠️ 無 {stock_id} 資料，請先執行 update[/yellow]")
-        return
-
-    df = df.sort_values('date', ascending=True)
-    print(f"\n{stock_id} {stock_name} 最近5日交易資料")
-    print("日期        股號   股名   股價(收盤)")
-    print("-" * 50)
-    for _, row in df.iterrows():
-        print(
-            f"{row['date']}  {stock_id}  {stock_name}  "
-            f"{row['close']:8.2f}"
-        )
-    print("")
-
-def intraday_command(stock_id: str, token: str | None = None):
-    fetcher = DataFetcher()
-    engine = IndicatorEngine(stock_id, limit=300)
-    if engine.df.empty:
-        console.print("[yellow]⚠️ 無歷史資料，自動執行更新...[/yellow]")
-        if not update_database(stock_id, token):
-            return
-        engine = IndicatorEngine(stock_id, limit=300)
-
-    intra = fetcher.fetch_intraday_snapshot(stock_id)
-    if not intra or intra.get('z') == '-':
-        console.print("[red]❌ 無法取得即時報價 (非交易時段或無資料)[/red]")
-        return
-
-    today_str = datetime.today().strftime('%Y-%m-%d')
-    with get_connection(readonly=True) as conn:
-        # dividend_events 表使用 date 欄位
-        row = conn.execute(
-            "SELECT 1 FROM dividend_events WHERE stock_id = ? AND date = ?",
-            (stock_id, today_str),
-        ).fetchone()
-        has_div = row is not None
-    if has_div:
-        console.print("[yellow]⚠️ 今日為除權息交易日，盤中價格僅供參考[/yellow]")
-
-    # [AI MOD] Use raw prices — no adj_factor multiplication
-    intra_row = {
-        'date': pd.Timestamp.now(),
-        'open': safe_float(intra.get('o')),
-        'high': safe_float(intra.get('h')),
-        'low': safe_float(intra.get('l')),
-        'close': safe_float(intra.get('z')),
-        'volume': safe_int(intra.get('v')),
-    }
-    df_intra = pd.DataFrame([intra_row])
-    engine.df = pd.concat([engine.df, df_intra], ignore_index=True)
-    df = engine.build()
-    if df.empty:
-        console.print("[yellow]⚠️ 無法計算指標[/yellow]")
-        return
-    latest = df.iloc[-1]
-    console.print(f"[bold green]📈 {stock_id} 盤中即時指標[/bold green]")
-    # [AI MOD] Display raw price only
-    console.print(
-        f"即時價: {latest['close']:.2f}  "
-        f"量: {latest['volume']}"
-    )
-    console.print(
-        f"SMA20: {latest['sma_20']:.2f}  MACD: {latest['macd']:.4f}  "
-        f"法人淨買賣: {latest.get('institutional_net', 0):,}"
-    )
-
-def official_command(args):
-    if hasattr(args, 'tdcc_only') and args.tdcc_only:
-        console.print("[cyan]抓取最新 TDCC 集保資料...[/cyan]")
-        update_tdcc_weekly()
-        return
-
-    days = getattr(args, 'days', 1)
-    date_str = getattr(args, 'date', None)
-    auto_tdcc = getattr(args, 'with_tdcc', False)
-    tdcc_weeks = getattr(args, 'tdcc_weeks', None)
-
-    if tdcc_weeks is not None:
-        console.print(f"[cyan]抓取最近 {tdcc_weeks} 週 TDCC 歷史資料...[/cyan]")
-        update_tdcc_historical(tdcc_weeks)
-        return
-
-    if date_str:
-        try:
-            clean_date = date_str.replace('-', '')
-            if len(clean_date) == 8 and clean_date.isdigit():
-                d_int = int(clean_date)
-                console.print(
-                    f"[cyan]抓取指定日期 {d_int} 起 {days} 個交易日全市場官方資料...[/cyan]"
-                )
-                update_official_daily(d_int, days=days, auto_tdcc=auto_tdcc)
-            else:
-                console.print("[red]日期格式錯誤，請使用 YYYY-MM-DD 或 YYYYMMDD[/red]")
-        except Exception as e:
-            console.print(f"[red]日期解析錯誤: {e}[/red]")
-    else:
-        console.print(f"[cyan]抓取最近 {days} 個交易日全市場官方資料...[/cyan]")
-        update_official_daily(None, days=days, auto_tdcc=auto_tdcc)
-
-def dividend_command(args):
-    start_date = getattr(args, 'start_date', None)
-    end_date = getattr(args, 'end_date', None)
-
-    if not start_date or not end_date:
-        console.print("[red]請提供 --start-date 和 --end-date 參數[/red]")
-        return
-
-    console.print(f"[cyan]抓取除權息資料：{start_date} ~ {end_date}[/cyan]")
-    try:
-        df = fetch_dividend_events(start_date, end_date)
-        if df.empty:
-            console.print("[yellow]此期間內無除權息資料[/yellow]")
-            return
-        upsert_dividend_events(df)
-        console.print(f"[green]✅ 已寫入 {len(df)} 筆除權息事件[/green]")
-    except Exception as e:
-        console.print(f"[red]❌ 處理除權息資料時發生錯誤: {e}[/red]")
+def dividend_command(args) -> None:
+    """向後相容：委託 commands/dividend.py。"""
+    _dividend_exec(args)
 
 
 # ==================== Main Loop & Menus ====================
 
-def run_daily_update():
-    """1. 每日資料更新"""
-    os.system("cls" if os.name == "nt" else "clear")
-    console.print(Panel(
-        Align.center(Text(
-            "☀️ 每日資料更新 (最新價量、法人、集保、除權息、處置股票)",
-            style="bold yellow",
-        )),
-        box=box.DOUBLE, border_style="yellow",
-    ))
-    console.print("[cyan]>> 正在從官方網站抓取最新交易日資料與集保數據...[/cyan]")
-
-    # Step 0: 處置股票
-    suspended_stocks = set()
-    try:
-        from official.suspended import get_today_suspended
-        suspended_stocks = get_today_suspended()
-    except Exception as e:
-        console.print(
-            f"  [yellow]⚠️ 處置股票查詢失敗（不影響其他資料）: {e}[/yellow]"
-        )
-
-    try:
-        update_official_daily(None, days=5, auto_tdcc=True)
-
-        console.print("[green]✅ 每日資料更新完成！[/green]")
-    except Exception as e:
-        console.print(f"[red]❌ 更新失敗: {e}[/red]")
-    input("\n按 Enter 鍵返回主選單...")
-
-def _check_zero_volume_anomalies(suspended: set | list):
-    """檢查最新交易日零成交量異常"""
-    # [AI MOD] 統一使用 db 模組
-    conn = get_connection(readonly=True)
-    try:
-        latest = conn.execute(
-            "SELECT MAX(date) FROM stock_history"
-        ).fetchone()[0]
-        if not latest:
-            return
-
-        rows = conn.execute(
-            "SELECT stock_id, close FROM stock_history "
-            "WHERE date = ? AND volume = 0 ORDER BY stock_id",
-            (latest,),
-        ).fetchall()
-
-        if not rows:
-            console.print(
-                f"  [green]✅ 最新交易日 ({latest}) 所有股票均有成交量[/green]"
-            )
-            return
-
-        normal_zero = set()
-        anomaly_zero = set()
-        for r in rows:
-            sid = r['stock_id']
-            if sid in suspended:
-                normal_zero.add(sid)
-            else:
-                anomaly_zero.add(sid)
-
-        if normal_zero:
-            console.print(
-                f"  [cyan]ℹ️ 暫停交易/處置股票 ({latest}): "
-                f"{len(normal_zero)} 支 (零量價正常)[/cyan]"
-            )
-
-        if anomaly_zero:
-            console.print(
-                f"  [yellow]⚠️ 非處置股票但零量價 ({latest}): "
-                f"{len(anomaly_zero)} 支[/yellow]"
-            )
-            preview = ', '.join(sorted(anomaly_zero)[:15])
-            suffix = "..." if len(anomaly_zero) > 15 else ""
-            console.print(f"     {preview}{suffix}")
-    finally:
-        conn.close()
-
-def run_historical_update_menu():
-    """2. 歷史資料更新選單"""
-    while True:
-        os.system("cls" if os.name == "nt" else "clear")
-        console.print(Panel(
-            Align.center(Text(
-                "📅 歷史資料更新中心 (補齊歷史價量、集保與除權息)",
-                style="bold yellow",
-            )),
-            box=box.DOUBLE, border_style="yellow",
-        ))
-
-        t = Table(box=box.SIMPLE, show_header=True, expand=False, padding=(0, 2))
-        t.add_column("Key", style="bold cyan")
-        t.add_column("抓取任務", style="white")
-        t.add_column("說明", style="dim")
-        t.add_row("1", "同步幾個歷史交易日", "快速同步多個交易日歷史官方價量與法人")
-        t.add_row("2", "抓取歷史 N 週 TDCC 集保", "下載並建立大股東集保分散表歷史")
-        t.add_row("3", "同步除權息事件", "爬取特定區間除權息事件並寫入資料庫")
-        t.add_row(
-            "4", "抓取當年除權息公告",
-            "爬取今年除權息預告並寫入資料庫",
-        )
-        t.add_row("5", "檢測零量價與異常", "掃描最新交易日中非處置股票卻零量零價的異常名單")
-        t.add_row("Enter", "返回主選單", "")
-
-        console.print(Align.left(t))
-        ch = get_interactive_input("\n🔍 選擇任務: ", menu_keys="12345")
-
-        if not ch:
-            break
-        elif ch == "1":
-            days_str = input("輸入下載交易天數 (如 5): ").strip()
-            if days_str.isdigit():
-                update_official_daily(None, days=int(days_str), auto_tdcc=True)
-        elif ch == "2":
-            weeks_str = input("輸入週數 (如 5): ").strip()
-            if weeks_str.isdigit():
-                update_tdcc_historical(int(weeks_str))
-        elif ch == "3":
-            days_str = input("請輸入回溯交易天數 (如 60，預設 60): ").strip()
-            days = int(days_str) if days_str.isdigit() else 60
-            end_dt = get_nth_trading_day_back(0)  # 最近交易日
-            start_dt = get_nth_trading_day_back(days)  # 往前 N 個交易日
-            start_date = start_dt.strftime('%Y-%m-%d')
-            end_date = end_dt.strftime('%Y-%m-%d')
-            console.print(f"\n[cyan]>> 同步區間: {start_date} ~ {end_date}（過去 {days} 個交易日）[/cyan]")
-            console.print("[cyan]>> 開始同步除權息事件...[/cyan]")
-            try:
-                df = fetch_dividend_events(start_date, end_date)
-                if not df.empty:
-                    upsert_dividend_events(df)
-                    console.print(
-                        f"[green]✅ 已更新 {len(df)} 筆除權息事件[/green]"
-                    )
-                else:
-                    console.print("[yellow]⚠️ 此區間無除權息資料[/yellow]")
-            except Exception as e:
-                console.print(f"[red]❌ 發生錯誤: {e}[/red]")
-        elif ch == "4":
-            console.print(
-                "\n[cyan]>> 開始抓取當年除權息公告...[/cyan]"
-            )
-            try:
-                from official.dividend_daily import run_dividend_daily
-                run_dividend_daily()
-                console.print(
-                    "[green]✅ 當年除權息公告抓取完成！[/green]"
-                )
-            except Exception as e:
-                console.print(f"[red]❌ 發生錯誤: {e}[/red]")
-            input("\n按 Enter 鍵繼續...")
-        elif ch == "5":
-            console.print("\n[cyan]>> 開始檢查最近交易日資料異常...[/cyan]")
-            try:
-                from official.suspended import get_today_suspended
-                suspended = get_today_suspended()
-                _check_zero_volume_anomalies(suspended)
-            except Exception as e:
-                console.print(f"[red]❌ 發生錯誤: {e}[/red]")
-            input("\n按 Enter 鍵繼續...")
-
-def run_db_maintenance():
-    """4. 資料庫維護 (VACUUM)"""
-    os.system("cls" if os.name == "nt" else "clear")
-    console.print(Panel(
-        Align.center(Text("🔧 資料庫結構重整與維護", style="bold yellow")),
-        box=box.DOUBLE, border_style="yellow",
-    ))
-    console.print("[cyan]>> 正在重整 SQLite 資料庫 (VACUUM)...[/cyan]")
-    try:
-        with get_connection() as conn:
-            conn.execute("VACUUM")
-        console.print("[green]✅ 資料庫結構優化與物理壓縮完成！[/green]")
-    except Exception as e:
-        console.print(f"[red]❌ 維護失敗: {e}[/red]")
-    input("\n按 Enter 鍵返回主選單...")
-
-def tui_interactive_menu():
-    while True:
-        render_dashboard()
-        ch = get_interactive_input("\n🔍 輸入股號或按 Enter 回到上一頁: ", menu_keys="01234")
-        if ch == '0':
-            break
-        elif ch == '1':
-            run_daily_update()
-        elif ch == '2':
-            run_historical_update_menu()
-        elif ch == '3':
-            strategies_menu()
-        elif ch == '4':
-            run_db_maintenance()
-        elif len(ch) == 4 and ch.isdigit():
-            run_quick_analysis(ch)
-        elif ch == '':
-            continue
+# ── 子選單已搬離至 tui/menu.py ──────────────────────────
+# run_daily_update, run_historical_update_menu, run_db_maintenance
+# 皆已從 tui.menu 匯入（見上方）
 
 
 if __name__ == '__main__':
