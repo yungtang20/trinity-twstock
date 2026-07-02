@@ -126,43 +126,27 @@ def run_strategy(strategy_name: str, stock_id: str, **kwargs) -> dict:
     }
 
 
-# ── 撐壓分析 (S/R) ─────────────────────────────────────────
+# ── Named dispatchers (thin wrappers for main()) ────────────
 
 def run_sr_analysis(stock_id: str) -> dict:
     """執行撐壓分析 - dispatch 到 sr_analyzer"""
-    from strategy.sr_analyzer import SupportResistanceStrategy
-
     return SupportResistanceStrategy().analyze(stock_id)
 
 
-# ── 均線分析 ────────────────────────────────────────────────
-
 def run_ma_analysis(stock_id: str) -> dict:
     """執行均線分析 - dispatch 到 ma_strategy"""
-    from strategy.ma_strategy import MAStrategy
-
     return MAStrategy().analyze(stock_id)
 
 
-# ── 籌碼分析 ────────────────────────────────────────────────
-
 def run_chips_analysis(stock_id: str) -> dict:
     """執行籌碼分析 - dispatch 到 chips_strategy"""
-    from strategy.chips_strategy import ChipsStrategy
-
     return ChipsStrategy().analyze(stock_id)
 
 
-# ── 型態分析 ────────────────────────────────────────────────
-
 def run_pattern_analysis(stock_id: str) -> dict:
     """執行型態分析 - dispatch 到 patterns_strategy"""
-    from strategy.patterns_strategy import PatternStrategy
-
     return PatternStrategy().analyze(stock_id)
 
-
-# ── 預測分析 ────────────────────────────────────────────────
 
 def run_prediction_analysis(stock_id: str, ma: dict = None) -> dict:
     """執行預測分析 - dispatch 到內部適配器"""
