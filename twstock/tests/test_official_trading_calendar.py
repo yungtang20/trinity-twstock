@@ -88,6 +88,81 @@ class TestGetNthTradingDayBack:
         assert isinstance(result, datetime)
 
 
+class TestInitTradingCalendar:
+    """init_trading_calendar 初始化測試。"""
+
+    @patch("twstock.official.trading_calendar.sqlite3.connect")
+    @patch("twstock.official.trading_calendar.retry_get")
+    def test_init_with_holidays(self, mock_retry, mock_connect):
+        """有官方日曆資料時應寫入 DB。"""
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"Date": "1130101", "Description": "元旦"},
+            {"Date": "1130205", "Description": "春節"},
+        ]
+        mock_retry.return_value = mock_response
+
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+
+        # 不應拋異常
+        trading_calendar.init_trading_calendar()
+
+    @patch("twstock.official.trading_calendar.retry_get")
+    def test_init_no_response(self, mock_retry):
+        """無回應時應返回。"""
+        mock_retry.return_value = None
+
+        # 不應拋異常
+        trading_calendar.init_trading_calendar()
+
+    @patch("twstock.official.trading_calendar.retry_get")
+    def test_init_empty_holidays(self, mock_retry):
+        """空日曆資料時應返回。"""
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_retry.return_value = mock_response
+
+        trading_calendar.init_trading_calendar()
+
+    @patch("twstock.official.trading_calendar.retry_get")
+    def test_init_error(self, mock_retry):
+        """錯誤時不應拋異常。"""
+        mock_retry.side_effect = Exception("Network error")
+
+        # 不應拋異常
+        trading_calendar.init_trading_calendar()
+
+
+class TestGetLastTradingDay:
+    """get_last_trading_day 測試。"""
+
+    @patch("twstock.official.trading_calendar.init_trading_calendar")
+    @patch("twstock.official.trading_calendar.sqlite3.connect")
+    @patch("twstock.official.trading_calendar.is_trading_day")
+    def test_empty_calendar_initializes(self, mock_is_open, mock_connect, mock_init):
+        """空日曆應觸發初始化。"""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = (0,)  # COUNT = 0
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        mock_is_open.return_value = True
+
+        result = trading_calendar.get_last_trading_day()
+        mock_init.assert_called_once()
+
+    @patch("twstock.official.trading_calendar.is_trading_day")
+    def test_finds_trading_day(self, mock_is_open):
+        """應找到最近交易日。"""
+        mock_is_open.return_value = True
+
+        result = trading_calendar.get_last_trading_day()
+        assert isinstance(result, int)
+        assert result > 0
+
+
 class TestDateExistsInHistory:
     """date_exists_in_history 测试。"""
 
