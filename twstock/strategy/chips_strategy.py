@@ -39,58 +39,9 @@ except ImportError:
     HAS_MSVCRT = False
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    if not HAS_MSVCRT or not sys.stdin.isatty():
-        return input(prompt).strip()
-    while msvcrt.kbhit():
-        msvcrt.getwch()
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-    buf = ""
-    while True:
-        if msvcrt.kbhit():
-            ch = msvcrt.getwch()
-            if ch in ('\r', '\n'):
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                return buf.strip()
-            elif ch == '\b':
-                if len(buf) > 0:
-                    buf = buf[:-1]
-                    sys.stdout.write('\b \b')
-                    sys.stdout.flush()
-            elif ch in ('\x1b', '\x03'): # ESC or Ctrl+C
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                return ""
-            else:
-                if ch.isprintable():
-                    buf += ch
-                    sys.stdout.write(ch)
-                    sys.stdout.flush()
-                    if len(buf) == 1 and ch in keys:
-                        # 0.4s protection time
-                        import time
-                        start_wait = time.time()
-                        is_single = True
-                        while time.time() - start_wait < 0.4:
-                            if msvcrt.kbhit():
-                                next_ch = msvcrt.getwch()
-                                if next_ch in ('\r', '\n'):
-                                    break
-                                is_single = False
-                                buf += next_ch
-                                sys.stdout.write(next_ch)
-                                sys.stdout.flush()
-                                break
-                        if is_single:
-                            sys.stdout.write('\n')
-                            sys.stdout.flush()
-                            return buf.strip()
-
-                    if auto_four and len(buf) == 4 and buf.isdigit():
-                        sys.stdout.write('\n')
-                        sys.stdout.flush()
-                        return buf.strip()
+    """向後相容包裝：統一使用 input_helper.get_single_key_input。"""
+    from twstock.input_helper import get_single_key_input as _ih
+    return _ih(prompt, keys, auto_four)
 
 
 # ── Local helpers ─────────────────────────────────────────

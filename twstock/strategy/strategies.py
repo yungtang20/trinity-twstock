@@ -92,8 +92,7 @@ def run_strategy_by_id(strategy_id, params):
     except Exception as e:
         console.print(f"[red]❌ 執行策略 {strategy_module.__name__} 失敗: {e}[/red]")
 
-# --- Standalone Single-Key Input Helper for TUI [AI MOD] ---
-import time
+# --- msvcrt for _flush_msvcrt ---
 try:
     import msvcrt
     HAS_MSVCRT = True
@@ -101,80 +100,9 @@ except ImportError:
     HAS_MSVCRT = False
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    if not HAS_MSVCRT or not sys.stdin.isatty():
-        return input(prompt).strip()
-    while msvcrt.kbhit():
-        msvcrt.getwch()
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-    buf = ""
-    while True:
-        if msvcrt.kbhit():
-            ch = msvcrt.getwch()
-            if ch in ('\r', '\n'):
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                return buf.strip()
-            elif ch == '\b':
-                if len(buf) > 0:
-                    buf = buf[:-1]
-                    sys.stdout.write('\b \b')
-                    sys.stdout.flush()
-            elif ch in ('\x1b', '\x03'): # ESC or Ctrl+C
-                sys.stdout.write('\n')
-                sys.stdout.flush()
-                return "0"
-            else:
-                if ch.isprintable():
-                    buf += ch
-                    sys.stdout.write(ch)
-                    sys.stdout.flush()
-                    if len(buf) == 1 and ch in keys:
-                        # 0.4s protection time
-                        start_wait = time.time()
-                        is_single = True
-                        while time.time() - start_wait < 0.4:
-                            if msvcrt.kbhit():
-                                next_ch = msvcrt.getwch()
-                                if next_ch in ('\r', '\n'):
-                                    break
-                                is_single = False
-                                buf += next_ch
-                                sys.stdout.write(next_ch)
-                                sys.stdout.flush()
-                                break
-                        if is_single:
-                            sys.stdout.write('\n')
-                            sys.stdout.flush()
-                            return buf.strip()
-                    
-                    if auto_four and len(buf) == 4 and buf.isdigit():
-                        start_wait = time.time()
-                        has_interrupted = False
-                        # Extend delay to 1.2 seconds for superior typing comfort [AI MOD]
-                        while time.time() - start_wait < 1.2:
-                            if msvcrt.kbhit():
-                                next_ch = msvcrt.getwch()
-                                if next_ch in ('\r', '\n'):
-                                    break  # Immediately submit
-                                elif next_ch == '\b':
-                                    if len(buf) > 0:
-                                        buf = buf[:-1]
-                                        sys.stdout.write('\b \b')
-                                        sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                                elif next_ch.isprintable():
-                                    buf += next_ch
-                                    sys.stdout.write(next_ch)
-                                    sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                            time.sleep(0.01)
-                        if not has_interrupted:
-                            sys.stdout.write('\n')
-                            sys.stdout.flush()
-                            return buf.strip()
+    """向後相容包裝：統一使用 input_helper.get_single_key_input。"""
+    from twstock.input_helper import get_single_key_input as _ih
+    return _ih(prompt, keys, auto_four)
 
 def _flush_msvcrt():
     """清除 Windows 鍵盤緩衝區"""
