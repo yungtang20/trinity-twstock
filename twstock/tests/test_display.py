@@ -2,6 +2,7 @@
 """test_display.py — display.py 覆蓋率測試。"""
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 from twstock.display import (
@@ -14,6 +15,7 @@ from twstock.display import (
     price_color,
     price_rich,
     price_str,
+    render_kline,
     vol_color,
     vol_diff_rich,
     vol_fmt,
@@ -233,3 +235,94 @@ class TestMaStr:
     def test_includes_color(self):
         result = ma_str(100, "up")
         assert "[" in result and "]" in result
+
+
+# ── render_kline ─────────────────────────────────────────
+
+
+class TestRenderKline:
+    """render_kline K 線圖渲染。"""
+
+    def test_empty_df(self):
+        """空 DataFrame 應回傳「無資料」。"""
+        result = render_kline(pd.DataFrame(), "2330", "台積電")
+        assert "無資料" in result
+
+    def test_none_df(self):
+        """None 應回傳「無資料」。"""
+        result = render_kline(None, "2330", "台積電")
+        assert "無資料" in result
+
+    def test_insufficient_data(self):
+        """資料不足 2 筆應回傳「資料不足」。"""
+        df = pd.DataFrame({
+            "date": ["2026-01-01"],
+            "open": [100], "high": [105], "low": [95],
+            "close": [102], "volume": [1000],
+        })
+        result = render_kline(df, "2330", "台積電")
+        assert "資料不足" in result
+
+    def test_missing_column(self):
+        """缺少欄位應回傳錯誤。"""
+        df = pd.DataFrame({
+            "date": ["2026-01-01", "2026-01-02"],
+            "open": [100, 101],
+            # 缺少 high/low/close/volume
+        })
+        result = render_kline(df, "2330", "台積電")
+        assert "缺少" in result
+
+    def test_with_valid_data(self):
+        """有效資料應產生 K 線圖字串。"""
+        df = pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=10),
+            "open": [100, 101, 102, 103, 104, 105, 106, 107, 108, 109],
+            "high": [105, 106, 107, 108, 109, 110, 111, 112, 113, 114],
+            "low": [95, 96, 97, 98, 99, 100, 101, 102, 103, 104],
+            "close": [102, 103, 104, 105, 106, 107, 108, 109, 110, 111],
+            "volume": [1000000] * 10,
+        })
+        result = render_kline(df, "2330", "台積電")
+        assert "2330" in result
+        assert "台積電" in result
+        assert "█" in result  # K 線主體
+
+    def test_without_stock_name(self):
+        """無股票名稱仍應運作。"""
+        df = pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=5),
+            "open": [100, 101, 102, 103, 104],
+            "high": [105, 106, 107, 108, 109],
+            "low": [95, 96, 97, 98, 99],
+            "close": [102, 103, 104, 105, 106],
+            "volume": [1000000] * 5,
+        })
+        result = render_kline(df, "", "")
+        assert "K 線圖" in result
+
+    def test_custom_days(self):
+        """days 參數應限制顯示天數。"""
+        df = pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=30),
+            "open": range(100, 130),
+            "high": range(105, 135),
+            "low": range(95, 125),
+            "close": range(102, 132),
+            "volume": [1000000] * 30,
+        })
+        result = render_kline(df, "2330", "台積電", days=10)
+        assert "2330" in result
+
+    def test_flat_prices(self):
+        """所有價格相同時不應崩潰（price_range=0）。"""
+        df = pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=5),
+            "open": [100] * 5,
+            "high": [100] * 5,
+            "low": [100] * 5,
+            "close": [100] * 5,
+            "volume": [1000000] * 5,
+        })
+        result = render_kline(df, "2330", "台積電")
+        assert "2330" in result

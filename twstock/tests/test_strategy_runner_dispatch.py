@@ -8,6 +8,10 @@ test_strategy_runner_dispatch.py — strategy_runner dispatch 契約測試
 from __future__ import annotations
 
 import sqlite3
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 def _seed_stock_data(db_conn: sqlite3.Connection) -> None:
@@ -147,3 +151,76 @@ def test_strategy_runner_does_not_use_random_prediction():
     # 不應有 np.random 或 random. 的使用
     assert "np.random" not in content, "strategy_runner 不應使用 np.random"
     assert "random." not in content, "strategy_runner 不應使用 random 模組"
+
+
+# ── Runtime behavior tests ────────────────────────────────
+
+
+def test_strategy_runner_main_runs_all_strategies():
+    """main() 應執行所有策略並寫入結果。"""
+    import strategy_runner
+
+    with patch("strategy_runner.run_sr_analysis", return_value={}), \
+         patch("strategy_runner.run_ma_analysis", return_value={}), \
+         patch("strategy_runner.run_chips_analysis", return_value={}), \
+         patch("strategy_runner.run_pattern_analysis", return_value={}), \
+         patch("strategy_runner.run_prediction_analysis", return_value={}):
+
+        mock_writer = MagicMock()
+        with patch.object(sys, "argv", ["strategy_runner.py", "2330"]):
+            strategy_runner.main(writer=mock_writer)
+
+        mock_writer.write_result.assert_called_once()
+        call_args = mock_writer.write_result.call_args[0][0]
+        assert call_args["stockId"] == "2330"
+        assert "strategies" in call_args
+
+
+def test_strategy_runner_main_handles_error():
+    """main() 遇到錯誤應呼叫 write_error。"""
+    import strategy_runner
+
+    with patch("strategy_runner.run_sr_analysis", side_effect=Exception("DB error")):
+        mock_writer = MagicMock()
+        with patch.object(sys, "argv", ["strategy_runner.py", "2330"]):
+            with pytest.raises(SystemExit):
+                strategy_runner.main(writer=mock_writer)
+
+        mock_writer.write_error.assert_called_once()
+
+
+def test_strategy_runner_main_no_args_exits():
+    """main() 無 args 應顯示用法並 exit。"""
+    import strategy_runner
+
+    mock_writer = MagicMock()
+    with patch.object(sys, "argv", ["strategy_runner.py"]):
+        with pytest.raises(SystemExit):
+            strategy_runner.main(writer=mock_writer)
+
+    mock_writer.write_error.assert_called_once()
+    assert "用法" in mock_writer.write_error.call_args[0][0]
+
+
+def test_prediction_adapter_no_data():
+    """_PredictionAdapter.analyze 應處理資料不足的情況。"""
+    from strategy_runner import _PredictionAdapter
+
+    adapter = _PredictionAdapter()
+    # 無資料時應回傳 error dict
+    result = adapter.analyze("9999")
+    assert isinstance(result, dict)
+
+
+def test_run_prediction_analysis():
+    """run_prediction_analysis 應呼叫 _PredictionAdapter。"""
+    import strategy_runner
+
+    with patch.object(strategy_runner, "_PredictionAdapter") as mock_cls:
+        mock_instance = MagicMock()
+        mock_instance.analyze.return_value = {"predictions": []}
+        mock_cls.return_value = mock_instance
+
+        result = strategy_runner.run_prediction_analysis("2330", ma={"ma25Trend": "up"})
+        mock_instance.analyze.assert_called_once_with("2330", ma={"ma25Trend": "up"})
+        assert result == {"predictions": []}
