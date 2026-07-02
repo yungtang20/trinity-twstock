@@ -1,18 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Shared helpers for official subpackage."""
+"""Shared helpers for official subpackage.
 
+Note: safe_float / safe_int 已統一至 twstock.utils，本模組保留
+向舊程式匯入路徑（from official.utils import safe_float）。
+"""
 
-def safe_float(val, default=0.0):
-    try:
-        val = str(val).replace(",", "") if val not in ('-', '', None) else val
-        return float(val) if val not in ('-', '', None) else default
-    except (ValueError, TypeError):
-        return default
-
-
-def safe_int(val, default=0):
-    try:
-        val = str(val).replace(",", "") if val not in ('-', '', None) else val
-        return int(val) if val not in ('-', '', None) else default
-    except (ValueError, TypeError):
-        return default
+from utils import safe_float, safe_int  # noqa: F401  (re-export for backwards compat)

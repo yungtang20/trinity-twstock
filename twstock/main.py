@@ -71,141 +71,21 @@ from input_helper import setup_console_encoding, HAS_MSVCRT
 
 setup_console_encoding()  # Windows: chcp 65001; 非 Windows: 跳過
 
-# ==================== Utility Functions ====================
+# ── 共用工具（來自 utils.py）─────────────────────────────
+from utils import (
+    safe_float, safe_int,
+    default_http_headers as _default_http_headers,
+    get_http_session as _safe_requests_session,
+    safe_http_get as _safe_http_get,
+    get_stock_name, to_roc_date, get_sys_info, get_market_mode,
+    format_price_change,
+)
 
-def safe_float(val, default=0.0):
-    try:
-        return float(val) if val not in ('-', '', None) else default
-    except (ValueError, TypeError):
-        return default
-
-def safe_int(val, default=0):
-    try:
-        return int(val) if val not in ('-', '', None) else default
-    except (ValueError, TypeError):
-        return default
 
 def get_token():
     """從 api_config 取得 FinMind token。"""
     from api_config import get_finmind_token
     return get_finmind_token()
-
-
-def _default_http_headers() -> dict:
-    return {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
-
-
-def _safe_requests_session():
-    try:
-        import requests
-        session = requests.Session()
-        session.headers.update(_default_http_headers())
-        return session
-    except Exception:
-        return None
-
-
-def _safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, headers=None):
-    if session is None:
-        session = _safe_requests_session()
-    if session is None:
-        return None
-    try:
-        response = session.get(
-            url,
-            timeout=timeout,
-            verify=verify,
-            params=params,
-            headers=headers,
-        )
-        response.raise_for_status()
-        return response
-    except Exception:
-        return None
-
-
-def get_stock_name(stock_id: str) -> str:
-    """從 stock_meta 取得股票名稱"""
-    # [AI MOD] 統一資料庫：stock_meta.stock_name
-    try:
-        with get_connection(readonly=True) as conn:
-            row = conn.execute(
-                "SELECT stock_name FROM stock_meta WHERE stock_id = ?",
-                (stock_id,),
-            ).fetchone()
-            if row and row[0]:
-                return row[0]
-    except Exception:
-        pass
-    return "未知"
-
-def to_roc_date(date_str):
-    """將西元日期 (YYYY-MM-DD 或 YYYYMMDD) 轉換為民國紀年格式"""
-    if not date_str or date_str == "N/A":
-        return "N/A"
-    try:
-        clean_date = str(date_str).replace("-", "").replace("/", "")
-        if len(clean_date) >= 8:
-            y = int(clean_date[:4])
-            m = clean_date[4:6]
-            d = clean_date[6:8]
-            return f"{y - 1911}/{m}/{d}"
-        return date_str
-    except (ValueError, TypeError):
-        return date_str
-
-def get_sys_info():
-    info = {
-        "size": "0.0 MB", "stocks": 0, "last": "N/A",
-        "first": "N/A", "status": "Offline", "path": "N/A",
-    }
-    try:
-        if os.path.exists(get_path()):
-            info["size"] = f"{file_size_mb():.1f} MB"
-            info["path"] = get_path()
-            with get_connection(readonly=True) as conn:
-                # [AI MOD] Querying stock_meta instead of stock_history boosts startup performance 10,000x!
-                info["stocks"] = conn.execute(
-                    "SELECT COUNT(*) FROM stock_meta "
-                    "WHERE LENGTH(stock_id) = 4 AND stock_id GLOB '[1-9][0-9][0-9][0-9]'"
-                ).fetchone()[0]
-                last_date = conn.execute(
-                    "SELECT MAX(date) FROM stock_history"
-                ).fetchone()[0]
-                first_date = conn.execute(
-                    "SELECT MIN(date) FROM stock_history"
-                ).fetchone()[0]
-                info["last"] = last_date if last_date else "N/A"
-                info["first"] = first_date if first_date else "N/A"
-                info["status"] = "Ready"
-    except Exception:
-        pass
-    return info
-
-def get_market_mode() -> str:
-    now = datetime.now()
-    mins = now.hour * 60 + now.minute
-    if now.weekday() >= 5:
-        return "收盤後 (假日)"
-    if 540 <= mins <= 815:
-        return "盤中"
-    return "收盤後"
-
-def format_price_change(current: float, previous: float):
-    diff = current - previous
-    pct = (diff / previous) * 100 if previous else 0
-    if pct >= 9.9:
-        color = "white on red"
-    elif pct <= -9.9:
-        color = "white on green"
-    else:
-        color = "bright_red" if diff > 0 else ("bright_green" if diff < 0 else "white")
-    return diff, pct, color
 
 
 # ==================== Real-time Market Data ====================

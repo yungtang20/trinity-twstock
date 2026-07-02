@@ -24,6 +24,7 @@ import requests
 import pandas as pd
 
 from api_config import get_finmind_token
+from utils import safe_float as _safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -247,19 +248,16 @@ class DataFetcher:
             data = r.json()
             if data.get("msgArray") and len(data["msgArray"]) > 0:
                 item = data["msgArray"][0]
-                def safe_float(val):
-                    try:
-                        if val in ("-", "", None):
-                            return None
-                        return float(val)
-                    except (ValueError, TypeError):
+                def _local_safe_float(val):
+                    if val in ("-", "", None):
                         return None
+                    return _safe_float(val, default=None)
                 return {
-                    "o": safe_float(item.get("o")),
-                    "h": safe_float(item.get("h")),
-                    "l": safe_float(item.get("l")),
-                    "z": safe_float(item.get("z")),
-                    "v": safe_float(item.get("v")),  # 單位：張
+                    "o": _local_safe_float(item.get("o")),
+                    "h": _local_safe_float(item.get("h")),
+                    "l": _local_safe_float(item.get("l")),
+                    "z": _local_safe_float(item.get("z")),
+                    "v": _local_safe_float(item.get("v")),  # 單位：張
                 }
             return {}
         except (requests.exceptions.RequestException, ValueError):
