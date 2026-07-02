@@ -30,6 +30,7 @@ node_modules/
 build/
 dist/
 coverage/
+.coverage
 
 # IDE
 .DS_Store
