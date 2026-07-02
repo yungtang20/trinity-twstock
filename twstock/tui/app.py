@@ -12,6 +12,11 @@ from twstock.tui.menu import (
     run_historical_update_menu,
     run_db_maintenance,
 )
+from twstock.tui.state_machine import (
+    ActionType,
+    TUIState,
+    dispatch_main_menu,
+)
 from twstock.strategy.composites import run_composite
 from twstock.strategy.strategies import interactive_menu as strategies_menu
 from twstock.utils import get_token  # noqa: F401
@@ -31,27 +36,33 @@ class TUIApp:
 
     # ── public ─────────────────────────────────────────────
     def run(self) -> None:
-        """進入主選單 loop（直到使用者按 0）。"""
-        while True:
+        """進入主選單 loop（直到使用者按 0）。
+
+        使用 state_machine.dispatch_main_menu 進行狀態分派。
+        """
+        state = TUIState.MAIN_MENU
+        while state != TUIState.EXIT:
             render_dashboard()
             ch = self._get_input(
                 "\n🔍 輸入股號或按 Enter 回到上一頁: ",
                 menu_keys="01234",
             )
-            if ch == "0":
-                break
-            elif ch == "1":
-                run_daily_update()
-            elif ch == "2":
-                run_historical_update_menu()
-            elif ch == "3":
-                strategies_menu()
-            elif ch == "4":
-                run_db_maintenance()
-            elif len(ch) == 4 and ch.isdigit():
-                run_composite(ch)
-            elif ch == "":
-                continue
+            transition = dispatch_main_menu(ch)
+            state = transition.next_state
+            self._execute_action(transition)
+
+    def _execute_action(self, transition) -> None:
+        """執行動作（副作用）。"""
+        if transition.action == ActionType.RUN_DAILY_UPDATE:
+            run_daily_update()
+        elif transition.action == ActionType.RUN_HISTORICAL_UPDATE:
+            run_historical_update_menu()
+        elif transition.action == ActionType.RUN_STRATEGY_MENU:
+            strategies_menu()
+        elif transition.action == ActionType.RUN_DB_MAINTENANCE:
+            run_db_maintenance()
+        elif transition.action == ActionType.RUN_COMPOSITE:
+            run_composite(transition.payload)
 
     # ── input ─────────────────────────────────────────────
     def _get_input(self, prompt: str = "\n🔍 指令: ",
