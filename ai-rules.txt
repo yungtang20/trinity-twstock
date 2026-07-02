@@ -1,0 +1,14 @@
+=== 不可違反的專案資料規則 ===
+
+1. 唯一資料來源：所有資料必須從 Supabase 資料庫或真實 API 取得（API 端點定義在 server/routes/，Supabase 客戶端在 src/lib/supabase.ts）。
+2. 嚴禁任何形式假資料：包含 hardcode、mock、預設範例值、"Lorem ipsum"、"test data"、"Mock" 等。
+3. 空狀態處理：當 API 無資料或請求失敗時，必須顯示對應的錯誤或空狀態提示（如云計算中、無資料等），並提供重新載入按鈕。
+4. 不允許為了通過檢查而註解掉 useEffect/fetch/axios 等資料獲取邏輯。
+5. 所有網絡請求必須有錯誤處理（try/catch），並將錯誤訊息顯示給使用者。
+6. 若發現任何元件跳過資料流直接渲染假資料，視為重大錯誤。
+7. 本專案使用 Supabase 作為唯一資料庫，不得使用 SQLite 或其他本地資料庫。
+8. 前端呼叫後端 API 必須使用 src/lib/api.ts 中定義的函數，不得直接 fetch 除非是新功能。
+9. 修改必須維持 TypeScript 型別安全，不得使用 any 除非必要。
+10. 所有 React 元件必須處理 loading 和 error 狀態。
+11. 不得移除或修改現有的 `data-testid` 屬性，這些是 e2e 測試的定位標記。
+12. 測試檔（tests/*.spec.ts）錯誤時，應修復前端元件，而非修改測試邏輯。
