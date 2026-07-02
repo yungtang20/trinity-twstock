@@ -67,7 +67,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
 
         safe_http_get(
             "https://mis.twstock.com.tw/stock/index.jsp",
-            session=session, timeout=5, verify=False,
+            session=session, timeout=5, verify=True,
         )
     except Exception:
         pass
@@ -84,7 +84,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
     )
     from utils import safe_http_get
 
-    r = safe_http_get(api_url, session=session, timeout=1.5, verify=False)
+    r = safe_http_get(api_url, session=session, timeout=1.5, verify=True)
     if not r:
         return {}
     try:
@@ -145,7 +145,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
         )
         r_tse_data = None
         for _ in range(1):
-            r_tse = safe_http_get(url_tse, session=session, timeout=1.5, verify=False)
+            r_tse = safe_http_get(url_tse, session=session, timeout=1.5, verify=True)
             if r_tse:
                 try:
                     r_tse_data = r_tse.json()
@@ -192,7 +192,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
         )
         r_otc_data = None
         for _ in range(1):
-            r_otc = safe_http_get(url_otc, session=session, timeout=1.5, verify=False)
+            r_otc = safe_http_get(url_otc, session=session, timeout=1.5, verify=True)
             if r_otc:
                 try:
                     r_otc_data = r_otc.json()

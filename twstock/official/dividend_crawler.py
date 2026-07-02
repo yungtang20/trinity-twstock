@@ -101,7 +101,7 @@ def fetch_twse_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         timeout=30,
         retries=3,
         backoff=1.0,
-        verify=False,
+        verify=True,
     )
     if resp is None:
         print(f"  [ERROR] TWSE crawler failed after retries")
@@ -179,7 +179,7 @@ def fetch_tpex_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         timeout=30,
         retries=3,
         backoff=1.0,
-        verify=False,
+        verify=True,
     )
     if resp is None:
         print(f"  [ERROR] TPEx crawler failed after retries")

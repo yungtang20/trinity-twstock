@@ -27,7 +27,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         timeout=10,
         retries=3,
         backoff=1.0,
-        verify=False,
+        verify=True,
     )
     if resp is None:
         logging.error("TWSE quotes fetch failed for %s after retries", date_str)
@@ -93,7 +93,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         timeout=10,
         retries=3,
         backoff=1.0,
-        verify=False,
+        verify=True,
     )
     if resp is None:
         logging.error("TPEx quotes fetch failed for %s after retries", date_int)

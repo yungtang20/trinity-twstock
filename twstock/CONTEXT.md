@@ -104,13 +104,16 @@ twstock/
 | 債務 | 檔案 | 狀態 |
 |------|------|------|
 | `config.py` 無意義轉發 | config.py | ✅ 已刪除（2026-07-02） |
-| `indicators.py` 死程式碼 | indicators.py | ✅ 已刪除（候選 #4 尚未執行，但 CONTEXT 已標記棄用） |
+| `indicators.py`（根目錄）dead code | indicators.py | ✅ 已刪除（2026-07-02 輪 #2）— 341 行 + 5 個專屬測試（SMA/EMA/RSI/MACD/KDJ/Bollinger） |
 | `safe_float` 重複定義 | main.py / official/utils.py / fetcher.py | ✅ 已收斂至 utils.py |
 | `get_single_key_input` 重複定義 | strategies.py / chips_strategy.py | ✅ 已收斂至 input_helper.py |
 | `fetch_klines` / `_fetch_history` 重複 | strategy/_utils.py / klines_helper.py | ✅ 已刪除 klines_helper.py、simplified _fetch_history |
 | `db_admin.py` vs `processor.py` 雙寫入路徑 | db_admin.py / processor.py | ✅ db_admin 不再有 save_*，processor.py 為唯一寫入路徑 |
 | `strategy_runner.py` 部分重複 dispatch | strategy_runner.py | ⚠️ 已評估保留（JSON API -vs-Rich TUI 本質不同 consumer；thin wrappers simplified） |
 | `PERFetcher` 已移除，測試殘留 | test_006_per.py | ✅ 已刪除 |
+| `official/` 套件密封 | official/__init__.py | ✅ 已密封（2026-07-02 輪 #2）— `__all__` 完整、消費者改從根導入 |
+| `verify=False` 安全漏洞 | fetcher.py / dividend_crawler.py / quotes.py / tdcc.py / trading_calendar.py / composites.py | ✅ 已修正 12 處為 verify=True（2026-07-02 輪 #2） |
+| `tui/menu.py` 重複 input 實作 | tui/menu.py | ✅ 已委派至 input_helper（2026-07-02 輪 #2） |
 
 ---
 
@@ -118,3 +121,4 @@ twstock/
 
 - **2026-07-02**：建立本文件。記錄 main.py 拆分設計決策（commands/ 拆分、TUIApp 封裝、HTTP 不注入、策略組合邏輯回歸 strategy 套件）。
 - **2026-07-02**：技術債收斂輪 #1 — 結清 6 項（config.py/待刪 indicators.py、safe_float、get_single_key_input、fetch_klines 重複、雙寫入路徑、PER 測試）；strategy_runner 標記保留。
+- **2026-07-02**：技術債收斂輪 #2 — 結清 4 項：(1) 刪除 dead `indicators.py`（341 行 + 5 測試 ≈ 770 行）(2) 密封 `official/` 套件（`__all__ + re-export）(3) 修正 12 處 `verify=False` 安全漏洞 (4) `tui/menu.py` input 委派至 `input_helper`。淨減 1,135 行。

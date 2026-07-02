@@ -138,7 +138,7 @@ def _fetch_live_quote(stock_id: str):
             f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
             f"?ex_ch={ex_ch}&json=1&delay=0&_={int(time.time() * 1000)}"
         )
-        r = safe_http_get(url, session=session, timeout=3, verify=False)
+        r = safe_http_get(url, session=session, timeout=3, verify=True)
         if not r:
             return None, None
         try:

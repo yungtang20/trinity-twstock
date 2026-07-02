@@ -39,7 +39,7 @@ def init_trading_calendar():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=False)
+        resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=True)
         if resp is None:
             print("⚠️ 無法取得官方休市日曆 (retry failed)", flush=True)
             return

@@ -6,12 +6,16 @@ import os
 import sys
 
 from twstock.db import get_connection
-from twstock.input_helper import setup_console_encoding, HAS_MSVCRT, msvcrt
-from twstock.official import update_official_daily, update_tdcc_historical
-from twstock.official.dividend_crawler import fetch_dividend_events, upsert_dividend_events
-from twstock.official.dividend_daily import run_dividend_daily
-from twstock.official.suspended import get_today_suspended
-from twstock.official.trading_calendar import get_nth_trading_day_back
+from twstock.input_helper import setup_console_encoding, get_interactive_input
+from twstock.official import (
+    update_official_daily,
+    update_tdcc_historical,
+    fetch_dividend_events,
+    upsert_dividend_events,
+    run_dividend_daily,
+    get_today_suspended,
+    get_nth_trading_day_back,
+)
 from twstock.strategy.strategies import interactive_menu as strategies_menu
 from twstock.utils import get_stock_name
 from twstock.terminal import console
@@ -202,47 +206,10 @@ def run_db_maintenance() -> None:
     input("\n按 Enter 鍵返回主選單...")
 
 
-# ── 內部輸入工具（轻量版，供 menu.py 使用）───────────────
+# ── 內部輸入工具：委派至 input_helper（統一實作）──────────
 def _get_interactive_input(prompt: str = "\n🔍 指令: ",
                            menu_keys: str = "01234") -> str:
-    """單鍵輸入（msvcrt on Windows, fallback to input()）。"""
-    if not HAS_MSVCRT:
-        return input(prompt).strip()
-
-    while msvcrt.kbhit():
-        msvcrt.getwch()
-
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-    buf = ""
-
-    while True:
-        if msvcrt.kbhit():
-            ch = msvcrt.getwch()
-            if ch in ("\r", "\n"):
-                return buf.strip()
-            elif ch == "\b":
-                if buf:
-                    buf = buf[:-1]
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
-            elif ch in ("\x1b", "\x03"):
-                return ""
-            elif ch.isprintable():
-                buf += ch
-                sys.stdout.write(ch)
-                sys.stdout.flush()
-                if len(buf) == 1 and ch in menu_keys:
-                    import time
-                    start = time.time()
-                    is_single = True
-                    while time.time() - start < 0.4:
-                        if msvcrt.kbhit():
-                            msvcrt.getwch()
-                            is_single = False
-                            break
-                        time.sleep(0.01)
-                    if is_single:
-                        return buf
-        import time
-        time.sleep(0.01)
+    """單鍵輸入（委派至 twstock.input_helper.get_interactive_input）。"""
+    result = get_interactive_input(prompt=prompt, menu_keys=menu_keys)
+    # 統一 ESC 行為：input_helper 回傳 "0"，menu.py 預期 ""（break 信號）
+    return "" if result == "0" else result
