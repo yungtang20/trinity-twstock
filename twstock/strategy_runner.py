@@ -8,10 +8,13 @@ r"""
 設計原則：
 - strategy_runner 只是 dispatcher，不包含策略演算法
 - 所有策略計算 dispatch 到 strategy/ 子模組
+- 輸出透過 OutputWriter 抽象層，預設 ConsoleWriter，可注入 JsonWriter
 """
 import sys
 import os
 import json
+
+from output_writer import ConsoleWriter, JsonWriter
 
 # Windows encoding fix — 只在直接執行時才替換 stdout/stderr
 if sys.platform == "win32" and __name__ == "__main__":
@@ -155,33 +158,51 @@ def run_prediction_analysis(stock_id: str, ma: dict = None) -> dict:
 
 # ── Main ────────────────────────────────────────────────────
 
-def main():
+def main(writer=None):
+    """執行所有策略分析並透過 writer 輸出。
+
+    Args:
+        writer: OutputWriter 實例。預設 ConsoleWriter（人類可讀）。
+                傳入 JsonWriter() 可輸出 JSON 格式。
+    """
+    if writer is None:
+        writer = ConsoleWriter()
+
     if len(sys.argv) < 2:
-        print(json.dumps({"error": "用法: python strategy_runner.py <stock_id>"}, ensure_ascii=False))
+        writer.write_error("用法: python strategy_runner.py <stock_id>")
         sys.exit(1)
 
     stock_id = sys.argv[1]
 
-    sr = run_sr_analysis(stock_id)
-    ma = run_ma_analysis(stock_id)
-    chips = run_chips_analysis(stock_id)
-    pattern = run_pattern_analysis(stock_id)
-    prediction = run_prediction_analysis(stock_id, ma=ma)
+    try:
+        sr = run_sr_analysis(stock_id)
+        ma = run_ma_analysis(stock_id)
+        chips = run_chips_analysis(stock_id)
+        pattern = run_pattern_analysis(stock_id)
+        prediction = run_prediction_analysis(stock_id, ma=ma)
 
-    result = {
-        "stockId": stock_id,
-        "dataSource": "sqlite",
-        "strategies": {
-            "sr": {**sr, "source": "strategy/sr_analyzer.py"},
-            "ma": {**ma, "source": "strategy/ma_strategy.py"},
-            "chips": {**chips, "source": "strategy/chips_strategy.py"},
-            "pattern": {**pattern, "source": "strategy/patterns_strategy.py"},
-            "prediction": {**prediction, "source": "strategy/strategy_runner.py"},
+        result = {
+            "stockId": stock_id,
+            "dataSource": "sqlite",
+            "strategies": {
+                "sr": {**sr, "source": "strategy/sr_analyzer.py"},
+                "ma": {**ma, "source": "strategy/ma_strategy.py"},
+                "chips": {**chips, "source": "strategy/chips_strategy.py"},
+                "pattern": {**pattern, "source": "strategy/patterns_strategy.py"},
+                "prediction": {**prediction, "source": "strategy/strategy_runner.py"},
+            }
         }
-    }
 
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+        writer.write_result(result)
+    except Exception as e:
+        writer.write_error(str(e))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    # 偵測 --json 參數
+    if "--json" in sys.argv:
+        sys.argv.remove("--json")
+        main(writer=JsonWriter())
+    else:
+        main()
