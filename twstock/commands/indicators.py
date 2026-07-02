@@ -25,9 +25,9 @@ def execute(args) -> None:
         return
 
     df = df.sort_values("date", ascending=True)
-    print(f"\n{stock_id} {stock_name} 最近5日交易資料")
-    print("日期        股號   股名   股價(收盤)")
-    print("-" * 50)
+    console.print(f"\n{stock_id} {stock_name} 最近5日交易資料")
+    console.print("日期        股號   股名   股價(收盤)")
+    console.print("-" * 50)
     for _, row in df.iterrows():
-        print(f"{row['date']}  {stock_id}  {stock_name}  {row['close']:8.2f}")
-    print("")
+        console.print(f"{row['date']}  {stock_id}  {stock_name}  {row['close']:8.2f}")
+    console.print("")

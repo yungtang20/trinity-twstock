@@ -104,6 +104,7 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
     _run_strategies(stock_id, mobile)
 
     # ── K 線圖 ──
+    df_kline = None  # ponytail: 初始化避免 try 拋異常時 UnboundLocalError
     try:
         with get_connection(readonly=True) as conn:
             df_kline = fetch_klines(conn, stock_id, limit=60)

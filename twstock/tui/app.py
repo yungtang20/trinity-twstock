@@ -103,7 +103,7 @@ class TUIApp:
                         if result is not None:
                             return result
             import time
-            time.sleep(0.01)
+            time.sleep(0.05)  # ponytail: 50ms 仍足夠回應，降低 CPU 空轉
 
     @staticmethod
     def _wait_for_key(timeout: float) -> bool:
@@ -116,7 +116,7 @@ class TUIApp:
                 if next_ch in ("\r", "\n"):
                     pass  # swallow Enter
                 return True
-            time.sleep(0.01)
+            time.sleep(0.05)  # ponytail: 降低 CPU 使用率，TUI 刷新無需 10ms
         return False
 
     @staticmethod
@@ -143,7 +143,7 @@ class TUIApp:
                     sys.stdout.flush()
                     has_interrupted = True
                     break
-            time.sleep(0.01)
+            time.sleep(0.05)  # ponytail: 與主迴圈一致
         if not has_interrupted:
             return buf
         return None
