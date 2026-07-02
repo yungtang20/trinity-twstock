@@ -67,21 +67,25 @@ class DataProcessor:
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
-        sql = """
-        INSERT INTO stock_history
-            (stock_id, date, open, high, low, close, volume, amount, trade_count, spread, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        # Build dynamic SQL based on actual columns present
+        placeholders = ", ".join(["?"] * len(cols))
+        col_names = ", ".join(cols)
+
+        # Build SET clause for non-PK columns
+        set_clauses = []
+        for col in cols:
+            if col in ("stock_id", "date"):
+                continue
+            set_clauses.append(
+                f"{col} = CASE WHEN excluded.{col} IS NOT NULL THEN excluded.{col} ELSE stock_history.{col} END"
+            )
+        set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+
+        sql = f"""
+        INSERT INTO stock_history ({col_names})
+        VALUES ({placeholders})
         ON CONFLICT(stock_id, date) DO UPDATE SET
-            open        = excluded.open,
-            high        = excluded.high,
-            low         = excluded.low,
-            close       = excluded.close,
-            volume      = excluded.volume,
-            amount      = excluded.amount,
-            trade_count = CASE WHEN excluded.trade_count IS NOT NULL THEN excluded.trade_count ELSE stock_history.trade_count END,
-            spread      = CASE WHEN excluded.spread      IS NOT NULL THEN excluded.spread      ELSE stock_history.spread END,
-            source      = excluded.source,
-            updated_at  = CURRENT_TIMESTAMP
+            {", ".join(set_clauses)}
         """
 
         conn = get_connection()
