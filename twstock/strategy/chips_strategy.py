@@ -58,10 +58,6 @@ def _wait_for_enter(prompt: str = "\n按 Enter 繼續..."):
     input(prompt)
 
 
-def _fetch_klines(conn, stock_id, limit=512):
-    return fetch_klines(conn, stock_id, limit)
-
-
 class StockAnalyzer:
     """籌碼分析器 - 連接資料庫並提供法人買賣超分析"""
 

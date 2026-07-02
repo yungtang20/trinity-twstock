@@ -50,7 +50,7 @@ if _TWSTOCK_DIR not in sys.path:
 
 from db import get_connection, DB_PATH  # [AI MOD]
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from strategy.chips_strategy import _fetch_klines  # [AI MOD]
+# fetch_klines already imported from strategy._utils above
 from display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
 
 # ══════════════════════════════════════════════════════════
@@ -870,7 +870,7 @@ class MarketScanner:
 
     def _one(self, code, nm):
         # [AI MOD] Use klines view — no inject_price_data needed
-        df = _fetch_klines(self.conn, code, limit=60)
+        df = fetch_klines(self.conn, code, limit=60)
         df = df.dropna(subset=["close"]).sort_values("date")
         if len(df) < 20: return None
         p = float(df['close'].iloc[-1])
@@ -1011,7 +1011,7 @@ class PatternBreakoutScanner:
 
     def _scan_one(self, symbol, name):
         # [AI MOD] Use klines view
-        df = _fetch_klines(self.conn, symbol, limit=CONTEXT_LEN * 2)
+        df = fetch_klines(self.conn, symbol, limit=CONTEXT_LEN * 2)
         df = df.dropna(subset=["open", "high", "low", "close"]).sort_values("date")
         if len(df) < MIN_BARS:
             return None
@@ -1147,7 +1147,7 @@ class PredictionAnalysisApp:
     def analyze_single_stock(self, conn, code, compact=False, mobile=False):
         try:
             # [AI MOD] klines view + parameterized query
-            df = _fetch_klines(conn, code, limit=512)
+            df = fetch_klines(conn, code, limit=512)
             df = df.dropna(subset=["open", "high", "low", "close", "volume"]).sort_values("date")
             if df.empty:
                 rconsole.print(f"[red]❌ 查無資料: {code}[/]")

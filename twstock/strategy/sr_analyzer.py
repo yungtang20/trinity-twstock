@@ -29,9 +29,9 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from db import get_connection, DB_PATH
-from display import price_rich, chg_color, vol_fmt, price_color, vol_color
-from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
+from twstock.db import get_connection
+from twstock.display import price_rich, chg_color, vol_fmt, price_color, vol_color
+from twstock.strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
 
 def _to_date_int(val) -> int:
     """安全地將日期轉換為 YYYYMMDD 整數格式"""
@@ -420,11 +420,8 @@ def _get_stock_name(conn, stock_id):
 
 
 def _fetch_history(conn, code, limit=512):
-    """Fetch from stock_history. Returns pandas DataFrame."""
-    pdf = fetch_klines(conn, code, limit)
-    if pdf.empty:
-        return pd.DataFrame()
-    return pdf
+    """向後相容包裝：委託 _utils.fetch_klines。"""
+    return fetch_klines(conn, code, limit)
 
 def _render_mobile_sr(data, code, name):
     console.print(f"[dim]{'─ 1 撐壓 ' + code + ' ' + name}{'─' * 20}[/]")

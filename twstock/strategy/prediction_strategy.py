@@ -28,7 +28,7 @@ from rich import box
 from terminal import rconsole
 
 # [AI MOD] Import from sibling modules
-from strategy.chips_strategy import _fetch_klines
+from twstock.strategy._utils import fetch_klines
 try:
     from strategy.patterns_strategy import StockPredictionAnalyzer
 except ImportError:
@@ -231,7 +231,7 @@ class MarketScanner:
 
             for code in stock_ids:
                 try:
-                    df = _fetch_klines(self.conn, code, limit=60)
+                    df = fetch_klines(self.conn, code, limit=60)
                     df = df.dropna(subset=["close"]).sort_values("date")
                     if len(df) < 20:
                         progress.advance(task)
@@ -370,7 +370,7 @@ class PredictionAnalysisApp:
                     scanner.scan_market(min_vol)
                     _wait_for_enter()
                 elif len(cmd) == 4 and cmd.isdigit():
-                    df = _fetch_klines(conn, cmd, limit=512)
+                    df = fetch_klines(conn, cmd, limit=512)
                     df = df.dropna(subset=["close"]).sort_values("date")
                     if not df.empty:
                         name = _get_stock_name(conn, cmd)
@@ -419,7 +419,7 @@ def run_strategy(params: dict):
     elif code:
         conn = get_connection(readonly=True)
         try:
-            df = _fetch_klines(conn, code, limit=512)
+            df = fetch_klines(conn, code, limit=512)
             df = df.dropna(subset=["close"]).sort_values("date")
             if not df.empty:
                 name = _get_stock_name(conn, code)

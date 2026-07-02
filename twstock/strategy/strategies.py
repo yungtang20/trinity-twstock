@@ -11,30 +11,28 @@ import argparse
 from rich.table import Table
 from rich import box
 
+# 確保 twstock 在 sys.path（讓 from twstock.xxx import 能運作）
+_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
+
 # --- Windows Encoding Fix [AI MOD] ---
 if sys.platform == "win32":
     os.system('chcp 65001 > nul')
     try:
         sys.stdout.reconfigure(encoding='utf-8')
         sys.stdin.reconfigure(encoding='utf-8')
-    except AttributeError: pass
+    except AttributeError:
+        pass
 
-# [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from terminal import console
+from twstock.terminal import console
 
-# --- [AI MOD] Package-aware imports supporting both package import and direct execution ---
-try:
-    from . import sr_analyzer
-    from . import ma_strategy
-    from . import chips_strategy
-    from . import patterns_strategy
-    from . import prediction_strategy
-except (ImportError, ValueError):
-    import sr_analyzer
-    import ma_strategy
-    import chips_strategy
-    import patterns_strategy
-    import prediction_strategy
+# 子策略模組
+from twstock.strategy import sr_analyzer
+from twstock.strategy import ma_strategy
+from twstock.strategy import chips_strategy
+from twstock.strategy import patterns_strategy
+from twstock.strategy import prediction_strategy
 
 # ==================== 策略註冊表 [AI MOD] ====================
 STRATEGY_REGISTRY = {
