@@ -6,11 +6,15 @@ import sys
 
 from twstock.input_helper import setup_console_encoding, HAS_MSVCRT, msvcrt
 from twstock.market_data import MarketCache
-from twstock.tui import render_dashboard
-from twstock.tui import menu as tui_menu
+from twstock.tui.render import render_dashboard
+from twstock.tui.menu import (
+    run_daily_update,
+    run_historical_update_menu,
+    run_db_maintenance,
+)
 from twstock.strategy.composites import run_composite
 from twstock.strategy.strategies import interactive_menu as strategies_menu
-from twstock.utils import get_token
+from twstock.utils import get_token  # noqa: F401
 from twstock.terminal import console
 
 
@@ -37,13 +41,13 @@ class TUIApp:
             if ch == "0":
                 break
             elif ch == "1":
-                tui_menu.run_daily_update()
+                run_daily_update()
             elif ch == "2":
-                tui_menu.run_historical_update_menu()
+                run_historical_update_menu()
             elif ch == "3":
                 strategies_menu()
             elif ch == "4":
-                tui_menu.run_db_maintenance()
+                run_db_maintenance()
             elif len(ch) == 4 and ch.isdigit():
                 run_composite(ch)
             elif ch == "":

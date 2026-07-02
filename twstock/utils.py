@@ -89,6 +89,12 @@ def safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, head
 
 
 # ── 股票名稱查詢 ─────────────────────────────────────────
+def get_token():
+    """從 api_config 取得 FinMind token。"""
+    from twstock.api_config import get_finmind_token
+    return get_finmind_token()
+
+
 def get_stock_name(stock_id: str) -> str:
     """從 stock_meta 取得股票名稱，失敗回傳 '未知'。"""
     try:

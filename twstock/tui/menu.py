@@ -12,7 +12,7 @@ from twstock.db_admin import init_db, migrate_db
 from twstock.official.dividend_daily import run_dividend_daily
 from twstock.official.suspended import get_today_suspended
 from twstock.strategy.strategies import run_strategy_cli
-from twstock.utils import get_token, to_roc_date
+from twstock.terminal import console
 from twstock.terminal import console
 
 

@@ -15,10 +15,19 @@ from rich import box
 from rich.console import Group
 
 from twstock.display import price_rich, vol_fmt, render_kline, chg_color, vol_diff_rich, vol_color
+from twstock.market_data.cache import MarketCache
 from twstock.utils import (
-    get_sys_info, to_roc_date, format_price_change, fetch_market_indices_cached,
+    get_sys_info, to_roc_date, format_price_change,
 )
 from twstock.terminal import console
+
+# 模組層級快取實例（與 main.py 行為一致）
+_market_cache = MarketCache()
+
+
+def fetch_market_indices_cached():
+    """向後相容包裝。"""
+    return _market_cache.get()
 
 
 # ══════════════════════════════════════════════════════════════
