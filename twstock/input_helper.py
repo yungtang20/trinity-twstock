@@ -79,7 +79,7 @@ def _getch_windows() -> Optional[str]:
     return msvcrt.getwch()  # type: ignore[union-attr]
 
 
-def _getch_unix() -> Optional[str]:
+def _getch_unix() -> Optional[str]:  # pragma: no cover — Unix-only, not executed on Windows CI
     """Termux/Linux/macOS: 用 tty raw mode 讀單一字元。"""
     if not _IS_TTY or not HAS_TERMIOS:
         return None
@@ -99,7 +99,7 @@ def _kbhit_windows() -> bool:
     return msvcrt.kbhit()  # type: ignore[union-attr]
 
 
-def _kbhit_unix() -> bool:
+def _kbhit_unix() -> bool:  # pragma: no cover — Unix-only, not executed on Windows CI
     """non-blocking check via select。"""
     if not _IS_TTY:
         return False
@@ -136,7 +136,7 @@ def get_interactive_input(
     return _get_interactive_input_unix(prompt, menu_keys, auto_four, timeout)
 
 
-def _is_unix_tty() -> bool:
+def _is_unix_tty() -> bool:  # pragma: no cover — Unix-only, not executed on Windows CI
     """Confirm stdin is a real terminal (not pipe)。"""
     return _IS_TTY and HAS_TERMIOS and os.isatty(sys.stdin.fileno())
 
@@ -146,7 +146,7 @@ def _flush_input_buffer() -> None:
     if HAS_MSVCRT:
         while msvcrt.kbhit():  # type: ignore[union-attr]
             msvcrt.getwch()  # type: ignore[union-attr]
-    elif _IS_TTY and HAS_TERMIOS:
+    elif _IS_TTY and HAS_TERMIOS:  # pragma: no cover — Unix-only branch, not executed on Windows CI
         try:
             termios.tcflush(sys.stdin, termios.TCIFLUSH)  # type: ignore[union-attr]
         except Exception:
@@ -230,7 +230,7 @@ def _wait_for_second_key_windows(timeout: float) -> bool:
     return False
 
 
-def _get_interactive_input_unix(
+def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed on Windows CI
     prompt: str, menu_keys: str, auto_four: bool, timeout: float
 ) -> str:
     """Termux/Linux/macOS 版本：termios raw mode 模擬。"""
@@ -303,7 +303,7 @@ def get_blocking_key(prompt: str = "") -> str:
 
             _t.sleep(0.01)
 
-    if _is_unix_tty():
+    if _is_unix_tty():  # pragma: no cover — Unix-only, not executed on Windows CI
         fd = sys.stdin.fileno()
         try:
             old_settings = termios.tcgetattr(fd)  # type: ignore[union-attr]
