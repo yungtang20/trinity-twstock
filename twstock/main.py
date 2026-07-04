@@ -39,6 +39,18 @@ _ACTION_MAP = {
 }
 
 
+class _LazyToken:
+    """延遲解析 FinMind token：只在字串被實際取值時才呼叫 get_token()。
+
+    讓 indicators 等不需要 token 的命令可以在無 token 環境下執行。
+    """
+    def __str__(self) -> str:
+        return get_token()
+
+    def __bool__(self) -> bool:
+        return True  # 讓 args.token 在未設定時仍為 truthy，避免命令誤判
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="TRINITY 策略系統 v3.3")
     parser.add_argument(
@@ -76,8 +88,10 @@ def main() -> None:
         return
 
     args = build_parser().parse_args()
-    token = args.token or get_token()
-    args.token = token
+    # 延遲 token 解析：只在命令真正存取 args.token 時才呼叫 get_token()
+    # 如此 indicators（純 DB 讀取）可在無 token 環境下正常執行
+    if not args.token:
+        args.token = _LazyToken()
 
     module_path = _ACTION_MAP[args.action]
     mod = __import__(module_path, fromlist=["execute"])
