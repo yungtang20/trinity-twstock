@@ -720,6 +720,7 @@ class TestMainGuard:
         import subprocess
         result = subprocess.run(
             [sys.executable, str(runner)],
+            stdin=subprocess.DEVNULL,
             capture_output=True, text=True,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
