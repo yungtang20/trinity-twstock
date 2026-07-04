@@ -6,7 +6,9 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（live）： python -m pytest tests/test_004_tdcc.py -v -m live
 """
 import sqlite3
+
 import pytest
+
 from twstock.fetcher import TDCCFetcher
 
 

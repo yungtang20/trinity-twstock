@@ -19,7 +19,6 @@ chcp / cls 全部收攏到此模組，對外只暴露：
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 from typing import Optional
 

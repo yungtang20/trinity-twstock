@@ -12,16 +12,14 @@ fetcher.py — Trinity 資料萃取層
 
 from __future__ import annotations
 
-import os
-import time
 import logging
 import threading
+import time
 from collections import deque
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from datetime import datetime
 
-import requests
 import pandas as pd
+import requests
 
 from twstock.api_config import get_finmind_token
 from twstock.utils import safe_float as _safe_float
@@ -236,7 +234,7 @@ class DataFetcher:
 
     def fetch_intraday_snapshot(self, stock_id):
         """抓取個股即時報價，回傳 dict: {o, h, l, z, v}，v 單位為張"""
-        url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
+        url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
         params = {
             "ex_ch": f"tse_{stock_id}.tw",
             "json": 1,
@@ -470,7 +468,6 @@ class TWSEFetcher:
         按月迭代，對每個月呼叫 fetch_monthly → _transform → save。
         start_date, end_date: 'YYYY-MM-DD' 格式。
         """
-        from datetime import datetime, timedelta
 
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
@@ -482,7 +479,7 @@ class TWSEFetcher:
                 raw = self.fetch_monthly(stock_id, current.year, current.month)
                 rows = self._transform(raw, stock_id)
                 total += self.save(rows)
-            except Exception as e:
+            except Exception:
                 pass  # 該月沒資料或其他錯誤，跳過
             # 下個月
             if current.month == 12:
@@ -886,7 +883,6 @@ class PERFetcher:
         按月迭代，對每個月呼叫 fetch_monthly → _transform → save。
         start_date, end_date: 'YYYY-MM-DD' 格式。
         """
-        from datetime import datetime
 
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")

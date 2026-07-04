@@ -56,22 +56,22 @@ def render_header(title: str, is_detail: bool = False, console=None) -> None:
 
     if console:
         if is_detail:
-            console.print(f"\n╔═" * w + "╗")
+            console.print("\n╔═" * w + "╗")
             console.print(f"║ {title:^{w-2}} ║")
-            console.print(f"╚═" * w + "╝")
+            console.print("╚═" * w + "╝")
         else:
-            console.print(f"\n═" * w)
+            console.print("\n═" * w)
             console.print(f"  {title}")
-            console.print(f"═" * w)
+            console.print("═" * w)
     else:
         if is_detail:
-            print(f"\n╔═" * w + "╗")
+            print("\n╔═" * w + "╗")
             print(f"║ {title:^{w-2}} ║")
-            print(f"╚═" * w + "╝")
+            print("╚═" * w + "╝")
         else:
-            print(f"\n═" * w)
+            print("\n═" * w)
             print(f"  {title}")
-            print(f"═" * w)
+            print("═" * w)
 
 
 def fetch_klines(conn: sqlite3.Connection, stock_id: str, limit: int = 512, include_amount: bool = False) -> pd.DataFrame:

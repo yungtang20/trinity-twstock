@@ -1,6 +1,7 @@
 """Bug Fix: main.py 不應直接使用 sqlite3.connect()，應使用 get_connection()"""
 import os
 
+
 def test_main_py_no_bare_sqlite3_connect():
     """main.py 不應直接使用 sqlite3.connect()"""
     main_path = os.path.join(os.path.dirname(__file__), '..', 'main.py')

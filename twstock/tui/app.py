@@ -4,23 +4,22 @@ from __future__ import annotations
 
 import sys
 
-from twstock.input_helper import setup_console_encoding, HAS_MSVCRT, msvcrt
+from twstock.input_helper import HAS_MSVCRT, msvcrt
 from twstock.market_data import MarketCache
-from twstock.tui.render import render_dashboard
+from twstock.strategy.composites import run_composite
+from twstock.strategy.strategies import interactive_menu as strategies_menu
 from twstock.tui.menu import (
     run_daily_update,
-    run_historical_update_menu,
     run_db_maintenance,
+    run_historical_update_menu,
 )
+from twstock.tui.render import render_dashboard
 from twstock.tui.state_machine import (
     ActionType,
     TUIState,
     dispatch_main_menu,
 )
-from twstock.strategy.composites import run_composite
-from twstock.strategy.strategies import interactive_menu as strategies_menu
 from twstock.utils import get_token  # noqa: F401
-from twstock.terminal import console
 
 
 class TUIApp:

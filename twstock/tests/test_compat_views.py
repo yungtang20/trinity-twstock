@@ -29,9 +29,9 @@ def test_compatibility_views_exist(db_conn, patch_db_path):
 
 def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
     """tdcc_shareholding VIEW 應能讀取 shareholding_unified 中 source='tdcc' 的資料。"""
+    import pandas as pd
     from db_admin import init_db
     from processor import DataProcessor
-    import pandas as pd
 
     init_db()
 
@@ -55,9 +55,9 @@ def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
 
 def test_institutional_daily_view_reads_from_institutional_data(db_conn, patch_db_path):
     """institutional_daily VIEW 應能讀取 institutional_data 的資料。"""
+    import pandas as pd
     from db_admin import init_db
     from processor import DataProcessor
-    import pandas as pd
 
     init_db()
 
@@ -82,8 +82,8 @@ def test_institutional_daily_view_reads_from_institutional_data(db_conn, patch_d
 
 def test_klines_indicators_view_joins_indicators(db_conn, patch_db_path):
     """klines_indicators VIEW 應 JOIN klines 與 stock_indicators。"""
+
     from db_admin import init_db
-    import sqlite3
 
     init_db()
 

@@ -10,9 +10,8 @@ r"""
 - 所有策略計算 dispatch 到 strategy/ 子模組
 - 輸出透過 OutputWriter 抽象層，預設 ConsoleWriter，可注入 JsonWriter
 """
-import sys
 import os
-import json
+import sys
 
 from twstock.output_writer import ConsoleWriter, JsonWriter
 
@@ -32,7 +31,6 @@ from strategy.ma_strategy import MAStrategy
 from strategy.patterns_strategy import PatternStrategy
 from strategy.sr_analyzer import SupportResistanceStrategy
 
-
 # ── Dispatcher API ──────────────────────────────────────────
 
 class _PredictionAdapter:
@@ -40,6 +38,7 @@ class _PredictionAdapter:
 
     def analyze(self, stock_id: str, ma: dict = None) -> dict:
         from strategy._utils import fetch_klines
+
         from twstock.db import get_connection
 
         conn = get_connection()

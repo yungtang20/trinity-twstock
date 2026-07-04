@@ -7,8 +7,6 @@ stock_indicators 自己的最新日期，而非依賴 stock_history。
 """
 from __future__ import annotations
 
-import sqlite3
-
 
 def test_ensure_indicators_all_uses_own_latest_date(db_conn, patch_db_path):
     """ensure_indicators_all 應該查 stock_indicators 最新日期，而非 stock_history。"""

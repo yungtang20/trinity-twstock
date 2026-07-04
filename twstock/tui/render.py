@@ -6,20 +6,21 @@ import os
 import shutil
 from datetime import datetime
 
+from rich import box
 from rich.align import Align
+from rich.console import Group
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich import box
-from rich.console import Group
 
-from twstock.display import price_rich, vol_fmt, render_kline, chg_color, vol_diff_rich, vol_color
 from twstock.market_data.cache import MarketCache
-from twstock.utils import (
-    get_sys_info, to_roc_date, format_price_change,
-)
 from twstock.terminal import console
+from twstock.utils import (
+    format_price_change,
+    get_sys_info,
+    to_roc_date,
+)
 
 # 模組層級快取實例（與 main.py 行為一致）
 _market_cache = MarketCache()

@@ -6,32 +6,33 @@
 # [AI MOD] Migrated to taiwan_stock_unified.db + klines view
 """
 import os
+import signal
 import sys
 import time
-import shutil
+
+# [AI MOD] Pattern session scan cache to make switching sorting instantly fast
+import time as _time_mod
 import warnings
-import signal
-import sqlite3
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, NamedTuple
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from rich.table import Table
+from rich import box
 from rich.panel import Panel
 from rich.progress import (
-    Progress, SpinnerColumn, TextColumn,
-    BarColumn, TimeElapsedColumn, TaskProgressColumn,
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
 )
-from rich import box
+from rich.table import Table
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import rconsole
 
-# [AI MOD] Pattern session scan cache to make switching sorting instantly fast
-import time as _time_mod
 _CACHE_TTL = 300  # 5 分鐘
 _PATTERN_CACHE = {
     'date': None,
@@ -48,14 +49,16 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.db import get_connection, DB_PATH  # [AI MOD]
+from twstock.db import get_connection  # [AI MOD]
+
 try:
     from twstock.input_helper import get_blocking_key
 except ImportError:
     from input_helper import get_blocking_key
-from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
+from strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+
 # fetch_klines already imported from strategy._utils above
-from twstock.display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
+from twstock.display import price_color, vol_color  # [AI MOD]
 
 # ══════════════════════════════════════════════════════════
 #  Imports & Config from shared engine [AI MOD]
@@ -64,17 +67,17 @@ from twstock.display import price_color, chg_color, vol_fmt, price_rich, vol_col
 try:
     from strategy.kronos_engine import (
         DEFAULT_CONFIG,
-        load_kronos,
-        PredictionResult,
+        DriftMonitor,  # [AI MOD]
         DriftStatus,
+        KronosRealEngine,  # [AI MOD]
+        MonteCarloEngine,  # [AI MOD]
+        PlotBar,  # [AI MOD]
+        PredictionChartRenderer,  # [AI MOD]
+        PredictionEngine,  # [AI MOD]
+        PredictionResult,
         StockPrediction,
         calculate_price_change,
-        PredictionEngine,           # [AI MOD]
-        KronosRealEngine,           # [AI MOD]
-        MonteCarloEngine,           # [AI MOD]
-        DriftMonitor,               # [AI MOD]
-        PlotBar,                    # [AI MOD]
-        PredictionChartRenderer,    # [AI MOD]
+        load_kronos,
     )
 except ImportError:
     load_kronos = None
@@ -1291,7 +1294,9 @@ class PredictionAnalysisApp:
 
 def get_latest_date() -> str:
     """供 strategies.py 查詢資料基準日"""
-    from db import get_connection  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
+    from db import (
+        get_connection,  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
+    )
     conn = get_connection(readonly=True)
     try:
         return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]

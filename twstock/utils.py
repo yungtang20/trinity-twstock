@@ -23,8 +23,11 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
-from twstock.db import get_connection, get_path, file_size_mb  # noqa: E402  # ponytail: db 為基礎模組，此頂層耦合可接受（utils 無循環依賴風險）
-
+from twstock.db import (  # noqa: E402  # ponytail: db 為基礎模組，此頂層耦合可接受（utils 無循環依賴風險）
+    file_size_mb,
+    get_connection,
+    get_path,
+)
 
 # ── SSL 驗證設定 ─────────────────────────────────────────
 _SSL_VERIFY_VALUE: bool | str | None = None  # 模組快取，避免重複偵測

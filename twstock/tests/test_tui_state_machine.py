@@ -5,20 +5,15 @@
 """
 from __future__ import annotations
 
-import pytest
-
 from twstock.tui.state_machine import (
     ActionType,
     HistoricalMenuState,
-    HistoricalTransition,
-    StateTransition,
     TUIState,
     dispatch_historical_menu,
     dispatch_main_menu,
     route_stock_id,
     should_exit,
 )
-
 
 # ── dispatch_main_menu ────────────────────────────────────
 

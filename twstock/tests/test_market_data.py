@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import sys
 import time
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 _DIR = "D:/twse"
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
 from twstock.market_data.cache import MarketCache
-from twstock.market_data import MarketCache as MC2
 
 
 # ── MarketCache ─────────────────────────────────────────────

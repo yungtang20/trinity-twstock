@@ -7,8 +7,9 @@ from datetime import datetime
 import pandas as pd
 
 from twstock.fetcher import DataFetcher
+from twstock.official import fetch_dividend_events
+from twstock.official import fetch_tdcc_historical_from_tdcc as fetch_tdcc_historical
 from twstock.processor import DataProcessor
-from twstock.official import fetch_dividend_events, fetch_tdcc_historical_from_tdcc as fetch_tdcc_historical
 from twstock.terminal import console
 
 

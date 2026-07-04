@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from twstock.commands import official
 

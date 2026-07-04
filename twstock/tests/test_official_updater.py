@@ -6,7 +6,6 @@ from datetime import datetime as _dt
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from twstock.official import updater
 

@@ -5,11 +5,10 @@ retry.py — 統一的 HTTP GET 重試包裝器
 所有官方 API Fetcher 都應使用此模組的 retry_get() 替代直接 requests.get()，
 以確保網路暫時故障時能自動重試。
 """
-import time
 import logging
-import requests
+import time
 
-from twstock.utils import get_ssl_verify
+import requests
 
 logger = logging.getLogger(__name__)
 

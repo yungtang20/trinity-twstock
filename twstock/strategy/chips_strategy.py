@@ -5,16 +5,12 @@
 # [AI MOD] Migrated to taiwan_stock_unified.db + klines view
 """
 import os
-import sys
-import time
-import sqlite3
-import warnings
 import signal
-from typing import List, Dict, Optional, Tuple
-import pandas as pd
-from rich.table import Table
+import sys
+import warnings
+
 from rich import box
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+from rich.table import Table
 
 warnings.filterwarnings('ignore')
 
@@ -27,10 +23,10 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.db import get_connection, DB_PATH  # [AI MOD]
-from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from twstock.display import price_rich, vol_fmt, chg_color, vol_color, price_color
-from twstock.retry import retry_get  # [AI MOD]
+from strategy._utils import clear_screen, get_stock_name, render_header
+
+from twstock.db import get_connection  # [AI MOD]
+from twstock.display import price_color, vol_color
 
 try:
     from twstock.input_helper import get_interactive_input

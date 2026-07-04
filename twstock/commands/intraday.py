@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
+# Forward declaration for type hint only
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
 from twstock.calculator import IndicatorEngine
 from twstock.db import get_connection
 from twstock.fetcher import DataFetcher
-from twstock.utils import safe_float, safe_int
 from twstock.terminal import console
-
-# Forward declaration for type hint only
-from typing import TYPE_CHECKING
+from twstock.utils import safe_float, safe_int
 
 if TYPE_CHECKING:
-    from argparse import Namespace
+    pass
 
 
 def execute(args) -> None:

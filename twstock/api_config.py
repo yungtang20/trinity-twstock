@@ -6,9 +6,10 @@ api_config.py - 統一 API 設定讀取模組
 設定檔路徑：twstock/api.env（優先），其次 twstock/.env、環境變數。
 """
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)

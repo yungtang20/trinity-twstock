@@ -1,5 +1,8 @@
 """Bug Fix: fetcher.py 不應轉換單位，DB 存原始值（股/元）"""
-import inspect, os, sys
+import inspect
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def test_fetch_history_price_does_not_convert_volume():

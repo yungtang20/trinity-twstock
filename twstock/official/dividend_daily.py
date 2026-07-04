@@ -8,11 +8,12 @@ Called by: main.py -> run_historical_update_menu() 選項 4（手動「同步除
 Writes to: taiwan_stock_unified.db -> dividend_events
 """
 import logging
+import sys
 from datetime import date
+from pathlib import Path
+
 import pandas as pd
 
-import sys
-from pathlib import Path
 _twstock_dir = str(Path(__file__).resolve().parent.parent)
 if _twstock_dir not in sys.path:
     sys.path.insert(0, _twstock_dir)

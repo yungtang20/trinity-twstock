@@ -2,10 +2,8 @@
 """test_input_helper.py - input_helper.py coverage tests."""
 from __future__ import annotations
 
-import io
 import sys
-import time
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,16 +12,16 @@ _IS_UNIX = sys.platform != "win32"
 
 from twstock.input_helper import (
     _flush_input_buffer,
+    _get_interactive_input_windows,
     _getch_unix,
     _getch_windows,
     _kbhit_unix,
     _kbhit_windows,
+    _wait_for_second_key_windows,
     clear_screen,
     get_blocking_key,
     get_interactive_input,
     setup_console_encoding,
-    _wait_for_second_key_windows,
-    _get_interactive_input_windows,
 )
 
 

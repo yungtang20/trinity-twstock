@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 # 已刪除的模組（實體檔案不存在）
 DELETED_MODULES = [
     "twstock/strategy/vision_engine.py",

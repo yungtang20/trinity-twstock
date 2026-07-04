@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """test_commands_update.py — commands/update.py 單元測試。"""
 from __future__ import annotations
+
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 

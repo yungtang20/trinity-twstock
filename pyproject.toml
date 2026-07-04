@@ -1,0 +1,27 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+]
+ignore = [
+    "E501",  # line too long (handled manually)
+    "E701",  # multiple statements on one line (colon) — common in this codebase
+    "E402",  # module level import not at top — required for sys.path manipulation
+    "E702",  # multiple statements on one line (semicolon) — rare, stylistic
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402", "E701"]
+"tests/*" = ["F401", "F841"]  # unused imports/variables useful for test exploration
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = false

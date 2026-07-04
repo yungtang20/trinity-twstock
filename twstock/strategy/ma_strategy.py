@@ -5,14 +5,13 @@ ma_strategy.py - 均線趨勢策略模組 [AI MOD]
 包含移動平均線（季線/年線）計算、扣抵值分析、明日預測與自適應面板呈現。
 """
 
-import sys
-import sqlite3
 import os
+import sqlite3
+import sys
+
 import pandas as pd
-import numpy as np
-from rich.table import Table
-from rich.panel import Panel
 from rich import box
+from rich.table import Table
 
 # --- Windows Encoding Fix ---
 if sys.platform == "win32":
@@ -24,13 +23,13 @@ if sys.platform == "win32":
         pass
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from twstock.terminal import console
+# [AI MOD] Unified session scan cache to make switching strategy lightning-fast
+import time as _time_mod
 
 # Import unified connection factory
 from twstock.db import get_connection
+from twstock.terminal import console
 
-# [AI MOD] Unified session scan cache to make switching strategy lightning-fast
-import time as _time_mod
 _CACHE_TTL = 300  # 5 分鐘
 
 _SCAN_CACHE = {
@@ -40,12 +39,14 @@ _SCAN_CACHE = {
     'results': None,
     'ts': 0,
 }
-from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from twstock.display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
+from strategy._utils import fetch_klines
+
+from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]
+
 try:
-    from twstock.input_helper import _kbhit_windows, _getch_windows
+    from twstock.input_helper import _getch_windows, _kbhit_windows
 except ImportError:
-    from input_helper import _kbhit_windows, _getch_windows
+    from input_helper import _getch_windows, _kbhit_windows
 
 def _compute_ma_with_deduction(closes: list, period: int):
     """
@@ -182,7 +183,7 @@ def _render_full_ma(data, code, name):
               f"[{bias_color}]{bias_label}[/]")
 
     console.print(t)
-    
+
     d60_msg = "明日 MA60 繼續下降" if ma60['deduction'] > close else "明日 MA60 可能上揚/走平"
     d200_msg = "明日 MA200 繼續下降" if ma200['deduction'] > close else "明日 MA200 可能上揚/走平"
     console.print(f"  解讀：MA60 扣抵 {ma60['deduction']:.2f} {'<' if ma60['deduction'] < close else '>'} 收盤 {close:.2f}，{d60_msg}")
@@ -280,7 +281,7 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
             })
 
         # 第三段：只對命中股票 fetch_klines
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+        from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
         all_results = []
         fetch_count = 0
 
@@ -483,14 +484,14 @@ def _analyze_one(conn, code, name_map) -> list:
     ma60 = df['close'].rolling(window=60).mean().values.tolist()
     ma200 = df['close'].rolling(window=200).mean().values.tolist() if len(df) >= 200 else None # [AI MOD] Return None instead of zeros to prevent ma200=0 from leaking downstream
     ma25 = df['close'].rolling(window=25).mean().values.tolist()
-    
+
     # [AI MOD] Count support-holding retraces to MA during the most recent continuous breakout period
     # Definition: walk backwards from today to find the first day price fell below MA.
     # Exclude the breakout day itself (breakout_start) and count subsequent retraces (MA <= close <= MA * 1.10).
     def _count_retraces(ma_series):
         if ma_series is None or len(df) == 0: # [AI MOD] Guard against None ma200 (insufficient data)
             return 0
-        
+
         # Find the start of the current continuous breakout period above MA
         idx_start = len(df) - 1
         while idx_start >= 0:
@@ -498,11 +499,11 @@ def _analyze_one(conn, code, name_map) -> list:
             if m <= 0 or df['close'].iloc[idx_start] < m:
                 break
             idx_start -= 1
-            
+
         breakout_start = idx_start + 1
         if breakout_start >= len(df):
             return 0
-            
+
         count = 0
         # Exclude the breakout day itself by starting from breakout_start + 1
         for i in range(breakout_start + 1, len(df)):
@@ -512,19 +513,19 @@ def _analyze_one(conn, code, name_map) -> list:
                 if m <= close_val <= m * 1.10:
                     count += 1
         return count
-    
+
     vol_ma5 = df['volume'].rolling(window=5).mean().values.tolist()
     vol_ma60 = df['volume'].rolling(window=60).mean().values.tolist()
-    
+
     curr_price = c[-1]
     prev_price = c[-2]
     curr_vol = v[-1]
     prev_vol = v[-2]
-    
+
     triggered = []
-    
+
     vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
-    
+
     # 1. 突破年線
     if len(df) >= 200 and prev_price <= ma200[-2] and curr_price > ma200[-1] and curr_vol > prev_vol:
         bias = (curr_price - ma200[-1]) / ma200[-1] * 100 if ma200[-1] > 0 else 0.0
@@ -545,7 +546,7 @@ def _analyze_one(conn, code, name_map) -> list:
             'strat_id': "1",
             'retraces': _count_retraces(ma200) # [AI MOD]
         })
-        
+
     # 2. 突破季線
     if prev_price <= ma60[-2] and curr_price > ma60[-1] and curr_vol > prev_vol:
         bias = (curr_price - ma60[-1]) / ma60[-1] * 100 if ma60[-1] > 0 else 0.0
@@ -566,13 +567,13 @@ def _analyze_one(conn, code, name_map) -> list:
             'strat_id': "2",
             'retraces': _count_retraces(ma60) # [AI MOD]
         })
-        
+
     # 3. 2560戰法
     # 今成交量(volma5向上穿過volma60)
     vol_cross = (vol_ma5[-2] <= vol_ma60[-2] and vol_ma5[-1] > vol_ma60[-1])
     # 又回落ma25於上10%內
     retrace = (ma25[-1] <= curr_price <= ma25[-1] * 1.10)
-    
+
     if vol_cross and retrace:
         # 股價曾突破ma25後，突破期間未跌破ma25 (往回查最多60天)
         found_2560 = False
@@ -582,12 +583,12 @@ def _analyze_one(conn, code, name_map) -> list:
             if c[idx-1] <= ma25[idx-1] and c[idx] > ma25[idx]:
                 breakout_idx = idx
                 break
-                
+
         if breakout_idx is not None:
             # 突破期間未跌破ma25
             if all(c[k] >= ma25[k] for k in range(breakout_idx, len(c))):
                 found_2560 = True
-                
+
         if found_2560:
             bias = (curr_price - ma25[-1]) / ma25[-1] * 100 if ma25[-1] > 0 else 0.0
             triggered.append({
@@ -607,7 +608,7 @@ def _analyze_one(conn, code, name_map) -> list:
                 'strat_id': "3",
                 'retraces': _count_retraces(ma25) # [AI MOD]
             })
-            
+
     return triggered
 
 def _count_retraces_wrapped(ma_series, closes, period):
@@ -644,28 +645,28 @@ def _display_scan_results(results: list, latest_date: int, sort_choice: str, str
     if not results:
         console.print("[yellow]📭 未發現符合均線信號的標的[/yellow]")
         return
-        
+
     strat_names = {"1": "突破年線戰法", "2": "突破季線戰法", "3": "2560戰法"}
     strat_name = strat_names.get(strat_choice, "均線戰法")
-    
+
     sort_names = {
         "1": "距目標均線由近到遠",
         "2": "成交金額由大到小"
     }
     sort_name = sort_names.get(sort_choice, "距目標均線由近到遠")
-    
+
     ds = str(latest_date)
     if len(ds) == 8:
         ds = f"{ds[:4]}-{ds[4:6]}-{ds[6:]}"
-        
+
     t = Table(
         title=f"📈 {strat_name} 掃描結果 (排序: {sort_name}) 資料庫日期：{ds}",
         box=box.SIMPLE, border_style="cyan", expand=False, padding=(0, 0),
     )
-    
+
     target_ma_labels = {"1": "MA200", "2": "MA60", "3": "MA25"}
     ma_col_name = target_ma_labels.get(strat_choice, "目標MA")
-    
+
     t.add_column("代號", style="magenta", no_wrap=True)
     t.add_column("名稱", style="white")
     t.add_column("收盤", justify="right", no_wrap=True)  # [AI MOD] Use dynamic color in cell, not column style
@@ -674,7 +675,7 @@ def _display_scan_results(results: list, latest_date: int, sort_choice: str, str
     t.add_column(ma_col_name, style="bright_white", no_wrap=True)
     t.add_column("乖離率", style="bright_red", no_wrap=True)
     t.add_column("曾回踩", style="cyan", no_wrap=True) # [AI MOD]
-    
+
     for r in results[:40]:
         # 成交量顏色（統一 vol_color）
         from rich.text import Text
@@ -725,7 +726,7 @@ def run_strategy(params: dict):
     vol = params.get('vol', 500)
     compact = params.get('compact', False)
     mobile = params.get('mobile', False)
-    
+
     conn = get_connection(readonly=True)
     try:
         # [AI MOD] 自動刷新缺失指標
@@ -758,32 +759,32 @@ def run_strategy(params: dict):
         """, conn, params=(code,))
     finally:
         conn.close()
-    
+
     if df.empty or len(df) < 20:
         console.print(f"[yellow]⚠️ {code} 資料不足，無法分析[/yellow]")
         return
-        
+
     df = df.iloc[::-1].reset_index(drop=True)
-    
+
     c = df['close'].values.tolist()
-    
+
     ma25_data = _compute_ma_with_deduction(c, 25) # [AI MOD]
     ma60_data = _compute_ma_with_deduction(c, 60)
     ma200_data = _compute_ma_with_deduction(c, 200)
-    
+
     curr_price = c[-1]
     prev_price = c[-2] if len(c) >= 2 else curr_price
-    
+
     m25_curr = ma25_data['ma'] # [AI MOD]
     m60_curr = ma60_data['ma']
     m200_curr = ma200_data['ma']
     m25_prev = sum(c[-26:-1]) / 25 if len(c) >= 26 else 0 # [AI MOD]
     m60_prev = sum(c[-61:-1]) / 60 if len(c) >= 61 else 0
     m200_prev = sum(c[-201:-1]) / 200 if len(c) >= 201 else 0
-    
+
     status = "區間震盪"
     color = "white"
-    
+
     if m60_curr > 0 and m200_curr > 0:
         if curr_price > m60_curr > m200_curr and ma60_data['trend'] == "↑ 上揚":
             status, color = "多頭排列 (強勢攻擊)", "bold red"
@@ -793,7 +794,7 @@ def run_strategy(params: dict):
             status, color = "黃金交叉 (趨勢轉強)", "yellow"
         elif m60_curr < m200_curr and m60_prev >= m200_prev:
             status, color = "死亡交叉 (趨勢轉弱)", "bold green"
-            
+
     if m60_curr > 0 and prev_price <= m60_prev and curr_price > m60_curr:
         status, color = "突破季線 (短線轉強)", "bright_magenta"
     elif m200_curr > 0 and prev_price <= m200_prev and curr_price > m200_curr:
@@ -823,7 +824,6 @@ class MAStrategy:
     def analyze(self, stock_id: str) -> dict:
         """分析均線信號。回傳 strategy/stock_id/signal。"""
         from db import get_connection
-        from strategy._utils import fetch_klines
 
         conn = get_connection()
         try:

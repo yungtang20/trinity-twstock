@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import sqlite3
 
-
 # DB_SCHEMA.md 定義的核心 table
 REQUIRED_TABLES = {
     "stock_meta",

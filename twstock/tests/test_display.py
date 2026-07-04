@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from twstock.display import (
     LIMIT_DN_PCT,
@@ -22,7 +21,6 @@ from twstock.display import (
     vol_fmt_short,
     vol_rich,
 )
-
 
 # ── price_color ───────────────────────────────────────────
 

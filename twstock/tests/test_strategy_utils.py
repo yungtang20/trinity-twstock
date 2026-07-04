@@ -6,9 +6,6 @@ import os
 import sqlite3
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
-import pytest
-
 from twstock.strategy import _utils
 
 

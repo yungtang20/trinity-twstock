@@ -7,8 +7,6 @@ test_units_contract.py — 單位轉換契約測試
 """
 from __future__ import annotations
 
-import sqlite3
-
 
 def test_stock_history_stores_volume_in_shares(db_conn, patch_db_path):
     """stock_history.volume 存股，不存張。"""

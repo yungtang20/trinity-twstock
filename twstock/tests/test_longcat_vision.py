@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
 from twstock.longcat_vision import _build_kline_summary, _get_api_key, analyze_kline_with_longcat
 

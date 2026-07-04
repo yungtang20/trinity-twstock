@@ -5,7 +5,9 @@ Unit Test — DoD 必跑
 執行（DoD）：python -m pytest tests/test_008_ma.py -v
 """
 import sqlite3
+
 import pytest
+
 from twstock.calculator import MACalculator
 
 

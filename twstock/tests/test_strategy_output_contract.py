@@ -7,7 +7,6 @@ test_strategy_output_contract.py — 策略輸出格式契約測試
 """
 from __future__ import annotations
 
-
 # 策略輸出最小共同格式
 REQUIRED_KEYS = {"strategy", "stock_id", "signal"}
 

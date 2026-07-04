@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import sys
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 _DIR = "D:/twse"
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
 # Suppress rich console output
-import io
 import rich.console
+
 rich.console.Console = lambda **kw: MagicMock()
 
 
@@ -27,8 +25,8 @@ class TestTUIApp:
         assert hasattr(app, "_cache")
 
     def test_has_cache(self):
-        from twstock.tui.app import TUIApp
         from twstock.market_data.cache import MarketCache
+        from twstock.tui.app import TUIApp
         app = TUIApp()
         assert isinstance(app._cache, MarketCache)
 
@@ -61,13 +59,14 @@ class TestTUIApp:
 # ── render_dashboard ────────────────────────────────────────
 class TestRenderDashboard:
     def test_importable(self):
-        from twstock.tui.render import render_dashboard, make_layout
+        from twstock.tui.render import make_layout, render_dashboard
         assert callable(render_dashboard)
         assert callable(make_layout)
 
     def test_make_layout_returns_layout(self):
-        from twstock.tui.render import make_layout
         from rich.layout import Layout
+
+        from twstock.tui.render import make_layout
         result = make_layout()
         assert isinstance(result, Layout)
 
@@ -83,7 +82,7 @@ class TestExecuteAction:
     @patch("twstock.tui.app.run_daily_update")
     def test_execute_action_daily(self, mock_daily, mock_hist, mock_strat, mock_db, mock_composite):
         from twstock.tui.app import TUIApp
-        from twstock.tui.state_machine import ActionType, StateTransition, TUIState, TUIState
+        from twstock.tui.state_machine import ActionType, StateTransition, TUIState
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_DAILY_UPDATE)
         app = TUIApp()
         app._execute_action(t)

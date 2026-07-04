@@ -1,9 +1,12 @@
+import logging
+
 import pandas as pd
 import requests
-import logging
-from datetime import datetime
-from .utils import safe_int
+
 from twstock.retry import retry_get
+
+from .utils import safe_int
+
 
 def _get_session():
     session = requests.Session()
@@ -29,14 +32,14 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
         logging.error("TWSE institutional fetch failed for %s after retries", date_str)
         return pd.DataFrame()
     data = resp.json()
-        
+
     if not data.get("data"):
         return pd.DataFrame()
-        
+
     fields = data.get("fields", [])
     raw_data = data.get("data", [])
     df = pd.DataFrame(raw_data, columns=fields)
-    
+
     # TWSE T86 欄位名已由實測 fields 確認吻合
     col_map = {
         "證券代號": "stock_id",
@@ -51,11 +54,11 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
         if c not in df.columns:
             logging.warning(f"TWSE institutional missing required column: {c}")
             return pd.DataFrame()
-            
+
     df = df[req_cols].copy()
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TWSE"
-    
+
     # DB 存原始值（股），顯示層才轉換
     for col in ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]:
         df[col] = df[col].apply(safe_int)
@@ -80,21 +83,21 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
         logging.error("TPEx institutional fetch failed for %s after retries", date_int)
         return pd.DataFrame()
     data = resp.json()
-        
+
     raw_data = data.get("aaData", data.get("data", []))
     if not raw_data:
         tables = data.get("tables", [])
         if tables:
             raw_data = tables[0].get("data", [])
-            
+
     if not raw_data:
         return pd.DataFrame()
-        
+
     df = pd.DataFrame(raw_data)
     if len(df.columns) < 24:
         logging.warning("TPEx institutional format changed, columns less than 24.")
         return pd.DataFrame()
-        
+
     # 保留 7 組買賣超
     df = df.rename(columns={
         0: "stock_id",
@@ -108,11 +111,11 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
         20: "g7_buy", 21: "g7_sell", 22: "g7_net",
         23: "total_net"
     })
-    
+
     # 進行安全轉型
     for col in [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + ["total_net"]:
         df[col] = df[col].apply(safe_int)
-        
+
     # TPEx → TWSE 欄位映射（讓 updater 能正確計算 net）
     # g1 = 外資, g2 = 投信, g3+g4+g5 = 自營商（自行買賣 + 避險 + 造市）
     df["foreign_buy"] = df["g1_buy"].fillna(0).astype(int)
@@ -131,7 +134,7 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
     date_str = str(date_int)
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TPEx"
-    
+
     return df
 
 def fetch_all_institutional(date_int: int) -> pd.DataFrame:

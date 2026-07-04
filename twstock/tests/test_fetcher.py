@@ -2,12 +2,7 @@
 """test_fetcher.py — fetcher.py 覆蓋率測試。"""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from twstock.fetcher import (
-    DataFetcher,
     FinMindClient,
     FinMindFetcher,
     TWSEFetcher,

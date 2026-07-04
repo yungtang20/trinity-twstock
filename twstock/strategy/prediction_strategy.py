@@ -6,29 +6,31 @@
 """
 
 import os
+import signal
+import sqlite3
 import sys
 import time
-import shutil
-import sqlite3
 import warnings
-import signal
-from typing import List, Dict, Optional, Any, Tuple, Union
+from typing import Dict, List
 
 import pandas as pd
-import numpy as np
-from rich.table import Table
+from rich import box
 from rich.panel import Panel
 from rich.progress import (
-    Progress, SpinnerColumn, TextColumn,
-    BarColumn, TimeElapsedColumn,
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
 )
-from rich import box
+from rich.table import Table
+
+# [AI MOD] Import from sibling modules
+from twstock.strategy._utils import fetch_klines
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import rconsole
 
-# [AI MOD] Import from sibling modules
-from twstock.strategy._utils import fetch_klines
 try:
     from strategy.patterns_strategy import StockPredictionAnalyzer
 except ImportError:
@@ -47,16 +49,16 @@ _PRED_CACHE = {
 try:
     from strategy.kronos_engine import (
         DEFAULT_CONFIG,
-        load_kronos,
-        PredictionResult,
+        DriftMonitor,
         DriftStatus,
-        StockPrediction,
-        calculate_price_change,
-        PredictionEngine,
         KronosRealEngine,
         MonteCarloEngine,
-        DriftMonitor,
         PredictionChartRenderer,
+        PredictionEngine,
+        PredictionResult,
+        StockPrediction,
+        calculate_price_change,
+        load_kronos,
     )
 except ImportError as e:
     # kronos_engine requires torch - not available in test env
@@ -73,9 +75,11 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
+from strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+
 from twstock.db import get_connection  # [AI MOD]
-from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from twstock.display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
+from twstock.display import price_color, vol_color  # [AI MOD]
+
 try:
     from twstock.input_helper import get_blocking_key
 except ImportError:
@@ -392,7 +396,9 @@ class PredictionAnalysisApp:
 
 def get_latest_date() -> str:
     """供 strategies.py 查詢資料基準日"""
-    from db import get_connection  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
+    from db import (
+        get_connection,  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
+    )
     conn = get_connection(readonly=True)
     try:
         return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]

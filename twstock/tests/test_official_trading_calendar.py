@@ -2,11 +2,8 @@
 """test_official_trading_calendar.py — official/trading_calendar.py 覆蓋率測試。"""
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from twstock.official import trading_calendar
 

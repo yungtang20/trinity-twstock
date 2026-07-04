@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 _DIR = "D:/twse"
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)

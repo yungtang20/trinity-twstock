@@ -3,21 +3,18 @@
 from __future__ import annotations
 
 import os
-import sys
 
 from twstock.db import get_connection
-from twstock.input_helper import setup_console_encoding, get_interactive_input
+from twstock.input_helper import get_interactive_input, setup_console_encoding
 from twstock.official import (
+    fetch_dividend_events,
+    get_nth_trading_day_back,
+    get_today_suspended,
+    run_dividend_daily,
     update_official_daily,
     update_tdcc_historical,
-    fetch_dividend_events,
     upsert_dividend_events,
-    run_dividend_daily,
-    get_today_suspended,
-    get_nth_trading_day_back,
 )
-from twstock.strategy.strategies import interactive_menu as strategies_menu
-from twstock.utils import get_stock_name
 from twstock.terminal import console
 
 # Windows UTF-8
@@ -30,10 +27,10 @@ setup_console_encoding()
 def run_daily_update() -> None:
     """每日資料更新子選單。"""
     os.system("cls" if os.name == "nt" else "clear")
+    from rich import box
     from rich.align import Align
     from rich.panel import Panel
     from rich.text import Text
-    from rich import box
 
     console.print(Panel(
         Align.center(Text(
@@ -62,11 +59,11 @@ def run_historical_update_menu() -> None:
     """歷史資料更新子選單。"""
     while True:
         os.system("cls" if os.name == "nt" else "clear")
+        from rich import box
         from rich.align import Align
         from rich.panel import Panel
         from rich.table import Table
         from rich.text import Text
-        from rich import box
 
         console.print(Panel(
             Align.center(Text(
@@ -187,10 +184,10 @@ def _check_zero_volume_anomalies(suspended: set | list) -> None:
 def run_db_maintenance() -> None:
     """VACUUM 資料庫維護。"""
     os.system("cls" if os.name == "nt" else "clear")
+    from rich import box
     from rich.align import Align
     from rich.panel import Panel
     from rich.text import Text
-    from rich import box
 
     console.print(Panel(
         Align.center(Text("🔧 資料庫結構重整與維護", style="bold yellow")),

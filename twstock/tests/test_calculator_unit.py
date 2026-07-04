@@ -20,7 +20,6 @@ from twstock.calculator import (
     VWAPCalculator,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────
 
 @pytest.fixture

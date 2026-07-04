@@ -4,8 +4,8 @@
 Single entry point for database connections.
 All modules must retrieve database connections from this module instead of defining DB_PATH independently.
 """
-import sqlite3
 import os
+import sqlite3
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parent

@@ -1,4 +1,7 @@
-import inspect, os, sys
+import inspect
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def test_no_delete_loop():
@@ -13,8 +16,8 @@ def test_no_bare_sqlite3_connect():
 
 def test_duplicate_writes_ok():
     import pandas as pd
-    from official.dividend_crawler import upsert_dividend_events
     from db import get_connection
+    from official.dividend_crawler import upsert_dividend_events
     test_df = pd.DataFrame([{
         'stock_id': '9999', 'date': '2099-01-01',
         'before_price': 100.0, 'after_price': 95.0,

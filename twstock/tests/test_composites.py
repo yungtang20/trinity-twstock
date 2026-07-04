@@ -2,10 +2,7 @@
 """test_composites.py — strategy/composites.py 覆蓋率測試。"""
 from __future__ import annotations
 
-from argparse import Namespace
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from twstock.strategy import composites
 

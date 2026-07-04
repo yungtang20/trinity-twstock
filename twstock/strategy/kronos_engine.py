@@ -5,15 +5,15 @@ kronos_engine.py - Kronos 預測引擎
 優先使用 KronosRealEngine（真實模型），失敗時 fallback 到 MonteCarloEngine
 """
 
+import contextlib
+import io
 import os
 import sys
-import io
-import contextlib
-import numpy as np
-import pandas as pd
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
+import numpy as np
+import pandas as pd
 
 # 單例快取：避免重複載入 390MB 模型
 _kronos_engine_singleton: Optional["KronosRealEngine"] = None
@@ -129,7 +129,7 @@ def load_kronos(model_path: str = "models/kronos-base",
         parent = os.path.dirname(model_src)
         if parent not in sys.path:
             sys.path.insert(0, parent)
-    from model import Kronos, KronosTokenizer, KronosPredictor
+    from model import Kronos, KronosPredictor, KronosTokenizer
 
     tokenizer = KronosTokenizer.from_pretrained(resolved_tokenizer)
     model = Kronos.from_pretrained(resolved_model)

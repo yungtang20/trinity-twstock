@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 # ── DB_SCHEMA.md 規格測試 ──
 
 def test_db_schema_declares_volume_in_shares():

@@ -10,19 +10,26 @@ import os
 import time
 from datetime import datetime
 
+from rich import box
 from rich.align import Align
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich import box
 
 from twstock.db import get_connection
-from twstock.display import price_rich, vol_diff_rich, render_kline
+from twstock.display import price_rich, render_kline, vol_diff_rich
 from twstock.longcat_vision import analyze_kline_with_longcat
 from twstock.strategy._utils import fetch_klines
 from twstock.strategy.strategies import STRATEGY_REGISTRY
-from twstock.utils import get_stock_name, get_http_session, safe_http_get, safe_float, safe_int, get_ssl_verify
 from twstock.terminal import console
+from twstock.utils import (
+    get_http_session,
+    get_ssl_verify,
+    get_stock_name,
+    safe_float,
+    safe_http_get,
+    safe_int,
+)
 
 # 策略模組 ID 與顯示標籤
 _STRATEGY_LABELS = [

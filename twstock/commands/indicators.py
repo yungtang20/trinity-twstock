@@ -5,8 +5,8 @@ from __future__ import annotations
 import pandas as pd
 
 from twstock.db import get_connection
-from twstock.utils import get_stock_name
 from twstock.terminal import console
+from twstock.utils import get_stock_name
 
 
 def execute(args) -> None:

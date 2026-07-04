@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import sys
 from argparse import Namespace
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 _DIR = "D:/twse"
 if _DIR not in sys.path:

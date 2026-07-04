@@ -5,8 +5,9 @@ terminal.py — 集中管理所有 Rich Console 實體
 解決 Windows cp950 終端無法渲染 emoji 的問題
 """
 
-import sys
 import io
+import sys
+
 from rich.console import Console
 
 

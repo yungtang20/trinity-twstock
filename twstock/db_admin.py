@@ -9,7 +9,6 @@ db_admin.py — 資料庫 schema 管理（建立表格、VIEW、migration）
 
 import logging
 import sqlite3
-from typing import Iterable, List
 
 from twstock.db import get_connection, get_path  # Reuse the single connection entrypoint
 

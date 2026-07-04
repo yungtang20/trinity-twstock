@@ -8,18 +8,16 @@
 """
 
 import os
+import signal
 import sys
 import time
-import sqlite3
 import warnings
-import signal
-from typing import Dict, List, Optional, Tuple, Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from rich import box
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
 # ── Module path ───────────────────────────────────────────
 
@@ -30,8 +28,9 @@ if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
 from twstock.db import get_connection
-from twstock.display import price_rich, chg_color, vol_fmt, price_color, vol_color
-from twstock.strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
+from twstock.display import price_color, price_rich, vol_color, vol_fmt
+from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+
 
 def _to_date_int(val) -> int:
     """安全地將日期轉換為 YYYYMMDD 整數格式"""
@@ -469,7 +468,7 @@ def display_stock_analysis(conn, symbol, name, df, compact=False, mobile=False):
 def _show_market_overview(data, df):
     cur = df.iloc[-1]
     prev = df.iloc[-2] if len(df) > 1 else cur
-    console.print(f"\n[bold]🔹 市場概況[/bold]")
+    console.print("\n[bold]🔹 市場概況[/bold]")
     console.print(f"收盤: {price_rich(cur['close'], prev['close'])}")
     console.print(f"成交: {vol_fmt(int(cur.get('volume', 0)))}")
 
@@ -492,7 +491,7 @@ def _show_indicators(data):
     sup_lvls = sorted([l for l in all_levels if l < lc])
     nr_val, short_res_val, long_res_val = _calc_levels(res_lvls, True, lc)
     ns_val, short_sup_val, long_sup_val = _calc_levels(sup_lvls, False, lc)
-    console.print(f"\n[bold]📊 綜合撐壓標[/bold]")
+    console.print("\n[bold]📊 綜合撐壓標[/bold]")
     console.print(f"前高/短期/長期壓力：[bright_red]{nr_val:.2f}/{short_res_val:.2f}/{long_res_val:.2f}[/]")  # 壓力：紅
     console.print(f"前低/短期/長期支撐：[bright_green]{ns_val:.2f}/{short_sup_val:.2f}/{long_sup_val:.2f}[/]")  # 支撐：綠
 

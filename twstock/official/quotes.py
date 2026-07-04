@@ -1,13 +1,13 @@
-import os
-import time
-import sqlite3
+import logging
+
 import pandas as pd
 import requests
-import logging
-from datetime import datetime
-from .utils import safe_int, safe_float
+
 from twstock.retry import retry_get
 from twstock.utils import get_ssl_verify
+
+from .utils import safe_float, safe_int
+
 
 def _get_session():
     session = requests.Session()
@@ -34,21 +34,21 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         logging.error("TWSE quotes fetch failed for %s after retries", date_str)
         return pd.DataFrame()
     data = resp.json()
-        
+
     tables = data.get("tables", [])
     target_table = None
     for t in tables:
         if "每日收盤行情" in t.get("title", ""):
             target_table = t
             break
-            
+
     if not target_table or not target_table.get("data"):
         return pd.DataFrame()
-        
+
     fields = target_table.get("fields", [])
     raw_data = target_table.get("data", [])
     df = pd.DataFrame(raw_data, columns=fields)
-    
+
     col_map = {
         "證券代號": "stock_id",
         "證券名稱": "name",
@@ -59,18 +59,18 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         "最低價": "low",
         "收盤價": "close"
     }
-    
+
     df = df.rename(columns=col_map)
     req_cols = ["stock_id", "name", "volume", "amount", "open", "high", "low", "close"]
     for c in req_cols:
         if c not in df.columns:
             logging.warning(f"TWSE quotes missing required column: {c}")
             return pd.DataFrame()
-            
+
     df = df[req_cols].copy()
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TWSE"
-    
+
     # DB 存原始值（股/元），顯示層才轉換
     df["volume"] = df["volume"].apply(safe_int)
     df["amount"] = df["amount"].apply(safe_int)
@@ -100,7 +100,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         logging.error("TPEx quotes fetch failed for %s after retries", date_int)
         return pd.DataFrame()
     data = resp.json()
-        
+
     raw_data = data.get("aaData", data.get("data", []))
     fields = []
     if not raw_data:
@@ -109,11 +109,11 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         if tables:
             raw_data = tables[0].get("data", [])
             fields = tables[0].get("fields", [])
-            
+
     if not raw_data or not fields:
         logging.warning("TPEx quotes data or fields missing (old format detected), aborting to avoid index guess.")
         return pd.DataFrame()
-        
+
     df = pd.DataFrame(raw_data, columns=[f.strip() for f in fields])
     col_map = {
         "代號": "stock_id",
@@ -126,18 +126,18 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         "成交金額(元)": "amount"
     }
     df = df.rename(columns=col_map)
-    
+
     req_cols = ["stock_id", "name", "volume", "amount", "open", "high", "low", "close"]
     for c in req_cols:
         if c not in df.columns:
             logging.warning(f"TPEx quotes missing required column: {c}")
             return pd.DataFrame()
-            
+
     df = df[req_cols].copy()
     date_str = str(date_int)
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TPEx"
-    
+
     # DB 存原始值（股/元），顯示層才轉換
     df["volume"] = df["volume"].apply(safe_int)
     df["amount"] = df["amount"].apply(safe_int)

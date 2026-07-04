@@ -4,13 +4,11 @@
 official/dividend_crawler.py
 Fetch ex-rights and ex-dividends data from TWSE and TPEx APIs, with FinMind fallback.
 """
-import requests
-import pandas as pd
-import time
-from datetime import datetime, timedelta
-import sqlite3
 import os
 import sys
+from datetime import datetime
+
+import pandas as pd
 
 from .utils import safe_float
 
@@ -25,10 +23,10 @@ if sys.platform == "win32":
 # [AI MOD] Import unified database path from db.py
 import sys
 from pathlib import Path
+
 _PARENT = Path(__file__).resolve().parent.parent
 if str(_PARENT) not in sys.path:
     sys.path.append(str(_PARENT))
-from twstock.db import DB_PATH
 
 # FinMind API fallback
 try:
@@ -39,6 +37,7 @@ except ImportError:
 
 from twstock.retry import retry_get
 from twstock.utils import get_ssl_verify
+
 
 def _convert_date(date_str: str, input_format: str) -> str:
     """Convert 'YYYYMMDD' or 'YYY/MM/DD' to standard 'YYYY-MM-DD'"""
@@ -105,13 +104,13 @@ def fetch_twse_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         verify=get_ssl_verify(),
     )
     if resp is None:
-        print(f"  [ERROR] TWSE crawler failed after retries")
+        print("  [ERROR] TWSE crawler failed after retries")
         return pd.DataFrame()
 
     data = resp.json()
 
     if not data.get('data'):
-        print(f"  No TWSE dividend data found for this period")
+        print("  No TWSE dividend data found for this period")
         return pd.DataFrame()
 
     rows = []
@@ -183,14 +182,14 @@ def fetch_tpex_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         verify=get_ssl_verify(),
     )
     if resp is None:
-        print(f"  [ERROR] TPEx crawler failed after retries")
+        print("  [ERROR] TPEx crawler failed after retries")
         return pd.DataFrame()
 
     data = resp.json()
 
     tables = data.get('tables')
     if not tables or not tables[0].get('data'):
-        print(f"  No TPEx dividend data found for this period")
+        print("  No TPEx dividend data found for this period")
         return pd.DataFrame()
 
     rows = []

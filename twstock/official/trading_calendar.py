@@ -4,21 +4,20 @@
 official/trading_calendar.py - 交易日曆管理 (避免與標準庫 calendar 衝突)
 """
 
-import os
 import sqlite3
-import pandas as pd
-import requests
-from datetime import datetime, timedelta
 
 # [AI MOD] Import unified database path from db.py
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
+
 _PARENT = Path(__file__).resolve().parent.parent
 if str(_PARENT) not in sys.path:
     sys.path.append(str(_PARENT))
 from twstock.db import DB_PATH
 from twstock.retry import retry_get
 from twstock.utils import get_ssl_verify
+
 
 def _date_to_int(dt: datetime) -> int:
     return int(dt.strftime("%Y%m%d"))
@@ -36,10 +35,10 @@ def init_trading_calendar():
     try:
         print("📅 正在從 TWSE 官方同步交易日曆...", flush=True)
         url = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"
-        
+
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
+
         resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=get_ssl_verify())
         if resp is None:
             print("⚠️ 無法取得官方休市日曆 (retry failed)", flush=True)
@@ -58,14 +57,14 @@ def init_trading_calendar():
                     holidays[dt_str] = row.get("Description", "")
                 except ValueError:
                     pass
-        
+
         if not holidays:
             print("⚠️ 官方日曆資料為空", flush=True)
             return
 
         min_year = min(int(d[:4]) for d in holidays.keys())
         max_year = max(int(d[:4]) for d in holidays.keys())
-        
+
         start_date = datetime(min_year, 1, 1)
         end_date = datetime(max_year, 12, 31)
 
@@ -109,7 +108,7 @@ def get_last_trading_day() -> int:
     # Before 14:30, the latest available complete data is from the previous day.
     if today.hour * 60 + today.minute < 14 * 60 + 30:
         today -= timedelta(days=1)
-        
+
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM stock_trading_calendar")
@@ -118,7 +117,7 @@ def get_last_trading_day() -> int:
         init_trading_calendar()
     else:
         conn.close()
-        
+
     dt = today
     for _ in range(10):
         date_int = _date_to_int(dt)
@@ -160,7 +159,7 @@ def date_exists_in_history(date_int: int) -> bool:
     """, (date_str,))
     row = cur.fetchone()
     conn.close()
-    
+
     tse_count = row[0] or 0
     otc_count = row[1] or 0
     return tse_count > 500 and otc_count > 500

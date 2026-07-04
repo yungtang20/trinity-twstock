@@ -5,11 +5,12 @@ strategies.py - 策略入口與調度中心 [AI MOD]
 職責：整合同目錄下的所有子策略檔案，提供統一的調度介面與互動選單。
 """
 
-import sys
-import os
 import argparse
-from rich.table import Table
+import os
+import sys
+
 from rich import box
+from rich.table import Table
 
 # 確保 twstock 在 sys.path（讓 from twstock.xxx import 能運作）
 _DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,14 +26,15 @@ if sys.platform == "win32":
     except AttributeError:
         pass
 
-from twstock.terminal import console
-
 # 子策略模組
-from twstock.strategy import sr_analyzer
-from twstock.strategy import ma_strategy
-from twstock.strategy import chips_strategy
-from twstock.strategy import patterns_strategy
-from twstock.strategy import prediction_strategy
+from twstock.strategy import (
+    chips_strategy,
+    ma_strategy,
+    patterns_strategy,
+    prediction_strategy,
+    sr_analyzer,
+)
+from twstock.terminal import console
 
 # ==================== 策略註冊表 [AI MOD] ====================
 STRATEGY_REGISTRY = {
@@ -91,7 +93,8 @@ def run_strategy_by_id(strategy_id, params):
         console.print(f"[red]❌ 執行策略 {strategy_module.__name__} 失敗: {e}[/red]")
 
 # --- 統一輸入層（input_helper）---
-from twstock.input_helper import get_interactive_input, _flush_input_buffer
+from twstock.input_helper import _flush_input_buffer, get_interactive_input
+
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
     """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
@@ -235,10 +238,10 @@ def interactive_menu():
 
                 if ans in ('1', '2'):
                     # 重顯示分類選單（填入篩選天數）
-                    console.print(f"\n  [1] 投信連買 x 天 (預設 2 天)")
-                    console.print(f"  [2] 外資連買 x 天 (預設 2 天)")
-                    console.print(f"  [3] 集保人數下降，千張大戶增")
-                    console.print(f"  [Enter] 回到上一頁")
+                    console.print("\n  [1] 投信連買 x 天 (預設 2 天)")
+                    console.print("  [2] 外資連買 x 天 (預設 2 天)")
+                    console.print("  [3] 集保人數下降，千張大戶增")
+                    console.print("  [Enter] 回到上一頁")
                     _flush_msvcrt()
                     n_days_str = input("📅 連買天數 (預設 2): ").strip()
                     if not n_days_str:
@@ -349,9 +352,9 @@ if __name__ == "__main__":
     parser.add_argument("--code", type=str, help="股票代號 (如 2330)")
     parser.add_argument("--scan", action="store_true", help="執行全市場撐壓掃描 (適用於策略 1)")
     parser.add_argument("--vol", type=int, default=500, help="全市場掃描的最低成交量門檻 (張，預設 500)")
-    
+
     args = parser.parse_args()
-    
+
     if len(sys.argv) == 1:
         interactive_menu()
     else:

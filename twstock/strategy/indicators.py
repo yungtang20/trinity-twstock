@@ -5,9 +5,9 @@ strategy/indicators.py — 指標自動刷新機制
 確保策略分析前 stock_indicators 已有最新資料。
 """
 
+import os
 import sqlite3
 import sys
-import os
 
 # 確保 twstock 目錄在 path 中
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +15,7 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.calculator import MACalculator, ATRCalculator, VWAPCalculator
+from twstock.calculator import ATRCalculator, MACalculator, VWAPCalculator
 from twstock.db import get_connection
 
 

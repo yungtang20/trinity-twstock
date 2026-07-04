@@ -5,8 +5,6 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-import pytest
-
 from twstock.market_data.cache import MarketCache
 
 

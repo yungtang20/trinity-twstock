@@ -5,9 +5,11 @@ ETL data processing and high-performance database writing engine.
 Uses INSERT ... ON CONFLICT DO UPDATE to preserve existing column values
 when a new write doesn't provide them (prevents NULL/empty overwrite bugs).
 """
-import sqlite3
-import pandas as pd
 import logging
+import sqlite3
+
+import pandas as pd
+
 from twstock.db import get_connection
 
 logger = logging.getLogger(__name__)

@@ -12,15 +12,11 @@ official/updater.py - 主更新邏輯（價量、法人、除權息、集保）
 
 import os
 import sys
-import time
-import sqlite3
 from datetime import datetime, timedelta
 from typing import Optional
 
+from . import institutional, quotes, tdcc
 from . import trading_calendar as cal
-from . import quotes
-from . import institutional
-from . import tdcc
 from .dividend_crawler import fetch_dividend_events, upsert_dividend_events
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -47,7 +43,7 @@ def upsert_dataframe(table_name: str, df):
         df.rename(columns={'code': 'stock_id'}, inplace=True)
     if 'date_int' in df.columns:
         df['date'] = pd.to_datetime(df['date_int'].astype(str), format='%Y%m%d').dt.strftime('%Y-%m-%d')
-    
+
     if table_name == 'stock_history':
         # 確保必要欄位存在
         if 'amount' not in df.columns and 'turnover' in df.columns:
@@ -122,7 +118,7 @@ def update_dividend_events_for_date_range(start_date: str, end_date: str):
 def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: bool = False, auto_tdcc: bool = True):
     """抓取官方資料（價量、法人、除權息事件、集保）"""
     print("📌 開始執行官方資料更新...", flush=True)
-    
+
     # 確保交易日曆存在
     conn = get_connection() # [AI MOD]
     cur = conn.cursor()
@@ -164,10 +160,10 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
     fetch_dates = []
     current_dt = base_dt
     checked_count = 0
-    
+
     # [AI MOD] Limit scan depth dynamically based on requested days to prevent searching 800 days when up-to-date
     max_scan = 800 if force else max(days * 3, 15)
-    
+
     while len(fetch_dates) < days:
         current_int = cal._date_to_int(current_dt)
         if cal.is_trading_day(current_int):
@@ -231,7 +227,7 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                 # 為了避免 stock_meta 中歷史下市/休眠股票造成的「假性失敗」，當取得資料時直接對齊期望值。
                 twse_expected = twse_fetched if twse_fetched > 0 else twse_expected
                 tpex_expected = tpex_fetched if tpex_fetched > 0 else tpex_expected
-                
+
                 twse_missing = max(0, twse_expected - twse_fetched)
                 tpex_missing = max(0, tpex_expected - tpex_fetched)
 
@@ -248,13 +244,13 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
     # 由近到遠處理（fetch_dates 已由遠到近，反轉）
     fetch_dates.reverse()
     print(f"🔄 將抓取 {len(fetch_dates)} 個交易日: {fetch_dates[:5]}...", flush=True)
-    
+
     for idx, d in enumerate(fetch_dates, 1):
         print(f"\n--- [{idx}/{len(fetch_dates)}] 處理日期 {d} ---", flush=True)
         try:
             # 1. 抓取價量資料
             print("  → 抓取價量資料...", flush=True)
-            
+
             import pandas as pd
             twse_df = quotes.fetch_twse_quotes(d)
             tpex_df = quotes.fetch_tpex_quotes(d)
@@ -283,7 +279,7 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             # 直接對齊預期數量，消除因 stock_meta 包含下市股造成的假性失敗數據。
             twse_expected = twse_fetched if twse_fetched > 0 else twse_expected
             tpex_expected = tpex_fetched if tpex_fetched > 0 else tpex_expected
-            
+
             twse_missing = max(0, twse_expected - twse_fetched)
             tpex_missing = max(0, tpex_expected - tpex_fetched)
 
@@ -291,15 +287,15 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             print(f"      [TPEx] 今日需抓 {tpex_expected:4d} 檔，已抓 {tpex_fetched:4d} 檔，失敗 {tpex_missing:4d} 檔", flush=True)
 
             if twse_df.empty and tpex_df.empty:
-                print(f"  ⚠️ 價量資料為空 (可能為休市日)", flush=True)
+                print("  ⚠️ 價量資料為空 (可能為休市日)", flush=True)
                 continue
-                
+
             price_df = pd.concat([twse_df, tpex_df], ignore_index=True)
             price_df = price_df.drop_duplicates(subset=['stock_id', 'date'])
-            
+
             # 更新股票名稱表
             quotes.update_stock_meta_from_df(price_df)
-            
+
             # 寫入原始價量
             upsert_dataframe('stock_history', price_df)
             print(f"  ✅ 價量資料: {len(price_df)} 筆", flush=True)
@@ -312,11 +308,11 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                 print(f"  ✅ 三大法人: {len(inst_df)} 筆", flush=True)
             else:
                 print("  ⚠️ 三大法人資料為空", flush=True)
-                
+
         except Exception as e:
             print(f"  ❌ 日期 {d} 處理失敗: {e}", flush=True)
             continue
-    
+
     # 3. 抓取除權息事件（範圍：全年度，避免遺漏未來除權息日）
     if fetch_dates:
         # [AI MOD] Fetch entire year's dividend forecast to ensure all upcoming events are synced
@@ -326,8 +322,8 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
         print(f"\n📅 同步本年度除權息事件 ({year_start} ~ {year_end})...", flush=True)
         update_dividend_events_for_date_range(year_start, year_end)
 
-    print(f"\n✅ 官方資料更新完成", flush=True)
-    
+    print("\n✅ 官方資料更新完成", flush=True)
+
     # 5. 自動檢查 TDCC
     if auto_tdcc:
         _auto_update_tdcc()
@@ -341,13 +337,13 @@ def _auto_update_tdcc():
         row = cur.fetchone()
         conn.close()
         last_tdcc_date = row[0] if row and row[0] else None
-        
+
         today = datetime.now()
         # Get the latest available Saturday <= today to prevent checking future dates [AI MOD]
         days_to_subtract = (today.weekday() - 5) % 7
         latest_sat = today - timedelta(days=days_to_subtract)
         this_sat_str = latest_sat.strftime("%Y-%m-%d")
-        
+
         if not last_tdcc_date or str(last_tdcc_date) < this_sat_str:
             print(f"\n📊 檢查到新的 TDCC 集保資料（最新: {last_tdcc_date or '無'}，本週六: {this_sat_str}），一併更新...", flush=True)
             update_tdcc_weekly()

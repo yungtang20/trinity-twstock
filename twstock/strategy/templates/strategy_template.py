@@ -19,15 +19,10 @@
 
 import os
 import sys
-import sqlite3
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional, Any
 
+import pandas as pd
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich import box
 
 # ── Windows Encoding Fix ──
 if sys.platform == "win32":
@@ -45,7 +40,6 @@ if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
 from twstock.db import get_connection
-from twstock.display import price_rich, chg_color, vol_fmt, price_color
 
 # ── Strategy Configuration ──
 STRATEGY_ID = "NEW"          # 策略編號（在 STRATEGY_REGISTRY 中的 key）

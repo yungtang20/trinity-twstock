@@ -1,7 +1,10 @@
 """Bug Fix: main.py 使用 ex_date 但 dividend_events 表只有 date 欄位"""
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from twstock.db import get_connection
+
 
 def test_dividend_events_column_is_date_not_ex_date():
     """dividend_events 表的日期欄位叫 date，不叫 ex_date"""

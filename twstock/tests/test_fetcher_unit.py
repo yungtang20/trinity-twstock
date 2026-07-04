@@ -5,13 +5,11 @@ Mock HTTP requests to test all code paths without network.
 """
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from twstock.market_data import fetcher
-
 
 # ── Fixtures ──────────────────────────────────────────────
 
@@ -147,7 +145,6 @@ class TestFetchMarketIndices:
 #               so we patch "utils.safe_http_get" (not twstock.utils).
 # ════════════════════════════════════════════════════════════════
 from types import SimpleNamespace
-
 
 # ── get_yahoo_market_volumes ─────────────────────────────────
 

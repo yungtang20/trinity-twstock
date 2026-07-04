@@ -1,5 +1,6 @@
 import os
 
+
 def test_updater_handles_none_date():
     fpath = os.path.join(os.path.dirname(__file__), '..', 'official', 'updater.py')
     with open(fpath, 'r', encoding='utf-8') as f:

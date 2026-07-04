@@ -10,7 +10,6 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-
 # _strategy模組列表 — 每個策略對應的 (module_name, class_name)
 # 注意：這些類別可能不存在，測試會驗證它們是否存在且有 analyze()
 STRATEGY_CLASSES = [
@@ -36,7 +35,7 @@ def test_all_strategies_expose_analyze():
             assert callable(instance.analyze), (
                 f"{class_name}.analyze 應為 callable"
             )
-        except (ImportError, AttributeError) as exc:
+        except (ImportError, AttributeError):
             # 類別不存在 — 檢查 strategy_runner 是否有對應的 adapter
             adapter_name = f"_{class_name}Adapter"
             assert adapter_name in src, (

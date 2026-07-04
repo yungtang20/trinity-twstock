@@ -13,9 +13,15 @@ if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
 from twstock.utils import (
-    safe_float, safe_int, to_roc_date, format_price_change,
-    default_http_headers, get_http_session, safe_http_get,
-    get_token, get_stock_name,
+    default_http_headers,
+    format_price_change,
+    get_http_session,
+    get_stock_name,
+    get_token,
+    safe_float,
+    safe_http_get,
+    safe_int,
+    to_roc_date,
 )
 
 
@@ -148,7 +154,8 @@ class TestGetMarketMode:
     def test_weekday_market_hours(self):
         """9:00–13:30 should return '盤中'."""
         from datetime import datetime
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
+
         from twstock import utils
         lunch = datetime(2025, 1, 6, 10, 0)  # Monday 10:00
         with patch.object(utils, "datetime") as mock_dt:
@@ -158,7 +165,8 @@ class TestGetMarketMode:
 
     def test_weekday_after_hours(self):
         from datetime import datetime
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
+
         from twstock import utils
         evening = datetime(2025, 1, 6, 18, 0)  # Monday 18:00
         with patch.object(utils, "datetime") as mock_dt:
@@ -168,7 +176,8 @@ class TestGetMarketMode:
 
     def test_weekend(self):
         from datetime import datetime
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
+
         from twstock import utils
         saturday = datetime(2025, 1, 4, 10, 0)  # Saturday 10:00
         with patch.object(utils, "datetime") as mock_dt:
@@ -205,7 +214,6 @@ class TestGetSysInfo:
         assert info["status"] == "Ready"
         assert info["stocks"] == 42
 
-from unittest.mock import Mock
 
 
 class TestGetHttpSession:

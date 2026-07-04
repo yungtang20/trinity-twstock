@@ -16,9 +16,7 @@ _PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PKG_DIR not in sys.path:
     sys.path.insert(0, _PKG_DIR)
 
-from twstock.utils import get_http_session, safe_float, safe_int  # noqa: E402
-from twstock.utils import get_ssl_verify
-
+from twstock.utils import get_http_session, get_ssl_verify, safe_float  # noqa: E402
 
 # ── **Public API** — 即時盤中指數抓取 ─────────────────
 # 此檔案的頂級函式（get_yahoo_market_volumes, get_realtime_mis_data,
@@ -40,6 +38,7 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
     tpex_vol = "無資料"
     try:
         import re
+
         from bs4 import BeautifulSoup
 
         res = get_http_session()

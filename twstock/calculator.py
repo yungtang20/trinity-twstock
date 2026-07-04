@@ -6,11 +6,13 @@ calculator.py — 技術指標計算引擎
 並嘗試 LEFT JOIN 基本面與籌碼資料。
 """
 
-import pandas as pd
 import numpy as np
-import os
-from twstock.db import get_connection, DB_PATH
-from twstock.db_admin import create_tables  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
+import pandas as pd
+
+from twstock.db import get_connection
+from twstock.db_admin import (
+    create_tables,  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
+)
 
 
 class IndicatorEngine:

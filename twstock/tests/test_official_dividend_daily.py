@@ -2,10 +2,9 @@
 """test_official_dividend_daily.py — official/dividend_daily.py 覆蓋率測試。"""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from twstock.official import dividend_daily
 

@@ -5,8 +5,6 @@ from __future__ import annotations
 import importlib
 import pkgutil
 
-import pytest
-
 import twstock.commands as commands_pkg
 
 
