@@ -7,6 +7,7 @@ Windows/Unix 實作為 thin wrapper，僅驗證接口契約。
 from __future__ import annotations
 
 import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,6 +15,8 @@ from twstock.tui.input_provider import (
     MockInputProvider,
     InputProvider,
     create_default_provider,
+    _WindowsInputProvider,
+    _UnixInputProvider,
 )
 
 
@@ -81,3 +84,23 @@ class TestCreateDefaultProvider:
         assert hasattr(provider, "get_key")
         assert hasattr(provider, "kbhit")
         assert hasattr(provider, "flush")
+
+
+class TestCreateDefaultProvider:
+    """
+    create_default_provider 聽測平台分支（這裡只驗證非 Windows 路徑；
+    Windows 路徑因 msvcrt 已存在，不易 mock import）。
+    """
+
+    def test_non_windows_returns_unix_provider(self):
+        from twstock.tui.input_provider import create_default_provider, _UnixInputProvider
+        with patch("twstock.tui.input_provider.sys") as mock_sys:
+            mock_sys.platform = "linux"
+            provider = create_default_provider()
+            assert isinstance(provider, _UnixInputProvider)
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only test")
+    def test_windows_returns_windows_provider(self):
+        from twstock.tui.input_provider import create_default_provider, _WindowsInputProvider
+        provider = create_default_provider()
+        assert isinstance(provider, _WindowsInputProvider)

@@ -1,15 +1,66 @@
 ........................................................................ [ 11%]
-........................................................................ [ 23%]
-........................................................................ [ 35%]
-.................sssssssssssssssssssss.................................. [ 47%]
-......s................................................................. [ 58%]
-........................................................................ [ 70%]
-........................................................................ [ 82%]
-........................................................................ [ 94%]
-....................................C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\coverage\bytecode.py:29: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B334C0>
-  code = compile(text, filename or "<string>", "exec", dont_inherit=True)
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-                                     [100%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+...............................sssssssssssssssssssss.................... [ 44%]
+....................s................................................... [ 55%]
+........................................................................ [ 66%]
+..........................................F............................. [ 77%]
+........................................................................ [ 88%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+================================== FAILURES ===================================
+________________________ TestMainGuard.test_main_guard ________________________
+
+self = <tests.test_processor_unit.TestMainGuard object at 0x00000216E97BF4D0>
+tmp_path = WindowsPath('C:/Users/yungtang/AppData/Local/Temp/pytest-of-yungtang/pytest-304/test_main_guard0')
+
+    def test_main_guard(self, tmp_path):
+        """Running the module as __main__ prints the success message (line 378).
+    
+        We simulate ``python -m twstock.processor`` by writing a small runner
+        that inserts the project root on sys.path, then runs the module file
+        under the ``__main__`` entry-point.
+        """
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        processor_src = os.path.join(project_root, "processor.py")
+        runner = tmp_path / "_main_runner.py"
+        runner.write_text(
+            "import runpy, sys\n"
+            f"sys.path.insert(0, {project_root!r})\n"
+            f"runpy.run_path({processor_src!r}, run_name='__main__')\n",
+            encoding="utf-8",
+        )
+        import subprocess
+>       result = subprocess.run(
+            [sys.executable, str(runner)],
+            capture_output=True, text=True,
+        )
+
+twstock\tests\test_processor_unit.py:721: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\subprocess.py:555: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\subprocess.py:1005: in __init__
+    errread, errwrite) = self._get_handles(stdin, stdout, stderr)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\subprocess.py:1380: in _get_handles
+    p2cread = self._make_inheritable(p2cread)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Popen: returncode: None args: ['C:\\Users\\yungtang\\AppData\\Local\\Python...>
+handle = 1044
+
+    def _make_inheritable(self, handle):
+        """Return a duplicate of handle, which is inheritable"""
+>       h = _winapi.DuplicateHandle(
+            _winapi.GetCurrentProcess(), handle,
+            _winapi.GetCurrentProcess(), 0, 1,
+            _winapi.DUPLICATE_SAME_ACCESS)
+E       OSError: [WinError 6] 控制代碼無效。
+
+C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\subprocess.py:1431: OSError
 ============================== warnings summary ===============================
 tests/test_calculator_unit.py::TestIndicatorEngine::test_add_moving_averages
 tests/test_calculator_unit.py::TestIndicatorEngine::test_add_macd
@@ -31,9 +82,9 @@ tests/test_commands_execute.py::TestIndicatorsCommand::test_missing_data
   D:\twse\twstock\commands\indicators.py:18: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
     df = pd.read_sql(
 
-tests/test_commands_execute.py::TestIndicatorsCommand::test_missing_data
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x000002359E7B8130>
-    def __setattr__(self, name, value):
+tests/test_commands_execute.py::TestUpdateCommand::test_update_single_stock
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999C310>
+    def __init__(self, name, parent):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
@@ -42,278 +93,236 @@ tests/test_composites.py::TestRunComposite::test_run_composite_with_valid_stock
     df = pd.read_sql(
 
 tests/test_composites.py::TestRunComposite::test_run_composite_with_valid_stock
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1062: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B316C0>
-    def _get_child_mock(self, /, **kw):
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:112: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999F970>
+    doc = getattr(func, "__doc__", None)
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_db_admin_idempotent.py::test_create_tables_is_idempotent
-  D:\twse\twstock\db_admin.py:236: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31F30>
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(institutional_data)").fetchall()}
+tests/test_db_admin_misc.py::TestMigrateDb::test_migrate_commits
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999F100>
+    def __setattr__(self, name, value):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_db_admin_idempotent.py::test_create_tables_is_idempotent
-  D:\twse\twstock\db_admin.py:236: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32020>
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(institutional_data)").fetchall()}
+tests/test_db_admin_misc.py::TestMigrateDb::test_migrate_commits
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999F2E0>
+    def __setattr__(self, name, value):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_db_admin_idempotent.py::test_create_tables_is_idempotent
-  D:\twse\twstock\db_admin.py:236: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32110>
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(institutional_data)").fetchall()}
+tests/test_db_admin_misc.py::TestMigrateDb::test_migrate_commits
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999E890>
+    def __setattr__(self, name, value):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_db_admin_idempotent.py::test_create_tables_is_idempotent
-  D:\twse\twstock\db_admin.py:236: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32200>
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(institutional_data)").fetchall()}
+tests/test_db_admin_misc.py::TestMigrateDb::test_migrate_commits
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:806: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999E5C0>
+    def __setattr__(self, name, value):
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B336A0>
-    @final
+tests/test_processor_unit.py::TestDataProcessor::test_upsert_tdcc
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:650: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999FC40>
+    return type(self)(values, placement=self._mgr_locs, ndim=self.ndim, refs=refs)
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33790>
-    @final
+tests/test_processor_unit.py::TestDataProcessor::test_upsert_tdcc
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:650: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999FF10>
+    return type(self)(values, placement=self._mgr_locs, ndim=self.ndim, refs=refs)
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B324D0>
-    @final
+tests/test_processor_unit.py::TestDataProcessor::test_upsert_tdcc
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:650: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999DA80>
+    return type(self)(values, placement=self._mgr_locs, ndim=self.ndim, refs=refs)
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31210>
-    @final
+tests/test_processor_unit.py::TestDataProcessor::test_upsert_tdcc
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:650: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999EB60>
+    return type(self)(values, placement=self._mgr_locs, ndim=self.ndim, refs=refs)
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32E30>
-    @final
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32D40>
-    @final
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33A60>
-    @final
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31120>
-    @final
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestDataProcessor::test_upsert_history_with_none_values
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\generic.py:6131: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33970>
-    @final
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33C40>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B30040>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B308B0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33010>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31C60>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33F10>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32B60>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B323E0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B318A0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B309A0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32A70>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B335B0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B314E0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B331F0>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertTdccEdgeCases::test_upsert_shareholding_sets_source
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:498: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31E40>
-    __dict__['method_calls'] = _CallList()
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31D50>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B32890>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33E20>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B31A80>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B332E0>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B325C0>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33B50>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B327A0>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33D30>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33100>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_processor_unit.py::TestUpsertMeta::test_meta_on_conflict_updates
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\arrays\_mixins.py:130: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B313F0>
-    return self._from_backing_data(self._ndarray)
-  Enable tracemalloc to get traceback where the object was allocated.
-  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-
-tests/test_retry_full.py::TestRetryGet::test_request_exception
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\bs4\element.py:1884: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A1554040>
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999F1F0>
     def __init__(
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_strategy_output_contract.py::test_sr_strategy_output_contract
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\sql.py:2796: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A1555120>
-    result = cur.fetchall()
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999F3D0>
+    def __init__(
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_strategy_output_contract.py::test_sr_strategy_output_contract
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\io\sql.py:2796: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A1554400>
-    result = cur.fetchall()
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999E3E0>
+    def __init__(
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_tui_app.py::TestGetInput::test_get_input_printable_chars
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A0B33880>
-    def __init__(self, name, parent):
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216E999C040>
+    def __init__(
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_tui_app.py::TestGetInput::test_get_input_printable_chars
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A1554130>
-    def __init__(self, name, parent):
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700220>
+    def __init__(
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
-tests/test_tui_app.py::TestGetInput::test_get_input_cache_refresh_triggers_rerender
-  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\rich\segment.py:246: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000235A15556C0>
-    @classmethod
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700130>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700400>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7004F0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7005E0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7006D0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7009A0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7008B0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700A90>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700E50>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertInstitutionalEdgeCases::test_upsert_institutional_source_default
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\managers.py:1095: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700B80>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700F40>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA701210>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA701120>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA701300>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA701030>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA700C70>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7007C0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7013F0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7014E0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7015D0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7016C0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_processor_unit.py::TestUpsertPerData::test_per_data_alias_per_to_pe_ratio
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\internals\blocks.py:315: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7017B0>
+    return type(self)(new_values, new_mgr_locs, self.ndim, refs=refs)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_strategy_output_contract.py::test_pattern_strategy_output_contract
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\bs4\element.py:1884: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7031F0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_strategy_output_contract.py::test_pattern_strategy_output_contract
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\bs4\element.py:1884: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7033D0>
+    def __init__(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_tui_app.py::TestWaitForKey::test_wait_for_key_timeout
+  C:\Users\yungtang\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:2608: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x00000216EA7035B0>
+    return tuple.__new__(cls, (name, args, kwargs))
   Enable tracemalloc to get traceback where the object was allocated.
   See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
 
@@ -329,13 +338,13 @@ twstock\calculator.py                                 241     27    89%   22, 44
 twstock\commands\__init__.py                            0      0   100%
 twstock\commands\dividend.py                           19      4    79%   24-27
 twstock\commands\indicators.py                         20      7    65%   27-33
-twstock\commands\intraday.py                           41     31    24%   24-69
+twstock\commands\intraday.py                           41      1    98%   34
 twstock\commands\official.py                           28      2    93%   37-38
 twstock\commands\strategy.py                            4      0   100%
-twstock\commands\update.py                             52     36    31%   25-67, 72
+twstock\commands\update.py                             52      0   100%
 twstock\conftest.py                                     3      1    67%   5
 twstock\db.py                                          19      0   100%
-twstock\db_admin.py                                    45     14    69%   247, 252-257, 262-269
+twstock\db_admin.py                                    45      0   100%
 twstock\display.py                                    158      4    97%   158, 248, 259, 268
 twstock\fetcher.py                                    449    357    20%   55-61, 78-101, 112-117, 129-157, 161-187, 191-213, 217-235, 239-264, 270, 275, 280, 285, 304-317, 324-348, 352-362, 366-369, 389-400, 407-412, 419-452, 456-466, 473-492, 503-504, 510-523, 529-578, 582-596, 600-603, 616, 623-628, 632-634, 638-642, 649-695, 699-709, 713-716, 727-728, 734-747, 762-777, 781-791, 795-798, 811, 818-829, 842-870, 874-882, 889-907
 twstock\get_fields.py                                  10     10     0%   1-17
@@ -344,7 +353,7 @@ twstock\longcat_vision.py                              57      6    89%   87-89,
 twstock\main.py                                        48     48     0%   17-93
 twstock\market_data\__init__.py                         3      0   100%
 twstock\market_data\cache.py                           34      0   100%
-twstock\market_data\fetcher.py                        157      6    96%   17, 153-154, 165, 200-201
+twstock\market_data\fetcher.py                        157      6    96%   17, 159-160, 171, 206-207
 twstock\official\__init__.py                           10      0   100%
 twstock\official\dividend_crawler.py                  175     33    81%   30, 37-38, 71-72, 76-89, 107-108, 185-186, 202, 239-250
 twstock\official\dividend_daily.py                     41      1    98%   18
@@ -359,7 +368,7 @@ twstock\output_writer.py                               48      0   100%
 twstock\processor.py                                  180      6    97%   154, 301-302, 306-307, 378
 twstock\retry.py                                       23      0   100%
 twstock\strategy\__init__.py                            0      0   100%
-twstock\strategy\_utils.py                             46     24    48%   19, 30-31, 33, 45-67, 84
+twstock\strategy\_utils.py                             46      7    85%   60-67
 twstock\strategy\chips_strategy.py                    317    155    51%   28, 37-38, 42, 48, 52, 56, 76-85, 93, 153, 156-159, 170-217, 221-257, 261-300, 328-330, 332, 342-345, 351, 363, 371, 431-454, 459-460, 473, 477, 482-509, 527-530, 549, 558-562, 566
 twstock\strategy\composites.py                        165     68    59%   57-58, 79-80, 88, 93, 113-114, 122-125, 144, 147-148, 150, 160-166, 171-173, 182-185, 193-213, 221-254, 264-265, 269-270
 twstock\strategy\indicators.py                         77     32    58%   16, 28-29, 38, 44-45, 49-50, 54-55, 67, 91, 110-111, 121-136, 140-144
@@ -370,7 +379,7 @@ twstock\strategy\prediction_strategy.py               274    209    24%   34-35,
 twstock\strategy\sr_analyzer.py                       693    383    45%   30, 57-58, 109, 121, 139, 143, 146, 152-156, 165, 176, 190, 210, 217, 235, 241, 244, 249, 252, 267, 305-306, 308, 320, 330, 335, 337, 368-370, 378-393, 398-413, 416, 420, 424, 432-449, 452-467, 470-474, 477-486, 489-497, 500-506, 511-605, 609-614, 618-631, 635-642, 646-700, 712-777, 781-796, 800-823, 828-832, 845, 851-854, 860-870, 882, 897, 899, 910-911, 921
 twstock\strategy\strategies.py                        244    212    13%   17, 72-78, 81-91, 98, 102, 107-109, 114-119, 124-134, 138-328, 335-344, 347-358
 twstock\strategy_runner.py                             89     30    66%   21-23, 27, 51-71, 86, 104, 115, 124, 136, 141, 146, 151, 169, 204-208
-twstock\terminal.py                                    17      4    76%   19-25, 35-41
+twstock\terminal.py                                    17      2    88%   35-41
 twstock\tests\__init__.py                               0      0   100%
 twstock\tests\conftest.py                              20      0   100%
 twstock\tests\test_001_finmind.py                      98     98     0%   8-290
@@ -392,11 +401,14 @@ twstock\tests\test_calculator.py                       36      0   100%
 twstock\tests\test_calculator_unit.py                 163      0   100%
 twstock\tests\test_chips_strategy.py                   37      0   100%
 twstock\tests\test_commands_execute.py                 49      0   100%
+twstock\tests\test_commands_intraday.py                90      0   100%
 twstock\tests\test_commands_official.py                37      0   100%
 twstock\tests\test_commands_smoke.py                   17      1    94%   17
+twstock\tests\test_commands_update.py                 104      0   100%
 twstock\tests\test_compat_views.py                     42      0   100%
 twstock\tests\test_composites.py                       48      0   100%
 twstock\tests\test_db_admin_idempotent.py              43      0   100%
+twstock\tests\test_db_admin_misc.py                    25      0   100%
 twstock\tests\test_db_schema_bootstrap.py              92      0   100%
 twstock\tests\test_deprecated_modules.py               18      1    94%   56
 twstock\tests\test_display.py                         148      0   100%
@@ -404,7 +416,7 @@ twstock\tests\test_docs_contract.py                    51      0   100%
 twstock\tests\test_fetcher.py                          26      0   100%
 twstock\tests\test_fetcher_unit.py                    325      9    97%   21, 27-31, 388, 437, 472
 twstock\tests\test_input_helper.py                    405    132    67%   391-398, 401-407, 410-411, 417-422, 425-429, 432-436, 439-443, 449-456, 459-466, 474-480, 483-501, 504-528, 531-547, 550-570, 573-593, 596-620, 623-647, 653-671, 674-692, 695-712, 715-733, 737-744
-twstock\tests\test_input_provider.py                   44      0   100%
+twstock\tests\test_input_provider.py                   57      6    89%   78-79, 83-86
 twstock\tests\test_longcat_vision.py                   61      0   100%
 twstock\tests\test_ma_schema_dependencies.py           60      0   100%
 twstock\tests\test_market_cache.py                     58      0   100%
@@ -418,13 +430,15 @@ twstock\tests\test_official_tdcc.py                   146      0   100%
 twstock\tests\test_official_trading_calendar.py       123      0   100%
 twstock\tests\test_official_updater.py                416      0   100%
 twstock\tests\test_output_writer.py                    96      0   100%
-twstock\tests\test_processor_unit.py                  341      2    99%   738-739
+twstock\tests\test_processor_unit.py                  341      4    99%   725-726, 738-739
 twstock\tests\test_retry_full.py                       64      0   100%
 twstock\tests\test_schema_contract.py                  43      0   100%
 twstock\tests\test_strategy_interface_contract.py      22      3    86%   39-42
 twstock\tests\test_strategy_output_contract.py         52      0   100%
 twstock\tests\test_strategy_runner_delegation.py       22      0   100%
 twstock\tests\test_strategy_runner_dispatch.py        105      5    95%   19-36
+twstock\tests\test_strategy_utils.py                   82      0   100%
+twstock\tests\test_terminal.py                         39      1    97%   12
 twstock\tests\test_tui_app.py                         266      1    99%   12
 twstock\tests\test_tui_menu.py                        115      0   100%
 twstock\tests\test_tui_render.py                       60      0   100%
@@ -432,14 +446,16 @@ twstock\tests\test_tui_smoke.py                         7      0   100%
 twstock\tests\test_tui_state_machine.py                89      0   100%
 twstock\tests\test_units_contract.py                   42      0   100%
 twstock\tests\test_updater_schema_compat.py            49      0   100%
-twstock\tests\test_utils.py                            86      1    99%   13
+twstock\tests\test_utils.py                           182      6    97%   13, 130-134, 218-219
 twstock\tui\__init__.py                                 0      0   100%
 twstock\tui\app.py                                    112      3    97%   113-115
-twstock\tui\input_provider.py                          73     36    51%   34-38, 41-42, 45-47, 54-66, 69-73, 76-81, 113-115
+twstock\tui\input_provider.py                          73     35    52%   39-43, 46-47, 50-52, 59-71, 74-78, 81-86, 118-119
 twstock\tui\menu.py                                   132     18    86%   119-120, 126-127, 134-135, 145, 154-155, 160-164, 167, 173-179
 twstock\tui\render.py                                 114     12    89%   39-40, 67, 71, 84-85, 140-141, 144-147
 twstock\tui\state_machine.py                           63      0   100%
-twstock\utils.py                                      103     15    85%   24, 80, 108-109, 126-127, 155-156, 162-168
+twstock\utils.py                                      103      8    92%   24, 71-72, 80, 126-127, 155-156
 ---------------------------------------------------------------------------------
-TOTAL                                               12058   3973    67%
-590 passed, 22 skipped, 59 warnings in 18.37s
+TOTAL                                               12507   3880    69%
+=========================== short test summary info ===========================
+FAILED twstock\tests\test_processor_unit.py::TestMainGuard::test_main_guard
+1 failed, 630 passed, 22 skipped, 52 warnings in 23.47s
