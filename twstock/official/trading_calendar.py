@@ -18,6 +18,7 @@ if str(_PARENT) not in sys.path:
     sys.path.append(str(_PARENT))
 from db import DB_PATH
 from retry import retry_get
+from twstock.utils import get_ssl_verify
 
 def _date_to_int(dt: datetime) -> int:
     return int(dt.strftime("%Y%m%d"))
@@ -39,7 +40,7 @@ def init_trading_calendar():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=True)
+        resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=get_ssl_verify())
         if resp is None:
             print("⚠️ 無法取得官方休市日曆 (retry failed)", flush=True)
             return

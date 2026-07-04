@@ -17,6 +17,7 @@ if _PKG_DIR not in sys.path:
     sys.path.insert(0, _PKG_DIR)
 
 from utils import get_http_session, safe_float, safe_int  # noqa: E402
+from twstock.utils import get_ssl_verify
 
 
 # ── **Public API** — 即時盤中指數抓取 ─────────────────
@@ -73,7 +74,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
 
         safe_http_get(
             "https://mis.twstock.com.tw/stock/index.jsp",
-            session=session, timeout=5, verify=True,
+            session=session, timeout=5, verify=get_ssl_verify(),
         )
     except Exception:
         pass

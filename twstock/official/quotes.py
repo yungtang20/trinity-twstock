@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from .utils import safe_int, safe_float
 from retry import retry_get
+from twstock.utils import get_ssl_verify
 
 def _get_session():
     session = requests.Session()
@@ -27,7 +28,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         timeout=10,
         retries=3,
         backoff=1.0,
-        verify=True,
+        verify=get_ssl_verify(),
     )
     if resp is None:
         logging.error("TWSE quotes fetch failed for %s after retries", date_str)
@@ -93,7 +94,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         timeout=10,
         retries=3,
         backoff=1.0,
-        verify=True,
+        verify=get_ssl_verify(),
     )
     if resp is None:
         logging.error("TPEx quotes fetch failed for %s after retries", date_int)
@@ -160,7 +161,7 @@ def update_stock_meta_from_df(df: pd.DataFrame):
     """從行情 df 擷取 stock_id, name, market → 更新 stock_meta"""
     if df.empty:
         return
-    from db_admin import save_stock_meta
+    from twstock.processor import DataProcessor
 
     # 需要的欄位：stock_id, name（必要）；market 由 updater.py 在 concat 前標記
     needed = ["stock_id", "name"]
@@ -175,4 +176,4 @@ def update_stock_meta_from_df(df: pd.DataFrame):
     if "market" not in meta_df.columns:
         meta_df["market"] = ""
 
-    save_stock_meta(meta_df)
+    DataProcessor().upsert_meta(meta_df)

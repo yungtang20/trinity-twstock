@@ -26,6 +26,44 @@ if _DIR not in sys.path:
 from db import get_connection, get_path, file_size_mb  # noqa: E402  # ponytail: db 為基礎模組，此頂層耦合可接受（utils 無循環依賴風險）
 
 
+# ── SSL 驗證設定 ─────────────────────────────────────────
+_SSL_VERIFY_VALUE: bool | str | None = None  # 模組快取，避免重複偵測
+
+
+def get_ssl_verify() -> bool | str:
+    """決定 SSL verify 參數值。
+
+    優先順序：
+      1. 環境變數 REQUESTS_CA_BUNDLE / CURL_CA_BUNDLE（若指向有效檔案）
+      2. certifi 提供的 CA bundle（若套件已安裝）
+      3. True（requests 內建 CA bundle）
+
+    回傳值可直接傳入 requests.get(verify=...)。
+    """
+    global _SSL_VERIFY_VALUE
+    if _SSL_VERIFY_VALUE is not None:
+        return _SSL_VERIFY_VALUE
+
+    # 1. 環境變數
+    for env_var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        env_path = os.environ.get(env_var)
+        if env_path and os.path.isfile(env_path):
+            _SSL_VERIFY_VALUE = env_path
+            return _SSL_VERIFY_VALUE
+
+    # 2. certifi
+    try:
+        import certifi
+        _SSL_VERIFY_VALUE = certifi.where()
+        return _SSL_VERIFY_VALUE
+    except ImportError:
+        pass
+
+    # 3. 預設
+    _SSL_VERIFY_VALUE = True
+    return _SSL_VERIFY_VALUE
+
+
 # ── 安全數值轉換（統一處理千分位逗號）────────────────────
 def safe_float(val, default: float = 0.0) -> float:
     """將值轉為 float，處理 '-' / '' / None / 千分位逗號。"""
@@ -73,7 +111,11 @@ def get_http_session():
 
 
 def safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, headers=None):
-    """安全 GET，失敗回傳 None。"""
+    """安全 GET，失敗回傳 None。
+
+    verify 可傳入 True（requests 內建 CA）、False（不驗證，不建議）、
+    或字串（CA bundle 路徑，如 certifi.where()）。
+    """
     if session is None:
         session = get_http_session()
     if session is None:

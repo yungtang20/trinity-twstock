@@ -11,6 +11,7 @@ import urllib3
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from .utils import safe_int, safe_float
+from twstock.utils import get_ssl_verify
 
 # Suppress insecure SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -33,7 +34,7 @@ def fetch_single_stock_tdcc_from_portal(stock_id: str, date_str: str, session: r
 
     try:
         # 1. 取得查詢頁面以擷取 CSRF Token 與下拉選單日期
-        r_get = session.get('https://www.tdcc.com.tw/portal/zh/smWeb/qryStock', verify=True, timeout=15)
+        r_get = session.get('https://www.tdcc.com.tw/portal/zh/smWeb/qryStock', verify=get_ssl_verify(), timeout=15)
         if r_get.status_code != 200:
             return None
 
@@ -74,7 +75,7 @@ def fetch_single_stock_tdcc_from_portal(stock_id: str, date_str: str, session: r
             'stockNo': stock_id
         }
 
-        r_post = session.post('https://www.tdcc.com.tw/portal/zh/smWeb/qryStock', data=payload, verify=True, timeout=15)
+        r_post = session.post('https://www.tdcc.com.tw/portal/zh/smWeb/qryStock', data=payload, verify=get_ssl_verify(), timeout=15)
         if r_post.status_code != 200:
             return None
 

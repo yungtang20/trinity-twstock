@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """official 套件公開 API — 外部僅允許從此模組導入。"""
+import os
+import sys
+
+# 確保 twstock 套件可被匯入（支援直接執行腳本）
+_PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PARENT not in sys.path:
+    sys.path.insert(0, _PARENT)
+
+# SSL 驗證設定：優先使用 certifi CA bundle
+from twstock.utils import get_ssl_verify  # noqa: E402
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

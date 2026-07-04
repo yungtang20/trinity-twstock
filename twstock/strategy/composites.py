@@ -21,7 +21,7 @@ from twstock.display import price_rich, vol_diff_rich, render_kline
 from twstock.longcat_vision import analyze_kline_with_longcat
 from twstock.strategy._utils import fetch_klines
 from twstock.strategy.strategies import STRATEGY_REGISTRY
-from twstock.utils import get_stock_name, get_http_session, safe_http_get, safe_float, safe_int
+from twstock.utils import get_stock_name, get_http_session, safe_http_get, safe_float, safe_int, get_ssl_verify
 from twstock.terminal import console
 
 # 策略模組 ID 與顯示標籤
@@ -139,7 +139,7 @@ def _fetch_live_quote(stock_id: str):
             f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
             f"?ex_ch={ex_ch}&json=1&delay=0&_={int(time.time() * 1000)}"
         )
-        r = safe_http_get(url, session=session, timeout=3, verify=True)
+        r = safe_http_get(url, session=session, timeout=3, verify=get_ssl_verify())
         if not r:
             return None, None
         try:

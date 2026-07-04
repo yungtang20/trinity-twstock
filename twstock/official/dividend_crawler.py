@@ -38,6 +38,7 @@ except ImportError:
     FINMIND_AVAILABLE = False
 
 from retry import retry_get
+from twstock.utils import get_ssl_verify
 
 def _convert_date(date_str: str, input_format: str) -> str:
     """Convert 'YYYYMMDD' or 'YYY/MM/DD' to standard 'YYYY-MM-DD'"""
@@ -101,7 +102,7 @@ def fetch_twse_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         timeout=30,
         retries=3,
         backoff=1.0,
-        verify=True,
+        verify=get_ssl_verify(),
     )
     if resp is None:
         print(f"  [ERROR] TWSE crawler failed after retries")
@@ -179,7 +180,7 @@ def fetch_tpex_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         timeout=30,
         retries=3,
         backoff=1.0,
-        verify=True,
+        verify=get_ssl_verify(),
     )
     if resp is None:
         print(f"  [ERROR] TPEx crawler failed after retries")
