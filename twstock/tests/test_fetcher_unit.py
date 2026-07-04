@@ -98,6 +98,32 @@ class TestGetRealtimeMisData:
 
         assert isinstance(result, dict)
 
+    @patch("twstock.market_data.fetcher.get_http_session")
+    @patch("twstock.utils.safe_http_get")
+    def test_mi_index_without_stat_parsed(self, mock_get, mock_sess):
+        """TWSE MI_INDEX JSON without stat but with tables should still be parsed."""
+        mock_sess.return_value = MagicMock()
+
+        def side(url, *args, **kwargs):
+            if "MI_INDEX" in url:
+                return SimpleNamespace(
+                    json=lambda: {
+                        "tables": [
+                            {
+                                "title": "115年07月03日 大盤統計資訊",
+                                "fields": ["成交統計", "成交金額(元)", "成交股數(股)", "成交筆數"],
+                                "data": [["1.一般股票", "1,000", "100", "10"]],
+                            }
+                        ]
+                    }
+                )
+            return None
+
+        mock_get.side_effect = side
+        result = fetcher.get_realtime_mis_data()
+        assert isinstance(result, dict)
+        assert result.get("queryTime") is not None
+
 
 # ── fetch_market_indices ──────────────────────────────────
 
@@ -374,11 +400,12 @@ class TestFetchMarketIndicesBranches:
                     json=lambda: {
                         "tables": [
                             {
-                                "title": "漲跌證券數合 計",
+                                "title": "漲跌證券數合計",
+                                "fields": ["類型", "整體市場", "股票"],
                                 "data": [
-                                    ["a", "b", "100(5)"],
-                                    ["a", "b", "200(10)"],
-                                    ["a", "b", "50(0)"],
+                                    ["上漲(漲停)", "1000(25)", "50(0)"],
+                                    ["下跌(跌停)", "800(12)", "80(1)"],
+                                    ["持平", "200", "20"],
                                 ],
                             },
                             {
@@ -430,10 +457,10 @@ class TestFetchMarketIndicesBranches:
 
         r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
-        # TAIEX breadth
-        assert r["TAIEX"]["up"] == 100 and r["TAIEX"]["l_up"] == 5
-        assert r["TAIEX"]["down"] == 200 and r["TAIEX"]["l_down"] == 10
-        assert r["TAIEX"]["flat"] == 50
+        # TAIEX breadth (uses 股票 column, excludes ETF/warrants/etc.)
+        assert r["TAIEX"]["up"] == 50 and r["TAIEX"]["l_up"] == 0
+        assert r["TAIEX"]["down"] == 80 and r["TAIEX"]["l_down"] == 1
+        assert r["TAIEX"]["flat"] == 20
         # OTC from TPEx highlight (via _safe_int_idx)
         assert r["OTC"]["up"] == 300 and r["OTC"]["l_up"] == 10
         assert r["OTC"]["down"] == 150 and r["OTC"]["l_down"] == 5

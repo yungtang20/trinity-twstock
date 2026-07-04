@@ -335,16 +335,16 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 data_rows = t_breadth.get("data", [])
                 fields = t_breadth.get("fields", [])
                 field_idx = {name: i for i, name in enumerate(fields)}
-                market_col = field_idx.get("整體市場", 1)
+                stock_col = field_idx.get("股票", 2)
                 if len(data_rows) >= 3:
                     results["TAIEX"]["up"], results["TAIEX"]["l_up"] = _parse_breadth(
-                        data_rows[0][market_col] if market_col < len(data_rows[0]) else ""
+                        data_rows[0][stock_col] if stock_col < len(data_rows[0]) else ""
                     )
                     results["TAIEX"]["down"], results["TAIEX"]["l_down"] = _parse_breadth(
-                        data_rows[1][market_col] if market_col < len(data_rows[1]) else ""
+                        data_rows[1][stock_col] if stock_col < len(data_rows[1]) else ""
                     )
                     results["TAIEX"]["flat"] = _parse_breadth(
-                        data_rows[2][market_col] if market_col < len(data_rows[2]) else ""
+                        data_rows[2][stock_col] if stock_col < len(data_rows[2]) else ""
                     )[0]
 
             t_total = next(
