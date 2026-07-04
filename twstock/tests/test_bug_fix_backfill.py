@@ -1,6 +1,6 @@
 def test_no_hardcoded_windows_path():
     import os
-    fpath = os.path.join(os.path.dirname(__file__), '..', 'backfill_indicators.py')
+    fpath = os.path.join(os.path.dirname(__file__), '..', '..', 'scripts', 'backfill_indicators.py')
     with open(fpath, 'r', encoding='utf-8') as f:
         content = f.read()
     assert 'D:\\twse' not in content
@@ -8,7 +8,7 @@ def test_no_hardcoded_windows_path():
 
 def test_no_undefined_elapsed1():
     import os
-    fpath = os.path.join(os.path.dirname(__file__), '..', 'backfill_indicators.py')
+    fpath = os.path.join(os.path.dirname(__file__), '..', '..', 'scripts', 'backfill_indicators.py')
     with open(fpath, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     for i, line in enumerate(lines):
@@ -18,7 +18,7 @@ def test_no_undefined_elapsed1():
 
 def test_backfill_uses_get_connection():
     import os
-    fpath = os.path.join(os.path.dirname(__file__), '..', 'backfill_indicators.py')
+    fpath = os.path.join(os.path.dirname(__file__), '..', '..', 'scripts', 'backfill_indicators.py')
     with open(fpath, 'r', encoding='utf-8') as f:
         content = f.read()
     assert 'get_connection' in content

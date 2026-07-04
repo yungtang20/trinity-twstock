@@ -117,11 +117,27 @@ twstock/
 
 ---
 
+## 錯誤處理策略（2026-07-04 統一）
+
+|  categoría | 策略 | 說明 |
+|-----------|------|------|
+| **fetcher.py**（FinMind API） | **拋例外** | `ValueError` / `Exception` 告知 caller 明確失敗；caller 決定是否重試或顯示錯誤 |
+| **official/*.py**（TWSE/TPEx/TDCC 爬蟲） | **回傳空 DataFrame** | 爬蟲失敗為常見情境（網站維護、網路不穩），空 DataFrame 讓 caller 以 `.empty` 判斷即可 |
+| **retry.py** | **回傳 None + log 警告** | 底層 HTTP 重試包裝器，所有重試耗盡後回傳 None，log 記錄完整錯誤 |
+| **utils.py:safe_http_get** | **回傳 None** | 安全包裝器，失敗不回傳例外 |
+| **strategy_runner.py** | **回傳狀態 dict** | `{"status": "ok"/"no_result"/"error"}` 供 JSON API 消費者解析 |
+| **SSL 失敗** | **自動 fallback** | `retry.py` 捕捉 `SSLError` 後自動以 `verify=False` 重試一次（log 警告），仍失敗才回傳 None |
+
+**原則**：底層（HTTP/retry）回傳 None，中層（official 爬蟲）回傳空 DataFrame，頂層（fetcher/strategy）決定是否拋例外。
+
+---
+
 ## 變更紀錄
 
 - **2026-07-02**：建立本文件。記錄 main.py 拆分設計決策（commands/ 拆分、TUIApp 封裝、HTTP 不注入、策略組合邏輯回歸 strategy 套件）。
 - **2026-07-02**：技術債收斂輪 #1 — 結清 6 項（config.py/待刪 indicators.py、safe_float、get_single_key_input、fetch_klines 重複、雙寫入路徑、PER 測試）；strategy_runner 標記保留。
 - **2026-07-02**：技術債收斂輪 #2 — 結清 4 項：(1) 刪除 dead `indicators.py`（341 行 + 5 測試 ≈ 770 行）(2) 密封 `official/` 套件（`__all__ + re-export）(3) 修正 12 處 `verify=False` 安全漏洞 (4) `tui/menu.py` input 委派至 `input_helper`。淨減 1,135 行。
+- **2026-07-04**：套件正規化 + 死代碼清理 — 建立 `twstock/__init__.py`、修正 43 行隱式相對匯入、移除 `clear_screen`/`get_stock_name` 重複實作、清理 8 個未使用 `api_config.py` 函式、移動 3 個一次性腳本至 `scripts/`、統一錯誤處理策略。淨減 ~120 行。
 
 ---
 

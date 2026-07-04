@@ -14,13 +14,12 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 
-def clear_screen() -> None:
-    """Clear terminal screen (cross-platform)."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+# 清幕：統一使用 input_controller 版本（避免重複實作）
+from twstock.input_helper import clear_screen  # noqa: F401  (re-export for backwards compat)
 
 
-def get_stock_name(conn: sqlite3.Connection, stock_id: str, fallback: dict = None) -> str:
-    """Get stock name from database, with optional fallback dict."""
+def _lookup_stock_name(conn: sqlite3.Connection, stock_id: str) -> Optional[str]:
+    """內部實作：從 stock_meta 查名稱，失敗回傳 None。"""
     try:
         row = conn.execute(
             "SELECT stock_name FROM stock_meta WHERE stock_id = ?", (stock_id,)
@@ -29,6 +28,14 @@ def get_stock_name(conn: sqlite3.Connection, stock_id: str, fallback: dict = Non
             return row[0]
     except Exception:
         pass
+    return None
+
+
+def get_stock_name(conn: sqlite3.Connection, stock_id: str, fallback: dict = None) -> str:
+    """Get stock name from database, with optional fallback dict."""
+    name = _lookup_stock_name(conn, stock_id)
+    if name:
+        return name
     if fallback and stock_id in fallback:
         return fallback[stock_id]
     return "-"

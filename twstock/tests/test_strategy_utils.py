@@ -12,20 +12,6 @@ import pytest
 from twstock.strategy import _utils
 
 
-class TestClearScreen:
-    @patch("twstock.strategy._utils.os.system")
-    def test_windows_nt(self, mock_system):
-        with patch.object(os, "name", "nt"):
-            _utils.clear_screen()
-        mock_system.assert_called_once_with("cls")
-
-    @patch("twstock.strategy._utils.os.system")
-    def test_unix_posix(self, mock_system):
-        with patch.object(os, "name", "posix"):
-            _utils.clear_screen()
-        mock_system.assert_called_once_with("clear")
-
-
 class TestGetStockName:
     def test_returns_name_from_db(self):
         conn = MagicMock()

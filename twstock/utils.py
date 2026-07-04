@@ -139,17 +139,12 @@ def get_token():
 
 def get_stock_name(stock_id: str) -> str:
     """從 stock_meta 取得股票名稱，失敗回傳 '未知'。"""
+    from twstock.strategy._utils import _lookup_stock_name
     try:
         with get_connection(readonly=True) as conn:
-            row = conn.execute(
-                "SELECT stock_name FROM stock_meta WHERE stock_id = ?",
-                (stock_id,),
-            ).fetchone()
-            if row and row[0]:
-                return row[0]
+            return _lookup_stock_name(conn, stock_id) or "未知"
     except Exception:
-        pass
-    return "未知"
+        return "未知"
 
 
 # ── 日期轉換 ─────────────────────────────────────────────
