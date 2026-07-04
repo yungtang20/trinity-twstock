@@ -99,8 +99,13 @@ def render_dashboard() -> None:
 
 # ── panel helpers ──────────────────────────────────────────
 def _render_market_panel(layout, indices) -> None:
+    # 嘗試從 cache 取得資料（即使 background fetch 尚未完全結束）
     if not indices:
-        # 區分「抓取中」vs「抓取失敗」狀態
+        indices = _market_cache.get()
+
+    if not indices or (indices.get("TAIEX", {}).get("price", 0) == 0
+                       and indices.get("OTC", {}).get("price", 0) == 0):
+        # 資料尚未到達或全部失敗
         status = _market_cache.get_status()
         if status["is_fetching"]:
             msg = "正在獲取即時數據..."
