@@ -64,16 +64,31 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
 
 # ── TWSE MIS 即時指數 ───────────────────────────────────
 def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
-    """從 TWSE MIS API 抓取大盤 / 櫃買即時指數。"""
+    """從 TWSE MIS 或 TWSE 官方 API 抓取大盤 / 櫃買即時指數。
+
+    策略：優先嘗試 TWSE OpenAPI（多數環境可連線），失敗才用 MIS API。
+    """
+    from twstock.utils import safe_http_get, get_ssl_verify
     session = get_http_session()
     if session is None:
         return {}
-    try:
-        from twstock.utils import safe_http_get
 
+    # 方法 1: TWSE 官方 MI_INDEX API（收盤後仍有數據）
+    try:
+        url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
+        r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
+        if r:
+            data = r.json()
+            if data.get("stat") == "OK" and data.get("tables"):
+                return _parse_twse_mi_index(data)
+    except Exception:
+        pass
+
+    # 方法 2: MIS API（某些環境可能 DNS 無法解析）
+    try:
         safe_http_get(
             "https://mis.twstock.com.tw/stock/index.jsp",
-            session=session, timeout=5, verify=get_ssl_verify(),
+            session=session, timeout=3, verify=get_ssl_verify(),
         )
     except Exception:
         pass
@@ -88,15 +103,108 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
         "https://mis.twstock.com.tw/stock/api/getStockInfo.jsp"
         f"?ex_ch={'|'.join(ex_ch_list)}&json=1&delay=0&_={int(time.time() * 1000)}"
     )
-    from twstock.utils import safe_http_get
-
-    r = safe_http_get(api_url, session=session, timeout=1.5, verify=True)
-    if not r:
-        return {}
     try:
-        return r.json()
-    except ValueError:
-        return {}
+        r = safe_http_get(api_url, session=session, timeout=3, verify=get_ssl_verify())
+        if r:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
+    """將 TWSE MI_INDEX JSON 轉為 get_realtime_mis_data 相容格式。
+
+    TAIEX 收盤指數從「漲跌證券數合計」前一表格的 index 欄位推導，
+    或直接用 TWSE 每日收盤指數 API 取得。此處採「大盤統計資訊」表格的
+    fields 欄位名稱判斷哪個是收盤指數。
+
+    注意：TWSE MI_INDEX type=MS 回傳的是「各類商品成交金額/收盤指數」表格，
+    需要找 fields 中有「收盤指數」的表格，不能直接用總計 row。
+    """
+    import re as _re
+    result: Dict[str, Any] = {"msgArray": [], "queryTime": {}}
+    sys_date = data.get("date", "")
+    if sys_date and len(sys_date) == 8:
+        result["queryTime"]["sysDate"] = f"{sys_date[:4]}-{sys_date[4:6]}-{sys_date[6:]}"
+
+    # 找包含「收盤指數」的表格（非「大盤統計資訊」）
+    for table in data.get("tables", []):
+        title = table.get("title", "")
+        rows = table.get("data", [])
+        if "統計" in title and rows:
+            for row in rows:
+                if "總計" in str(row[0]):
+                    # 這個表格的 value 欄位依次是：成交金額、成交股數、成交筆數
+                    # 我們無法從 type=MS 取得收盤指數，改用漲跌證券數合計的漲跌家數
+                    break
+
+    # 取得 TAIEX 收盤指數：用 FMTQIK（每日收盤指數）API
+    if not result["msgArray"]:
+        try:
+            from twstock.utils import get_http_session, safe_http_get
+            session = get_http_session()
+            if session:
+                url2 = "https://www.twse.com.tw/exchangeReport/FMTQIK?response=json"
+                r2 = safe_http_get(url2, session=session, timeout=5, verify=get_ssl_verify())
+                if r2:
+                    data2 = r2.json()
+                    if data2.get("stat") == "OK" and data2.get("data"):
+                        latest = data2["data"][-1]
+                        #: [日期, 成交金額, 成交股數, 成交筆數, 發行量加權股價指數, 漲跌點數]
+                        if len(latest) >= 6:
+                            idx_str = str(latest[4]).replace(",", "").strip()
+                            chg_str = str(latest[5]).replace(",", "").strip()
+                            try:
+                                idx_val = float(idx_str)
+                                chg_val = float(chg_str)
+                                prev_val = idx_val - chg_val
+                                result["msgArray"].append({
+                                    "c": "t00",
+                                    "z": idx_str,
+                                    "y": f"{prev_val:.2f}",
+                                })
+                                result["queryTime"]["sysDate"] = str(latest[0]).replace("/", "-")
+                            except ValueError:
+                                pass
+        except Exception:
+            pass
+
+    return result
+
+
+# ── OTC 指數（TPEx）─────────────────────────────────────
+def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
+    """從 TPEx highlight API 取得櫃買指數。回傳 dict 或 None。"""
+    from twstock.utils import safe_http_get, get_ssl_verify
+    session = get_http_session()
+    if session is None:
+        return None
+    url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw"
+    r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
+    if not r:
+        return None
+    data = r.json()
+    if data.get("stat") != "ok" or not data.get("tables"):
+        return None
+    table = data["tables"][0]
+    fields = table.get("fields", [])
+    rows = table.get("data", [])
+    if not rows:
+        return None
+    row = rows[0]
+    field_idx = {name: i for i, name in enumerate(fields)}
+    idx_i = field_idx.get("收市指數")
+    chg_i = field_idx.get("指數漲跌")
+    if idx_i is None or idx_i >= len(row):
+        return None
+    price = safe_float(row[idx_i])
+    change = safe_float(row[chg_i]) if chg_i is not None and chg_i < len(row) else 0
+    prev = price - change
+    return {
+        "price": price, "change": change,
+        "pct": (change / prev * 100) if prev else 0,
+    }
 
 
 # ── 整合入口 ─────────────────────────────────────────────
@@ -127,6 +235,15 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 results["date"] = data["queryTime"].get("sysDate", "")
     except Exception:
         pass
+
+    # OTC 指數：從 TPEx highlight API 補齊（get_realtime_mis_data 只提供 TAIEX）
+    if results["OTC"]["price"] == 0:
+        try:
+            otc_data = _fetch_otc_from_tpex()
+            if otc_data:
+                results["OTC"].update(otc_data)
+        except Exception:
+            pass
 
     try:
         twse_vol, tpex_vol = get_yahoo_market_volumes()
