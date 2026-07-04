@@ -99,8 +99,16 @@ def render_dashboard() -> None:
 # ── panel helpers ──────────────────────────────────────────
 def _render_market_panel(layout, indices) -> None:
     if not indices:
+        # 區分「抓取中」vs「抓取失敗」狀態
+        status = _market_cache.get_status()
+        if status["is_fetching"]:
+            msg = "正在獲取即時數據..."
+        elif status["last_error"]:
+            msg = f"⚠️ 即時行情失敗：{status['last_error']}"
+        else:
+            msg = "⚠️ 無法取得即時行情"
         layout["market"].update(Panel(
-            Align.left(Text("正在獲取即時數據...", style="dim")),
+            Align.left(Text(msg, style="dim")),
             title=" 市場行情 ",
         ))
         return
