@@ -18,10 +18,16 @@ import argparse
 import os
 import sys
 
-# 統一資料庫：路徑僅需指向 twstock 目錄
+# 支援雙模式執行：
+#   python -m twstock.main        → Python 自動將 D:\twse 加進 sys.path
+#   python d:/twse/twstock/main.py → Python 只加 D:\twse\twstock，需手動補兩層：
+#     1. 專案根目錄（D:\twse）讓 from twstock.xxx 能解析
+#     2. 套件目錄（D:\twse\twstock）讓套件內 from db import ... 隱式相對 import 能解析
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _CURRENT_DIR not in sys.path:
-    sys.path.insert(0, _CURRENT_DIR)
+_PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
+for _p in (_PROJECT_ROOT, _CURRENT_DIR):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from twstock.db import get_path
 from twstock.db_admin import init_db, migrate_db
