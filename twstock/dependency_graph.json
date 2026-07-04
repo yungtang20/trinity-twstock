@@ -1,0 +1,137 @@
+{
+  "twstock.api_config": [],
+  "twstock.backfill_indicators": [],
+  "twstock.calculator": [],
+  "twstock.commands.__init__": [],
+  "twstock.commands.dividend": [
+    "twstock.terminal"
+  ],
+  "twstock.commands.indicators": [
+    "twstock.db",
+    "twstock.terminal",
+    "twstock.utils"
+  ],
+  "twstock.commands.intraday": [
+    "twstock.calculator",
+    "twstock.commands.update",
+    "twstock.db",
+    "twstock.fetcher",
+    "twstock.terminal",
+    "twstock.utils"
+  ],
+  "twstock.commands.official": [
+    "twstock.terminal"
+  ],
+  "twstock.commands.strategy": [
+    "twstock.strategy.strategies"
+  ],
+  "twstock.commands.update": [
+    "twstock.fetcher",
+    "twstock.processor",
+    "twstock.terminal"
+  ],
+  "twstock.conftest": [],
+  "twstock.db": [],
+  "twstock.db_admin": [],
+  "twstock.display": [],
+  "twstock.fetcher": [],
+  "twstock.get_fields": [],
+  "twstock.input_helper": [],
+  "twstock.longcat_vision": [],
+  "twstock.main": [
+    "twstock.db",
+    "twstock.db_admin",
+    "twstock.terminal",
+    "twstock.tui.app",
+    "twstock.utils"
+  ],
+  "twstock.market_data.__init__": [],
+  "twstock.market_data.cache": [],
+  "twstock.market_data.fetcher": [],
+  "twstock.official.__init__": [],
+  "twstock.official.dividend_crawler": [],
+  "twstock.official.dividend_daily": [],
+  "twstock.official.institutional": [],
+  "twstock.official.quotes": [],
+  "twstock.official.suspended": [],
+  "twstock.official.tdcc": [],
+  "twstock.official.trading_calendar": [],
+  "twstock.official.updater": [],
+  "twstock.official.utils": [],
+  "twstock.output_writer": [
+    "twstock.terminal"
+  ],
+  "twstock.processor": [],
+  "twstock.retry": [],
+  "twstock.strategy.__init__": [],
+  "twstock.strategy._utils": [],
+  "twstock.strategy.chips_strategy": [
+    "twstock.input_helper"
+  ],
+  "twstock.strategy.composites": [
+    "twstock.db",
+    "twstock.display",
+    "twstock.longcat_vision",
+    "twstock.strategy._utils",
+    "twstock.strategy.strategies",
+    "twstock.terminal",
+    "twstock.utils"
+  ],
+  "twstock.strategy.indicators": [],
+  "twstock.strategy.kronos_engine": [],
+  "twstock.strategy.ma_strategy": [
+    "twstock.input_helper"
+  ],
+  "twstock.strategy.patterns_strategy": [
+    "twstock.input_helper"
+  ],
+  "twstock.strategy.prediction_strategy": [
+    "twstock.input_helper",
+    "twstock.strategy._utils"
+  ],
+  "twstock.strategy.sr_analyzer": [
+    "twstock.db",
+    "twstock.display",
+    "twstock.input_helper",
+    "twstock.strategy._utils"
+  ],
+  "twstock.strategy.strategies": [
+    "twstock.input_helper",
+    "twstock.terminal"
+  ],
+  "twstock.strategy.templates.strategy_template": [],
+  "twstock.strategy_runner": [],
+  "twstock.tasks.final_audit": [],
+  "twstock.terminal": [],
+  "twstock.tests.__init__": [],
+  "twstock.tests.conftest": [],
+  "twstock.tui.__init__": [],
+  "twstock.tui.app": [
+    "twstock.input_helper",
+    "twstock.strategy.composites",
+    "twstock.strategy.strategies",
+    "twstock.terminal",
+    "twstock.tui.menu",
+    "twstock.tui.render",
+    "twstock.tui.state_machine",
+    "twstock.utils"
+  ],
+  "twstock.tui.input_provider": [],
+  "twstock.tui.menu": [
+    "twstock.db",
+    "twstock.input_helper",
+    "twstock.strategy.strategies",
+    "twstock.terminal",
+    "twstock.utils"
+  ],
+  "twstock.tui.render": [
+    "twstock.display",
+    "twstock.market_data.cache",
+    "twstock.terminal",
+    "twstock.utils"
+  ],
+  "twstock.tui.state_machine": [],
+  "twstock.utils": [
+    "twstock.api_config"
+  ]
+}

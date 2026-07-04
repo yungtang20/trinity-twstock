@@ -21,7 +21,11 @@ from twstock.terminal import console
 
 @runtime_checkable
 class OutputWriter(Protocol):
-    """輸出寫入器協定。"""
+    """**Public API** — 輸出寫入器協定。
+
+    所有策略分析結果的輸出必須透過此協定，不可繞過直接呼叫 rich。
+    變更此 Protocol 簽名前，須先檢查 dependency_graph.json 中所有依賴方。
+    """
 
     def write_result(self, data: dict) -> None:
         """寫入策略分析結果。"""

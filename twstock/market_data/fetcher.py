@@ -19,6 +19,12 @@ if _PKG_DIR not in sys.path:
 from utils import get_http_session, safe_float, safe_int  # noqa: E402
 
 
+# ── **Public API** — 即時盤中指數抓取 ─────────────────
+# 此檔案的頂級函式（get_yahoo_market_volumes, get_realtime_mis_data,
+# fetch_market_indices）為 **Public API**。
+# 變更簽名前，須先檢查 dependency_graph.json 中所有依賴方。
+
+
 # ── Yahoo 成交金額 ──────────────────────────────────────
 def get_yahoo_market_volumes() -> Tuple[str, str]:
     """從 Yahoo 財經抓取 TWSE / TPEx 成交金額（億）。"""

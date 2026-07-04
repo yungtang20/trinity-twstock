@@ -12,7 +12,12 @@ from typing import List, Optional, Protocol, runtime_checkable
 
 @runtime_checkable
 class InputProvider(Protocol):
-    """鍵盤輸入提供者協定。"""
+    """**Public API** — 鍵盤輸入提供者協定。
+
+    所有需要鍵盤輸入的模組（app、strategy、menu）必須透過此協定注入，
+    不可直接呼叫 msvcrt/input。
+    變更此 Protocol 簽名前，須先檢查 dependency_graph.json 中所有依賴方。
+    """
 
     def get_key(self, prompt: str = "") -> str:
         """阻塞讀取單鍵（或整行）。"""

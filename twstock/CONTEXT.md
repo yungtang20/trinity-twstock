@@ -122,3 +122,54 @@ twstock/
 - **2026-07-02**：建立本文件。記錄 main.py 拆分設計決策（commands/ 拆分、TUIApp 封裝、HTTP 不注入、策略組合邏輯回歸 strategy 套件）。
 - **2026-07-02**：技術債收斂輪 #1 — 結清 6 項（config.py/待刪 indicators.py、safe_float、get_single_key_input、fetch_klines 重複、雙寫入路徑、PER 測試）；strategy_runner 標記保留。
 - **2026-07-02**：技術債收斂輪 #2 — 結清 4 項：(1) 刪除 dead `indicators.py`（341 行 + 5 測試 ≈ 770 行）(2) 密封 `official/` 套件（`__all__ + re-export）(3) 修正 12 處 `verify=False` 安全漏洞 (4) `tui/menu.py` input 委派至 `input_helper`。淨減 1,135 行。
+
+---
+
+## 修改影響分析（Change Impact Analysis）
+
+修改任何函式、類別或模組前，請使用 `twstock/dependency_graph.json` 查詢受影響範圍。
+
+### 使用方式
+
+```python
+import json
+with open("twstock/dependency_graph.json") as f:
+    graph = json.load(f)
+
+def find_dependents(target, graph):
+    """找出所有導入 target 的模組（直接受影響方）。"""
+    return [mod for mod, deps in graph.items() if target in deps]
+
+# 例如：修改 twstock.utils.safe_float 前
+print(find_dependents("twstock.utils", graph))
+# 輸出: ['twstock.commands.indicators', 'twstock.commands.intraday', ...]
+```
+
+命令列版：
+```bash
+grep -l "from twstock.utils" twstock/**/*.py twstock/**/**/*.py
+```
+
+### 穩定公開 API（**Public API** — 不得隨意變更簽名）
+
+| API | 位置 | 說明 |
+|-----|------|------|
+| `InputProvider` (Protocol) | `twstock/tui/input_provider.py` | 鍵盤輸入抽象，`get_key/prompt`, `kbhit`, `flush` 為穩定介面 |
+| `MockInputProvider` | `twstock/tui/input_provider.py` | 測試用 mock，建構式接受 `keys: List[str]` |
+| `create_default_provider()` | `twstock/tui/input_provider.py` | 依平台建立對應 provider |
+| `OutputWriter` (Protocol) | `twstock/output_writer.py` | 輸出抽象，所有報表輸出皆透過此協定 |
+| `DataFetcher` | `twstock/market_data/fetcher.py` | 主要市場資料抓取入口，`fetch_daily/fetch_history` 為穩定方法 |
+| `MarketCache` | `twstock/market_data/cache.py` | 快取層，`get/set` 為穩定介面 |
+
+### 無法自動測試的平台相依區域
+
+- `twstock/input_helper.py` 中 `_getch_unix`, `_kbhit_unix`, `_flush_input_buffer` 的 Unix 分支 — 僅在 Termux/macOS/Linux 執行，Windows CI 以 `@pytest.mark.skipif(not _IS_UNIX)` 跳過。
+- `twstock/terminal.py` 的彩色輸出迴呼 — 需人工在 terminal 驗證。
+- `twstock/strategy/strategies.py` 的互動式 `interactive_menu` — 需人工模擬按鍵序列（可用 `MockInputProvider` 驗證）。
+- `twstock/main.py` 的 CLI 入口整合 — 需端到端執行 `python -m twstock.main --help` 驗證。
+
+### 手動驗證方式
+
+1. 平台 I/O：在目標平台（Windows / macOS / Termux）執行 `pytest twstock/tests/test_input_helper.py -v`，確認對應分支被正確執行或跳過。
+2. 繪圖回呼：執行 `python -c "from twstock.tui.render import make_layout; make_layout()"`，確認無異常。
+3. CLI 整合：`python -m twstock.main --help` 應列出所有子命令且不拋異常。
