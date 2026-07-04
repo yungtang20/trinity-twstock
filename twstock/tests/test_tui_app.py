@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for tui/app.py — TUIApp initialization and render."""
+
 from __future__ import annotations
 
 import sys
@@ -19,6 +20,7 @@ rich.console.Console = lambda **kw: MagicMock()
 class TestTUIApp:
     def test_instantiation(self):
         from twstock.tui.app import TUIApp
+
         app = TUIApp()
         assert app is not None
         assert hasattr(app, "run")
@@ -27,6 +29,7 @@ class TestTUIApp:
     def test_has_cache(self):
         from twstock.market_data.cache import MarketCache
         from twstock.tui.app import TUIApp
+
         app = TUIApp()
         assert isinstance(app._cache, MarketCache)
 
@@ -38,8 +41,7 @@ class TestTUIApp:
     @patch("twstock.tui.app.render_dashboard")
     @patch("twstock.tui.app.TUIApp._get_input")
     def test_run_menu_dispatch(
-        self, mock_input, mock_render, mock_daily, mock_hist,
-        mock_db, mock_strat, mock_composite
+        self, mock_input, mock_render, mock_daily, mock_hist, mock_db, mock_strat, mock_composite
     ):
         """run() 應根據輸入分派至對應處理函式。"""
         from twstock.tui.app import TUIApp
@@ -60,6 +62,7 @@ class TestTUIApp:
 class TestRenderDashboard:
     def test_importable(self):
         from twstock.tui.render import make_layout, render_dashboard
+
         assert callable(render_dashboard)
         assert callable(make_layout)
 
@@ -67,6 +70,7 @@ class TestRenderDashboard:
         from rich.layout import Layout
 
         from twstock.tui.render import make_layout
+
         result = make_layout()
         assert isinstance(result, Layout)
 
@@ -83,6 +87,7 @@ class TestExecuteAction:
     def test_execute_action_daily(self, mock_daily, mock_hist, mock_strat, mock_db, mock_composite):
         from twstock.tui.app import TUIApp
         from twstock.tui.state_machine import ActionType, StateTransition, TUIState
+
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_DAILY_UPDATE)
         app = TUIApp()
         app._execute_action(t)
@@ -98,6 +103,7 @@ class TestExecuteAction:
     ):
         from twstock.tui.app import TUIApp
         from twstock.tui.state_machine import ActionType, StateTransition, TUIState
+
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_HISTORICAL_UPDATE)
         app = TUIApp()
         app._execute_action(t)
@@ -113,6 +119,7 @@ class TestExecuteAction:
     ):
         from twstock.tui.app import TUIApp
         from twstock.tui.state_machine import ActionType, StateTransition, TUIState
+
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_STRATEGY_MENU)
         app = TUIApp()
         app._execute_action(t)
@@ -128,6 +135,7 @@ class TestExecuteAction:
     ):
         from twstock.tui.app import TUIApp
         from twstock.tui.state_machine import ActionType, StateTransition, TUIState
+
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_DB_MAINTENANCE)
         app = TUIApp()
         app._execute_action(t)
@@ -143,6 +151,7 @@ class TestExecuteAction:
     ):
         from twstock.tui.app import TUIApp
         from twstock.tui.state_machine import ActionType, StateTransition, TUIState
+
         t = StateTransition(TUIState.MAIN_MENU, ActionType.RUN_COMPOSITE, "2330")
         app = TUIApp()
         app._execute_action(t)
@@ -167,6 +176,7 @@ class TestGetInput:
     def test_get_input_enter_key(self, mock_sys, mock_msvcrt, _mock_render):
         """Enter key (\r) returns buf.strip()."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False, True]
         mock_msvcrt.getwch.side_effect = ["x", "\r"]
         mock_sys.stdout = MagicMock()
@@ -183,6 +193,7 @@ class TestGetInput:
     def test_get_input_backspace(self, mock_sys, mock_msvcrt, _mock_render):
         """Backspace (\b) truncates buf."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False, True, True, True, True]
         mock_msvcrt.getwch.side_effect = ["x", "a", "b", "\b", "\r"]
         mock_sys.stdout = MagicMock()
@@ -199,6 +210,7 @@ class TestGetInput:
     def test_get_input_esc_returns_zero(self, mock_sys, mock_msvcrt, _mock_render):
         """ESC (\x1b) returns '0'."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False, True]
         mock_msvcrt.getwch.side_effect = ["x", "\x1b"]
         mock_sys.stdout = MagicMock()
@@ -215,6 +227,7 @@ class TestGetInput:
     def test_get_input_printable_chars(self, mock_sys, mock_msvcrt, _mock_render):
         """Printable chars append to buf (menu_keys="" skips single-key wait)."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False, True, True, True, True, True]
         mock_msvcrt.getwch.side_effect = ["x", "2", "3", "3", "0", "\r"]
         mock_sys.stdout = MagicMock()
@@ -230,9 +243,12 @@ class TestGetInput:
     @patch("twstock.tui.app.render_dashboard")
     @patch("twstock.tui.app.msvcrt")
     @patch("twstock.tui.app.sys")
-    def test_get_input_single_key_menu_auto_commit(self, mock_sys, mock_msvcrt, _mock_render, _mock_time):
+    def test_get_input_single_key_menu_auto_commit(
+        self, mock_sys, mock_msvcrt, _mock_render, _mock_time
+    ):
         """Single key menu (e.g. '1') auto-commits when no second key within timeout."""
         from twstock.tui.app import TUIApp
+
         # flush: True+False; read: True (key '1'); _wait_for_key: False,False,False → timeout
         mock_msvcrt.kbhit.side_effect = [True, False, True, False, False, False]
         mock_msvcrt.getwch.side_effect = ["x", "1"]
@@ -250,6 +266,7 @@ class TestGetInput:
     def test_get_input_cache_refresh_triggers_rerender(self, mock_cache_cls, mock_sys, mock_msvcrt):
         """Cache refresh (None→value) triggers re-render during input."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [False, False, True]
         mock_msvcrt.getwch.return_value = "\r"
         mock_sys.stdout = MagicMock()
@@ -273,6 +290,7 @@ class TestWaitForKey:
     def test_wait_for_key_with_key(self, mock_msvcrt):
         """kbhit True → returns True."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.return_value = True
         mock_msvcrt.getwch.return_value = "a"
         result = TUIApp._wait_for_key(0.1)
@@ -283,6 +301,7 @@ class TestWaitForKey:
     def test_wait_for_key_timeout(self, mock_msvcrt):
         """kbhit always False → timeout → returns False."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.return_value = False
         result = TUIApp._wait_for_key(0.01)  # small timeout for test speed
         assert result is False
@@ -292,6 +311,7 @@ class TestWaitForKey:
     def test_wait_for_key_enter_swallowed(self, mock_msvcrt):
         """Enter key (\r) swallowed but still returns True."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.return_value = True
         mock_msvcrt.getwch.return_value = "\r"
         result = TUIApp._wait_for_key(0.1)
@@ -307,6 +327,7 @@ class TestWaitForStockSuffix:
     def test_wait_for_stock_suffix_enter(self, mock_msvcrt):
         """Enter key breaks loop → returns buf."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False]
         mock_msvcrt.getwch.return_value = "\r"
         result = TUIApp._wait_for_stock_suffix(0.1, "2330")
@@ -318,6 +339,7 @@ class TestWaitForStockSuffix:
     def test_wait_for_stock_suffix_backspace(self, mock_sys, mock_msvcrt):
         """Backspace interrupts → returns None, truncates buf."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False]
         mock_msvcrt.getwch.return_value = "\b"
         mock_sys.stdout = MagicMock()
@@ -330,6 +352,7 @@ class TestWaitForStockSuffix:
     def test_wait_for_stock_suffix_printable_interrupts(self, mock_sys, mock_msvcrt):
         """Printable char after 4 digits → has_interrupted=True → returns None."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.side_effect = [True, False]
         mock_msvcrt.getwch.return_value = "a"
         mock_sys.stdout = MagicMock()
@@ -341,6 +364,7 @@ class TestWaitForStockSuffix:
     def test_wait_for_stock_suffix_timeout_no_interrupt(self, mock_msvcrt):
         """Timeout with no interrupt → returns buf."""
         from twstock.tui.app import TUIApp
+
         mock_msvcrt.kbhit.return_value = False
         result = TUIApp._wait_for_stock_suffix(0.01, "2330")
         assert result == "2330"
@@ -355,6 +379,7 @@ class TestGetInputFallback:
     def test_get_input_fallback_to_stdin(self, mock_input):
         """Without msvcrt, delegates to input().strip()."""
         from twstock.tui.app import TUIApp
+
         mock_input.return_value = "hello"
         app = TUIApp()
         result = app._get_input()

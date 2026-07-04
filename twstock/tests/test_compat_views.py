@@ -5,12 +5,13 @@ test_compat_views.py — 相容層 VIEW 測試
 驗證向後相容的 VIEW 存在且資料可讀。
 這些 VIEW 是舊名稱的alias，在未完成全 repo 收斂前不可移除。
 """
+
 from __future__ import annotations
 
 
 def test_compatibility_views_exist(db_conn, patch_db_path):
     """所有向後相容的 VIEW 應存在。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 
@@ -30,18 +31,23 @@ def test_compatibility_views_exist(db_conn, patch_db_path):
 def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
     """tdcc_shareholding VIEW 應能讀取 shareholding_unified 中 source='tdcc' 的資料。"""
     import pandas as pd
-    from db_admin import init_db
     from processor import DataProcessor
+
+    from twstock.db_admin import init_db
 
     init_db()
 
-    df = pd.DataFrame([{
-        "stock_id": "2330",
-        "date": "2026-06-21",
-        "total_shares": 486000000,
-        "whale_ratio": 42.6,
-        "retail_ratio": 3.2,
-    }])
+    df = pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "date": "2026-06-21",
+                "total_shares": 486000000,
+                "whale_ratio": 42.6,
+                "retail_ratio": 3.2,
+            }
+        ]
+    )
     DataProcessor().upsert_tdcc(df)
 
     # 透過 VIEW 讀取
@@ -56,19 +62,24 @@ def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
 def test_institutional_daily_view_reads_from_institutional_data(db_conn, patch_db_path):
     """institutional_daily VIEW 應能讀取 institutional_data 的資料。"""
     import pandas as pd
-    from db_admin import init_db
     from processor import DataProcessor
+
+    from twstock.db_admin import init_db
 
     init_db()
 
-    df = pd.DataFrame([{
-        "stock_id": "2330",
-        "date": "2026-06-21",
-        "foreign_net": 3000000,
-        "trust_net": 600000,
-        "dealer_net": 300000,
-        "institutional_net": 3900000,
-    }])
+    df = pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "date": "2026-06-21",
+                "foreign_net": 3000000,
+                "trust_net": 600000,
+                "dealer_net": 300000,
+                "institutional_net": 3900000,
+            }
+        ]
+    )
     DataProcessor().upsert_institutional(df)
 
     # 透過 VIEW 讀取
@@ -83,7 +94,7 @@ def test_institutional_daily_view_reads_from_institutional_data(db_conn, patch_d
 def test_klines_indicators_view_joins_indicators(db_conn, patch_db_path):
     """klines_indicators VIEW 應 JOIN klines 與 stock_indicators。"""
 
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 

@@ -10,6 +10,7 @@ r"""
 - 所有策略計算 dispatch 到 strategy/ 子模組
 - 輸出透過 OutputWriter 抽象層，預設 ConsoleWriter，可注入 JsonWriter
 """
+
 import os
 import sys
 
@@ -18,28 +19,29 @@ from twstock.output_writer import ConsoleWriter, JsonWriter
 # Windows encoding fix — 只在直接執行時才替換 stdout/stderr
 if sys.platform == "win32" and __name__ == "__main__":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CURRENT_DIR not in sys.path:
     sys.path.insert(0, _CURRENT_DIR)
 
 # ── 策略匯入（模組層級，可被 monkeypatch 替換）──────────────
-from strategy.chips_strategy import ChipsStrategy
-from strategy.ma_strategy import MAStrategy
-from strategy.patterns_strategy import PatternStrategy
-from strategy.sr_analyzer import SupportResistanceStrategy
+from twstock.strategy.chips_strategy import ChipsStrategy
+from twstock.strategy.ma_strategy import MAStrategy
+from twstock.strategy.patterns_strategy import PatternStrategy
+from twstock.strategy.sr_analyzer import SupportResistanceStrategy
 
 # ── Dispatcher API ──────────────────────────────────────────
+
 
 class _PredictionAdapter:
     """預測分析適配器 - 不使用 random，移除假邏輯。"""
 
     def analyze(self, stock_id: str, ma: dict = None) -> dict:
-        from twstock.strategy._utils import fetch_klines
-
         from twstock.db import get_connection
+        from twstock.strategy._utils import fetch_klines
 
         conn = get_connection()
         try:
@@ -47,23 +49,27 @@ class _PredictionAdapter:
             if df is None or df.empty or len(df) < 5:
                 return {"error": "資料不足"}
 
-            closes = df['close'].sort_index().tolist()
+            closes = df["close"].sort_index().tolist()
             last_close = closes[-1]
             is_up = ma.get("ma25Trend") == "up" if ma else False
 
-            returns = [(closes[i] / closes[i-1] - 1) * 100 for i in range(1, len(closes))]
+            returns = [(closes[i] / closes[i - 1] - 1) * 100 for i in range(1, len(closes))]
             avg_return = sum(returns) / len(returns) if returns else 0
-            volatility = (sum(r**2 for r in returns) / len(returns) - avg_return**2) ** 0.5 if returns else 1
+            volatility = (
+                (sum(r**2 for r in returns) / len(returns) - avg_return**2) ** 0.5 if returns else 1
+            )
 
             predictions = []
             for i in range(1, 6):
                 trend_component = 0.5 * i if is_up else -0.5 * i
                 pct = trend_component
-                predictions.append({
-                    "day": f"T+{i}",
-                    "price": round(last_close * (1 + pct / 100), 2),
-                    "pct": round(pct, 2),
-                })
+                predictions.append(
+                    {
+                        "day": f"T+{i}",
+                        "price": round(last_close * (1 + pct / 100), 2),
+                        "pct": round(pct, 2),
+                    }
+                )
 
             ai_score = 0.6 if is_up else 0.3
 
@@ -130,6 +136,7 @@ def run_strategy(strategy_name: str, stock_id: str, **kwargs) -> dict:
 
 # ── Named dispatchers (thin wrappers for main()) ────────────
 
+
 def run_sr_analysis(stock_id: str) -> dict:
     """執行撐壓分析 - dispatch 到 sr_analyzer"""
     return SupportResistanceStrategy().analyze(stock_id)
@@ -156,6 +163,7 @@ def run_prediction_analysis(stock_id: str, ma: dict = None) -> dict:
 
 
 # ── Main ────────────────────────────────────────────────────
+
 
 def main(writer=None):
     """執行所有策略分析並透過 writer 輸出。
@@ -189,7 +197,7 @@ def main(writer=None):
                 "chips": {**chips, "source": "strategy/chips_strategy.py"},
                 "pattern": {**pattern, "source": "strategy/patterns_strategy.py"},
                 "prediction": {**prediction, "source": "strategy/strategy_runner.py"},
-            }
+            },
         }
 
         writer.write_result(result)

@@ -3,6 +3,7 @@
 
 使用 in-memory sqlite 測試各 upsert 方法。
 """
+
 from __future__ import annotations
 
 import os
@@ -47,7 +48,7 @@ class _NonClosingConn:
 def in_memory_conn():
     """建立完整的 in-memory sqlite 資料庫（與 db_admin.py SCHEMA 一致）。"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from db_admin import create_tables
+    from twstock.db_admin import create_tables
 
     real = sqlite3.connect(":memory:")
     create_tables(real)
@@ -76,13 +77,21 @@ class TestDataProcessor:
     def test_upsert_history_basic(self, in_memory_conn):
         """基本 history upsert。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000], "amount": [100000],
-            "trade_count": [None], "spread": [None], "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                "trade_count": [None],
+                "spread": [None],
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         assert count == 1
@@ -104,14 +113,16 @@ class TestDataProcessor:
     def test_upsert_institutional(self, in_memory_conn):
         """institutional_data upsert。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "foreign_net": [3000],
-            "trust_net": [1000],
-            "dealer_net": [500],
-            "institutional_net": [4500],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_net": [3000],
+                "trust_net": [1000],
+                "dealer_net": [500],
+                "institutional_net": [4500],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_institutional(df)
         assert count == 1
@@ -119,28 +130,32 @@ class TestDataProcessor:
     def test_upsert_tdcc(self, in_memory_conn):
         """TDCC 資料寫入 shareholding_unified。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "total_shares": [1000000],
-            "whale_ratio": [0.8],
-            "retail_ratio": [0.2],
-            "total_people": [50000],
-            "whale_shares": [800000],
-            "whale_people": [100],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1000000],
+                "whale_ratio": [0.8],
+                "retail_ratio": [0.2],
+                "total_people": [50000],
+                "whale_shares": [800000],
+                "whale_people": [100],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_tdcc(df)
 
     def test_upsert_shareholding(self, in_memory_conn):
         """foreign shareholding 寫入。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "foreign_shares": [500000],
-            "foreign_ratio": [0.5],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_shares": [500000],
+                "foreign_ratio": [0.5],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_shareholding(df)
 
@@ -168,13 +183,21 @@ class TestDataProcessor:
     def test_upsert_history_with_none_values(self, in_memory_conn):
         """None 值應正確處理。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000], "amount": [100000],
-            "trade_count": [np.nan], "spread": [np.nan], "source": [None],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                "trade_count": [np.nan],
+                "spread": [np.nan],
+                "source": [None],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         assert count == 1
@@ -182,13 +205,21 @@ class TestDataProcessor:
     def test_upsert_history_with_source(self, in_memory_conn):
         """指定 source 欄位。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000], "amount": [100000],
-            "trade_count": [None], "spread": [None], "source": ["test"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                "trade_count": [None],
+                "spread": [None],
+                "source": ["test"],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         assert count == 1
@@ -196,14 +227,21 @@ class TestDataProcessor:
     def test_upsert_history_dropna_close(self, in_memory_conn):
         """close=NaN 應被 drop。"""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330", "2330"],
-            "date": ["2026-07-02", "2026-07-03"],
-            "open": [100, 101], "high": [105, 106], "low": [95, 96],
-            "close": [102, np.nan],  # NaN drop
-            "volume": [1000, 2000], "amount": [100000, 200000],
-            "trade_count": [None, None], "spread": [None, None], "source": ["official", "official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330", "2330"],
+                "date": ["2026-07-02", "2026-07-03"],
+                "open": [100, 101],
+                "high": [105, 106],
+                "low": [95, 96],
+                "close": [102, np.nan],  # NaN drop
+                "volume": [1000, 2000],
+                "amount": [100000, 200000],
+                "trade_count": [None, None],
+                "spread": [None, None],
+                "source": ["official", "official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         # NaN close row 會被 drop
@@ -229,15 +267,21 @@ class TestBatchUpsert:
 
     def test_batch_upsert_basic(self, in_memory_conn):
         """_batch_upsert writes rows via INSERT OR REPLACE."""
-        df = pd.DataFrame({
-            "stock_id": ["2330", "2331"],
-            "date": ["2026-07-02", "2026-07-02"],
-            "open": [100, 200], "high": [105, 210], "low": [95, 190],
-            "close": [102, 205], "volume": [1000, 2000],
-            "amount": [100000, 200000],
-            "trade_count": [None, None], "spread": [None, None],
-            "source": ["official", "official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330", "2331"],
+                "date": ["2026-07-02", "2026-07-02"],
+                "open": [100, 200],
+                "high": [105, 210],
+                "low": [95, 190],
+                "close": [102, 205],
+                "volume": [1000, 2000],
+                "amount": [100000, 200000],
+                "trade_count": [None, None],
+                "spread": [None, None],
+                "source": ["official", "official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = DataProcessor._batch_upsert("stock_history", df, in_memory_conn)
         assert count == 2
@@ -249,21 +293,41 @@ class TestBatchUpsert:
 
     def test_batch_upsert_on_conflict_replaces(self, in_memory_conn):
         """Second call with same PK should replace the row."""
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95], "close": [102],
-            "volume": [1000], "amount": [100000],
-            "trade_count": [None], "spread": [None], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [110], "high": [115], "low": [105], "close": [112],
-            "volume": [2000], "amount": [200000],
-            "trade_count": [None], "spread": [None], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                "trade_count": [None],
+                "spread": [None],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [110],
+                "high": [115],
+                "low": [105],
+                "close": [112],
+                "volume": [2000],
+                "amount": [200000],
+                "trade_count": [None],
+                "spread": [None],
+                "source": ["v2"],
+            }
+        )
         DataProcessor._batch_upsert("stock_history", df1, in_memory_conn)
         DataProcessor._batch_upsert("stock_history", df2, in_memory_conn)
-        row = in_memory_conn.execute("SELECT open, source FROM stock_history WHERE stock_id='2330'").fetchone()
+        row = in_memory_conn.execute(
+            "SELECT open, source FROM stock_history WHERE stock_id='2330'"
+        ).fetchone()
         assert row[0] == 110
         assert row[1] == "v2"
 
@@ -274,34 +338,60 @@ class TestUpsertHistoryEdgeCases:
     def test_upsert_history_source_default_official(self, in_memory_conn):
         """When source column absent, it should default to 'official' (line 56)."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"],
-            "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000], "amount": [100000],
-            # no "source" column — should default to 'official'
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                # no "source" column — should default to 'official'
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         assert count == 1
-        row = in_memory_conn.execute("SELECT source FROM stock_history WHERE stock_id='2330'").fetchone()
+        row = in_memory_conn.execute(
+            "SELECT source FROM stock_history WHERE stock_id='2330'"
+        ).fetchone()
         assert row[0] == "official"
 
     def test_upsert_history_on_conflict_preserves_existing(self, in_memory_conn):
         """ON CONFLICT should preserve existing non-null columns when excluded is null."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95], "close": [102],
-            "volume": [1000], "amount": [100000],
-            "trade_count": [123], "spread": [10.5], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [110], "high": [115], "low": [105], "close": [112],
-            "volume": [2000], "amount": [200000],
-            "trade_count": [None], "spread": [None], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "amount": [100000],
+                "trade_count": [123],
+                "spread": [10.5],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [110],
+                "high": [115],
+                "low": [105],
+                "close": [112],
+                "volume": [2000],
+                "amount": [200000],
+                "trade_count": [None],
+                "spread": [None],
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_history(df1)
             proc.upsert_history(df2)
@@ -333,11 +423,16 @@ class TestUpsertInstitutionalEdgeCases:
     def test_upsert_institutional_source_default(self, in_memory_conn):
         """When source absent, should default to 'official'."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_net": [3000], "trust_net": [1000],
-            "dealer_net": [500], "institutional_net": [4500],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_net": [3000],
+                "trust_net": [1000],
+                "dealer_net": [500],
+                "institutional_net": [4500],
+            }
+        )
         with patch_gc(in_memory_conn):
             count = proc.upsert_institutional(df)
         assert count == 1
@@ -349,14 +444,22 @@ class TestUpsertInstitutionalEdgeCases:
     def test_upsert_institutional_on_conflict_updates(self, in_memory_conn):
         """ON CONFLICT should update all columns."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_net": [3000], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_net": [9999], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_net": [3000],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_net": [9999],
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_institutional(df1)
             proc.upsert_institutional(df2)
@@ -380,12 +483,18 @@ class TestUpsertTdccEdgeCases:
     def test_upsert_tdcc_source_default(self, in_memory_conn):
         """When source absent, it should default to 'tdcc'."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "total_shares": [1000000], "whale_ratio": [0.8],
-            "retail_ratio": [0.2], "total_people": [50000],
-            "whale_shares": [800000], "whale_people": [100],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1000000],
+                "whale_ratio": [0.8],
+                "retail_ratio": [0.2],
+                "total_people": [50000],
+                "whale_shares": [800000],
+                "whale_people": [100],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_tdcc(df)
         row = in_memory_conn.execute(
@@ -403,10 +512,14 @@ class TestUpsertTdccEdgeCases:
     def test_upsert_shareholding_sets_source(self, in_memory_conn):
         """Should set source='twse_foreign'."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_shares": [500000], "foreign_ratio": [0.5],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_shares": [500000],
+                "foreign_ratio": [0.5],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_shareholding(df)
         row = in_memory_conn.execute(
@@ -427,13 +540,21 @@ class TestUpsertShareholdingUnified:
 
     def test_full_row(self, in_memory_conn):
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "total_shares": [1000000], "whale_ratio": [0.8], "retail_ratio": [0.2],
-            "foreign_shares": [500000], "foreign_ratio": [0.5],
-            "total_people": [50000], "whale_shares": [800000], "whale_people": [100],
-            "source": ["tdcc"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1000000],
+                "whale_ratio": [0.8],
+                "retail_ratio": [0.2],
+                "foreign_shares": [500000],
+                "foreign_ratio": [0.5],
+                "total_people": [50000],
+                "whale_shares": [800000],
+                "whale_people": [100],
+                "source": ["tdcc"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_shareholding_unified(df)
         row = in_memory_conn.execute(
@@ -446,19 +567,29 @@ class TestUpsertShareholdingUnified:
     def test_on_conflict_preserves_nulls(self, in_memory_conn):
         """Second upsert with NULL should preserve existing values (CASE WHEN logic)."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "total_shares": [1000000], "whale_ratio": [0.8],
-            "retail_ratio": [0.2], "foreign_shares": [500000],
-            "foreign_ratio": [0.5], "total_people": [50000],
-            "whale_shares": [800000], "whale_people": [100],
-            "source": ["tdcc"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "total_shares": [1100000],  # only total_shares updated
-            "source": ["tdcc"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1000000],
+                "whale_ratio": [0.8],
+                "retail_ratio": [0.2],
+                "foreign_shares": [500000],
+                "foreign_ratio": [0.5],
+                "total_people": [50000],
+                "whale_shares": [800000],
+                "whale_people": [100],
+                "source": ["tdcc"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1100000],  # only total_shares updated
+                "source": ["tdcc"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_shareholding_unified(df1)
             proc.upsert_shareholding_unified(df2)
@@ -466,8 +597,8 @@ class TestUpsertShareholdingUnified:
             "SELECT total_shares, whale_ratio, foreign_shares FROM shareholding_unified WHERE stock_id='2330'"
         ).fetchone()
         assert row[0] == 1100000
-        assert abs(row[1] - 0.8) < 1e-6   # preserved across upsert
-        assert row[2] == 500000            # preserved across upsert
+        assert abs(row[1] - 0.8) < 1e-6  # preserved across upsert
+        assert row[2] == 500000  # preserved across upsert
 
 
 class TestUpsertDividendEvents:
@@ -476,12 +607,18 @@ class TestUpsertDividendEvents:
     def test_dividend_events_full(self, in_memory_conn):
         """Full row insert."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "before_price": [100.0], "after_price": [95.0],
-            "reference_price": [98.0], "cash_dividend": [5.0],
-            "stock_dividend": [0.0], "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "before_price": [100.0],
+                "after_price": [95.0],
+                "reference_price": [98.0],
+                "cash_dividend": [5.0],
+                "stock_dividend": [0.0],
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_dividend_events(df)
         row = in_memory_conn.execute(
@@ -498,18 +635,30 @@ class TestUpsertDividendEvents:
     def test_dividend_events_on_conflict_updates(self, in_memory_conn):
         """ON CONFLICT should update price columns."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "before_price": [100.0], "after_price": [95.0],
-            "reference_price": [98.0], "cash_dividend": [5.0],
-            "stock_dividend": [0.0], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "before_price": [110.0], "after_price": [105.0],
-            "reference_price": [108.0], "cash_dividend": [6.0],
-            "stock_dividend": [0.5], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "before_price": [100.0],
+                "after_price": [95.0],
+                "reference_price": [98.0],
+                "cash_dividend": [5.0],
+                "stock_dividend": [0.0],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "before_price": [110.0],
+                "after_price": [105.0],
+                "reference_price": [108.0],
+                "cash_dividend": [6.0],
+                "stock_dividend": [0.5],
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_dividend_events(df1)
             proc.upsert_dividend_events(df2)
@@ -523,18 +672,30 @@ class TestUpsertDividendEvents:
     def test_dividend_events_preserves_null_prices(self, in_memory_conn):
         """NULL excluded prices should preserve existing values (CASE WHEN excluded IS NOT NULL)."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "before_price": [100.0], "after_price": [95.0],
-            "reference_price": [98.0], "cash_dividend": [5.0],
-            "stock_dividend": [0.0], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "before_price": [np.nan], "after_price": [np.nan],
-            "reference_price": [np.nan], "cash_dividend": [np.nan],
-            "stock_dividend": [np.nan], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "before_price": [100.0],
+                "after_price": [95.0],
+                "reference_price": [98.0],
+                "cash_dividend": [5.0],
+                "stock_dividend": [0.0],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "before_price": [np.nan],
+                "after_price": [np.nan],
+                "reference_price": [np.nan],
+                "cash_dividend": [np.nan],
+                "stock_dividend": [np.nan],
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_dividend_events(df1)
             proc.upsert_dividend_events(df2)
@@ -551,11 +712,18 @@ class TestUpsertPerData:
     def test_per_data_basic(self, in_memory_conn):
         """Basic insert."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "per": [20.0], "pbr": [2.0], "pe_ratio": [20.0],
-            "pb_ratio": [2.0], "dividend_yield": [3.0], "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "per": [20.0],
+                "pbr": [2.0],
+                "pe_ratio": [20.0],
+                "pb_ratio": [2.0],
+                "dividend_yield": [3.0],
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df)
         row = in_memory_conn.execute(
@@ -575,11 +743,16 @@ class TestUpsertPerData:
         so the test DataFrame must include every one of them.
         """
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "per": [25.0], "pbr": [2.5],
-            "dividend_yield": [3.0], "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "per": [25.0],
+                "pbr": [2.5],
+                "dividend_yield": [3.0],
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df)
         row = in_memory_conn.execute(
@@ -591,11 +764,16 @@ class TestUpsertPerData:
     def test_per_data_alias_pbr_to_pb_ratio(self, in_memory_conn):
         """When 'pbr' present but 'pb_ratio' absent, should alias (line 304-305)."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "per": [20.0], "pbr": [3.0],
-            "dividend_yield": [3.0], "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "per": [20.0],
+                "pbr": [3.0],
+                "dividend_yield": [3.0],
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df)
         row = in_memory_conn.execute(
@@ -607,16 +785,26 @@ class TestUpsertPerData:
     def test_per_data_on_conflict_preserves_nulls(self, in_memory_conn):
         """NULL excluded columns should preserve existing values."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "per": [20.0], "pbr": [2.0],
-            "dividend_yield": [3.0], "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "per": [None], "pbr": [2.5],
-            "dividend_yield": [3.0], "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "per": [20.0],
+                "pbr": [2.0],
+                "dividend_yield": [3.0],
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "per": [None],
+                "pbr": [2.5],
+                "dividend_yield": [3.0],
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df1)
             proc.upsert_per_data(df2)
@@ -624,7 +812,7 @@ class TestUpsertPerData:
             "SELECT per, pbr FROM per_data WHERE stock_id='2330'"
         ).fetchone()
         assert row[0] == 20.0  # preserved
-        assert row[1] == 2.5   # updated
+        assert row[1] == 2.5  # updated
 
 
 class TestUpsertMeta:
@@ -633,11 +821,16 @@ class TestUpsertMeta:
     def test_meta_basic(self, in_memory_conn):
         """Basic insert."""
         proc = DataProcessor.__new__(DataProcessor)
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "stock_name": "台積電",
-            "industry_category": "半導體", "market": "TSE",
-            "type": "COMMON", "source": ["official"],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "stock_name": "台積電",
+                "industry_category": "半導體",
+                "market": "TSE",
+                "type": "COMMON",
+                "source": ["official"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_meta(df)
         row = in_memory_conn.execute(
@@ -653,16 +846,26 @@ class TestUpsertMeta:
     def test_meta_on_conflict_updates(self, in_memory_conn):
         """ON CONFLICT should update name and industry."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "stock_name": "台積電",
-            "industry_category": "半導體", "market": "TSE",
-            "type": "COMMON", "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "stock_name": "TSMC",
-            "industry_category": "Chip", "market": "TSE",
-            "type": "COMMON", "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "stock_name": "台積電",
+                "industry_category": "半導體",
+                "market": "TSE",
+                "type": "COMMON",
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "stock_name": "TSMC",
+                "industry_category": "Chip",
+                "market": "TSE",
+                "type": "COMMON",
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_meta(df1)
             proc.upsert_meta(df2)
@@ -675,16 +878,26 @@ class TestUpsertMeta:
     def test_meta_empty_string_guard(self, in_memory_conn):
         """Empty-string excluded values should NOT overwrite existing (line 361-364)."""
         proc = DataProcessor.__new__(DataProcessor)
-        df1 = pd.DataFrame({
-            "stock_id": ["2330"], "stock_name": "台積電",
-            "industry_category": "半導體", "market": "TSE",
-            "type": "COMMON", "source": ["v1"],
-        })
-        df2 = pd.DataFrame({
-            "stock_id": ["2330"], "stock_name": "",
-            "industry_category": "", "market": "",
-            "type": "", "source": ["v2"],
-        })
+        df1 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "stock_name": "台積電",
+                "industry_category": "半導體",
+                "market": "TSE",
+                "type": "COMMON",
+                "source": ["v1"],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "stock_name": "",
+                "industry_category": "",
+                "market": "",
+                "type": "",
+                "source": ["v2"],
+            }
+        )
         with patch_gc(in_memory_conn):
             proc.upsert_meta(df1)
             proc.upsert_meta(df2)
@@ -721,10 +934,12 @@ class TestMainGuard:
             encoding="utf-8",
         )
         import subprocess
+
         result = subprocess.run(
             [sys.executable, str(runner)],
             stdin=subprocess.DEVNULL,
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert "loaded successfully" in result.stdout
@@ -732,6 +947,7 @@ class TestMainGuard:
     def test_module_import_does_not_run_main(self):
         """Importing processor should not trigger the __main__ block."""
         import twstock.processor as proc_mod
+
         # The module should have __name__ == 'twstock.processor', not '__main__'
         assert proc_mod.__name__ == "twstock.processor"
         # The reference print exists in source — just verify module is importable
@@ -740,4 +956,5 @@ class TestMainGuard:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))

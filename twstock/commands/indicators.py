@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """indicators 命令：最近 N 日價量查詢。"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -16,9 +17,9 @@ def execute(args) -> None:
 
     with get_connection(readonly=True) as conn:
         df = pd.read_sql(
-            "SELECT date, close FROM klines "
-            "WHERE stock_id = ? ORDER BY date DESC LIMIT 5",
-            conn, params=(stock_id,),
+            "SELECT date, close FROM klines " "WHERE stock_id = ? ORDER BY date DESC LIMIT 5",
+            conn,
+            params=(stock_id,),
         )
     if df.empty:
         console.print(f"[yellow]⚠️ 無 {stock_id} 資料，請先執行 update[/yellow]")

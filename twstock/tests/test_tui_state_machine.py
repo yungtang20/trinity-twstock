@@ -3,6 +3,7 @@
 
 純邏輯測試，無需 I/O mock。
 """
+
 from __future__ import annotations
 
 from twstock.tui.state_machine import (

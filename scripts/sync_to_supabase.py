@@ -20,10 +20,10 @@ TWSE AnyTara - 本地 SQLite -> Supabase 同步腳本
 """
 
 import argparse
+import io
 import os
 import sys
 import time
-import io
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -59,6 +59,7 @@ print(f"🔑 Supabase Key: {SUPABASE_KEY[:20]}...")
 # 匯入 Supabase 客戶端
 try:
     from supabase import create_client
+
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     print("✅ Supabase 客戶端初始化成功")
 except ImportError:
@@ -109,9 +110,7 @@ def sync_stock_meta(stock_id: str = None):
     conn = get_connection(readonly=True)
 
     if stock_id:
-        rows = conn.execute(
-            "SELECT * FROM stock_meta WHERE stock_id = ?", (stock_id,)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM stock_meta WHERE stock_id = ?", (stock_id,)).fetchall()
     else:
         rows = conn.execute("SELECT * FROM stock_meta").fetchall()
 
@@ -123,21 +122,23 @@ def sync_stock_meta(stock_id: str = None):
     records = []
     for row in rows:
         row_dict = dict(row)
-        records.append({
-            "stock_id": row_dict["stock_id"],
-            "stock_name": row_dict["stock_name"],
-            "market": row_dict.get("market", "TSE"),
-            "industry_category": row_dict.get("industry_category"),
-            "type": row_dict.get("type"),
-            "source": row_dict.get("source"),
-            "updated_at": row_dict.get("updated_at", datetime.now().isoformat()),
-        })
+        records.append(
+            {
+                "stock_id": row_dict["stock_id"],
+                "stock_name": row_dict["stock_name"],
+                "market": row_dict.get("market", "TSE"),
+                "industry_category": row_dict.get("industry_category"),
+                "type": row_dict.get("type"),
+                "source": row_dict.get("source"),
+                "updated_at": row_dict.get("updated_at", datetime.now().isoformat()),
+            }
+        )
 
     # 批次寫入 Supabase
     batch_size = 100
     total = 0
     for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
+        batch = records[i : i + batch_size]
         try:
             result = supabase.table("stock_meta").upsert(batch).execute()
             total += len(batch)
@@ -157,7 +158,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
     conn = get_connection(readonly=True)
 
     params = []
-    
+
     if days:
         cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         if stock_id:
@@ -228,27 +229,29 @@ def sync_stock_history(stock_id: str = None, days: int = None):
                 val = -9999999999
             return val
 
-        records.append({
-            "stock_id": row_dict["stock_id"],
-            "date": row_dict["date"],
-            "open": _safe_float(row_dict.get("open")),
-            "high": _safe_float(row_dict.get("high")),
-            "low": _safe_float(row_dict.get("low")),
-            "close": _safe_float(row_dict.get("close")),
-            "volume": _safe_int(row_dict.get("volume")),
-            "amount": _safe_float(row_dict.get("amount")),
-            "trade_count": _safe_int(row_dict.get("trade_count")),
-            "spread": _safe_float(row_dict.get("spread")),
-            "adj_factor": _safe_float(row_dict.get("adj_factor")),
-            "source": row_dict.get("source"),
-            "updated_at": row_dict.get("updated_at"),
-        })
+        records.append(
+            {
+                "stock_id": row_dict["stock_id"],
+                "date": row_dict["date"],
+                "open": _safe_float(row_dict.get("open")),
+                "high": _safe_float(row_dict.get("high")),
+                "low": _safe_float(row_dict.get("low")),
+                "close": _safe_float(row_dict.get("close")),
+                "volume": _safe_int(row_dict.get("volume")),
+                "amount": _safe_float(row_dict.get("amount")),
+                "trade_count": _safe_int(row_dict.get("trade_count")),
+                "spread": _safe_float(row_dict.get("spread")),
+                "adj_factor": _safe_float(row_dict.get("adj_factor")),
+                "source": row_dict.get("source"),
+                "updated_at": row_dict.get("updated_at"),
+            }
+        )
 
     # 批次寫入 Supabase
     batch_size = 500
     total = 0
     for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
+        batch = records[i : i + batch_size]
         try:
             # 使用 upsert 避免重複 (unique constraint: stock_id + date)
             result = supabase.table("stock_price").upsert(batch).execute()
@@ -317,28 +320,60 @@ def sync_institutional(stock_id: str = None, days: int = None):
     records = []
     for row in rows:
         row_dict = dict(row)
-        records.append({
-            "stock_id": row_dict["stock_id"],
-            "date": row_dict["date"],
-            "foreign_net": int(row_dict["foreign_net"]) if row_dict.get("foreign_net") is not None else None,
-            "trust_net": int(row_dict["trust_net"]) if row_dict.get("trust_net") is not None else None,
-            "dealer_net": int(row_dict["dealer_net"]) if row_dict.get("dealer_net") is not None else None,
-            "institutional_net": int(row_dict["institutional_net"]) if row_dict.get("institutional_net") is not None else None,
-            "foreign_buy": int(row_dict["foreign_buy"]) if row_dict.get("foreign_buy") is not None else None,
-            "foreign_sell": int(row_dict["foreign_sell"]) if row_dict.get("foreign_sell") is not None else None,
-            "trust_buy": int(row_dict["trust_buy"]) if row_dict.get("trust_buy") is not None else None,
-            "trust_sell": int(row_dict["trust_sell"]) if row_dict.get("trust_sell") is not None else None,
-            "dealer_buy": int(row_dict["dealer_buy"]) if row_dict.get("dealer_buy") is not None else None,
-            "dealer_sell": int(row_dict["dealer_sell"]) if row_dict.get("dealer_sell") is not None else None,
-            "source": row_dict.get("source"),
-            "updated_at": row_dict.get("updated_at"),
-        })
+        records.append(
+            {
+                "stock_id": row_dict["stock_id"],
+                "date": row_dict["date"],
+                "foreign_net": (
+                    int(row_dict["foreign_net"])
+                    if row_dict.get("foreign_net") is not None
+                    else None
+                ),
+                "trust_net": (
+                    int(row_dict["trust_net"]) if row_dict.get("trust_net") is not None else None
+                ),
+                "dealer_net": (
+                    int(row_dict["dealer_net"]) if row_dict.get("dealer_net") is not None else None
+                ),
+                "institutional_net": (
+                    int(row_dict["institutional_net"])
+                    if row_dict.get("institutional_net") is not None
+                    else None
+                ),
+                "foreign_buy": (
+                    int(row_dict["foreign_buy"])
+                    if row_dict.get("foreign_buy") is not None
+                    else None
+                ),
+                "foreign_sell": (
+                    int(row_dict["foreign_sell"])
+                    if row_dict.get("foreign_sell") is not None
+                    else None
+                ),
+                "trust_buy": (
+                    int(row_dict["trust_buy"]) if row_dict.get("trust_buy") is not None else None
+                ),
+                "trust_sell": (
+                    int(row_dict["trust_sell"]) if row_dict.get("trust_sell") is not None else None
+                ),
+                "dealer_buy": (
+                    int(row_dict["dealer_buy"]) if row_dict.get("dealer_buy") is not None else None
+                ),
+                "dealer_sell": (
+                    int(row_dict["dealer_sell"])
+                    if row_dict.get("dealer_sell") is not None
+                    else None
+                ),
+                "source": row_dict.get("source"),
+                "updated_at": row_dict.get("updated_at"),
+            }
+        )
 
     # 批次寫入 Supabase
     batch_size = 500
     total = 0
     for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
+        batch = records[i : i + batch_size]
         try:
             result = supabase.table("stock_institutional").upsert(batch).execute()
             total += len(batch)
@@ -423,20 +458,22 @@ def sync_tdcc(stock_id: str = None, days: int = None):
                 val = -9999999999
             return val
 
-        records.append({
-            "stock_id": row_dict["stock_id"],
-            "date": row_dict["date"],
-            "whale_ratio": _safe_float(row_dict.get("whale_ratio")),
-            "retail_ratio": _safe_float(row_dict.get("retail_ratio")),
-            "total_shares": _safe_int(row_dict.get("total_shares")),
-            "updated_at": row_dict.get("updated_at"),
-        })
+        records.append(
+            {
+                "stock_id": row_dict["stock_id"],
+                "date": row_dict["date"],
+                "whale_ratio": _safe_float(row_dict.get("whale_ratio")),
+                "retail_ratio": _safe_float(row_dict.get("retail_ratio")),
+                "total_shares": _safe_int(row_dict.get("total_shares")),
+                "updated_at": row_dict.get("updated_at"),
+            }
+        )
 
     # 批次寫入 Supabase
     batch_size = 500
     total = 0
     for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
+        batch = records[i : i + batch_size]
         try:
             result = supabase.table("stock_features").upsert(batch).execute()
             total += len(batch)

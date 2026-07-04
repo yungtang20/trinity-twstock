@@ -6,6 +6,7 @@ test_strategy_runner_delegation.py — strategy_runner 委派與決定論測試
 1. run_strategy() 確實委派給策略模組（可被 monkeypatch 替換）
 2. 輸出無隨機性（相同輸入 → 相同輸出）
 """
+
 from __future__ import annotations
 
 

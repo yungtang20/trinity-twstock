@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_market_cache.py — market_data/cache.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 import time

@@ -4,6 +4,7 @@
 Focus on IndicatorEngine internal methods and edge cases.
 Uses real in-memory sqlite3 with mock DB connections.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -22,20 +23,23 @@ from twstock.calculator import (
 
 # ── Fixtures ──────────────────────────────────────────────
 
+
 @pytest.fixture
 def sample_df():
     """建立 30 天測試資料。"""
     np.random.seed(42)
     dates = pd.date_range("2026-01-01", periods=30, freq="D")
     close = 100 + np.cumsum(np.random.randn(30) * 2)
-    return pd.DataFrame({
-        "date": dates,
-        "open": close - 1,
-        "high": close + 2,
-        "low": close - 2,
-        "close": close,
-        "volume": np.random.randint(1000, 5000, 30),
-    })
+    return pd.DataFrame(
+        {
+            "date": dates,
+            "open": close - 1,
+            "high": close + 2,
+            "low": close - 2,
+            "close": close,
+            "volume": np.random.randint(1000, 5000, 30),
+        }
+    )
 
 
 @pytest.fixture
@@ -72,7 +76,7 @@ def db_with_data(in_memory_db):
     for i, c in enumerate(close):
         in_memory_db.execute(
             "INSERT INTO stock_history VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
-            ("2330", f"2026-01-{i+1:02d}", c-1, c+2, c-2, c, 1000+i*100),
+            ("2330", f"2026-01-{i+1:02d}", c - 1, c + 2, c - 2, c, 1000 + i * 100),
         )
     in_memory_db.commit()
     return in_memory_db
@@ -195,11 +199,16 @@ class TestIndicatorEngine:
         """df_intraday 參數應合併至 df。"""
         mock_conn.return_value = MagicMock()
         engine = IndicatorEngine("2330")
-        intraday = pd.DataFrame({
-            "date": [pd.Timestamp("2026-02-11")],
-            "open": [105], "high": [107], "low": [103],
-            "close": [106], "volume": [2000],
-        })
+        intraday = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2026-02-11")],
+                "open": [105],
+                "high": [107],
+                "low": [103],
+                "close": [106],
+                "volume": [2000],
+            }
+        )
         engine.df = pd.concat([sample_df, intraday], ignore_index=True)
         result = engine.build()
         assert len(result) > 30
@@ -241,7 +250,7 @@ class TestVWAPCalculator:
         for i in range(10):
             in_memory_db.execute(
                 "INSERT INTO stock_history VALUES (?, ?, 0, 0, 0, ?, ?, ?)",
-                ("2330", f"2026-01-{i+1:02d}", 100+i, 1000+i*100, 1000000+i*100000),
+                ("2330", f"2026-01-{i+1:02d}", 100 + i, 1000 + i * 100, 1000000 + i * 100000),
             )
         in_memory_db.commit()
 

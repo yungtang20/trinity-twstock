@@ -4,6 +4,7 @@
 此模組不含任何 I/O（無 print、msvcrt、input），
 僅根據当前状态 + 输入 → 回傳下一个状态 + 要执行的動作。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,14 +13,17 @@ from typing import Any, Optional
 
 # ── States ───────────────────────────────────────────────
 
+
 class TUIState(Enum):
     """TUI 狀態列舉。"""
+
     MAIN_MENU = "main_menu"
     EXIT = "exit"
 
 
 class ActionType(Enum):
     """動作類型（副作用标识）。"""
+
     NONE = "none"
     RUN_DAILY_UPDATE = "run_daily_update"
     RUN_HISTORICAL_UPDATE = "run_historical_update"
@@ -34,6 +38,7 @@ class ActionType(Enum):
 @dataclass
 class StateTransition:
     """状态转移動作。"""
+
     next_state: TUIState
     action: ActionType = ActionType.NONE
     payload: Optional[Any] = None  # 例如股號
@@ -75,6 +80,7 @@ def dispatch_main_menu(user_input: str) -> StateTransition:
 
 class HistoricalMenuState(Enum):
     """歷史更新子選單状态。"""
+
     LOOP = "loop"
     EXIT = "exit"
 
@@ -82,6 +88,7 @@ class HistoricalMenuState(Enum):
 @dataclass
 class HistoricalTransition:
     """歷史更新子選單转移動作。"""
+
     next_state: HistoricalMenuState
     action: Optional[str] = None
     payload: Optional[Any] = None

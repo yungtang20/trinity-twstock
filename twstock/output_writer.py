@@ -10,6 +10,7 @@ Usage:
     writer.write_result({"strategy": "ma", "score": 85})
     writer.write_error("資料不足")
 """
+
 from __future__ import annotations
 
 import json

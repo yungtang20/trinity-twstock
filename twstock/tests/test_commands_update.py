@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_commands_update.py — commands/update.py 單元測試。"""
+
 from __future__ import annotations
 
 from argparse import Namespace
@@ -35,8 +36,14 @@ class TestUpdateSingleStock:
     @patch("twstock.commands.update.DataFetcher")
     @patch("twstock.commands.update.console")
     def test_success_with_empty_institutional(
-        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc,
-        mock_fetcher, mock_processor
+        self,
+        mock_console,
+        MockFetcher,
+        MockProcessor,
+        mock_div,
+        mock_tdcc,
+        mock_fetcher,
+        mock_processor,
     ):
         MockFetcher.return_value = mock_fetcher
         MockProcessor.return_value = mock_processor
@@ -98,14 +105,21 @@ class TestUpdateSingleStock:
     @patch("twstock.commands.update.DataFetcher")
     @patch("twstock.commands.update.console")
     def test_with_all_data_sources(
-        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc,
-        mock_processor
+        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc, mock_processor
     ):
         fetcher = MagicMock()
-        fetcher.fetch_history_price.return_value = pd.DataFrame({"date": ["2025-01-01"], "close": [100]})
-        fetcher.fetch_institutional.return_value = pd.DataFrame({"date": ["2025-01-01"], "foreign": [1000]})
-        fetcher.fetch_shareholding.return_value = pd.DataFrame({"date": ["2025-01-01"], "level": [1]})
-        fetcher.fetch_stock_meta.return_value = pd.DataFrame({"stock_id": ["2330"], "stock_name": ["台積電"]})
+        fetcher.fetch_history_price.return_value = pd.DataFrame(
+            {"date": ["2025-01-01"], "close": [100]}
+        )
+        fetcher.fetch_institutional.return_value = pd.DataFrame(
+            {"date": ["2025-01-01"], "foreign": [1000]}
+        )
+        fetcher.fetch_shareholding.return_value = pd.DataFrame(
+            {"date": ["2025-01-01"], "level": [1]}
+        )
+        fetcher.fetch_stock_meta.return_value = pd.DataFrame(
+            {"stock_id": ["2330"], "stock_name": ["台積電"]}
+        )
 
         MockFetcher.return_value = fetcher
         MockProcessor.return_value = mock_processor
@@ -127,8 +141,14 @@ class TestUpdateSingleStock:
     @patch("twstock.commands.update.DataFetcher")
     @patch("twstock.commands.update.console")
     def test_dividend_exception_handled(
-        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc,
-        mock_fetcher, mock_processor
+        self,
+        mock_console,
+        MockFetcher,
+        MockProcessor,
+        mock_div,
+        mock_tdcc,
+        mock_fetcher,
+        mock_processor,
     ):
         MockFetcher.return_value = mock_fetcher
         MockProcessor.return_value = mock_processor
@@ -147,8 +167,14 @@ class TestUpdateSingleStock:
     @patch("twstock.commands.update.DataFetcher")
     @patch("twstock.commands.update.console")
     def test_tdcc_exception_handled(
-        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc,
-        mock_fetcher, mock_processor
+        self,
+        mock_console,
+        MockFetcher,
+        MockProcessor,
+        mock_div,
+        mock_tdcc,
+        mock_fetcher,
+        mock_processor,
     ):
         MockFetcher.return_value = mock_fetcher
         MockProcessor.return_value = mock_processor

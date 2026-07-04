@@ -5,6 +5,7 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（DoD）：  python -m pytest tests/test_002_twse_official.py -v -m "not live"
 執行（live）： python -m pytest tests/test_002_twse_official.py -v -m live
 """
+
 import sqlite3
 
 import pytest
@@ -49,19 +50,52 @@ def raw_twse_2330():
         "date": "11301",
         "title": "113年01月 2330 台積電 各日成交資訊",
         "fields": [
-            "日期", "成交股數", "成交金額",
-            "開盤價", "最高價", "最低價", "收盤價",
-            "漲跌價差", "成交筆數"
+            "日期",
+            "成交股數",
+            "成交金額",
+            "開盤價",
+            "最高價",
+            "最低價",
+            "收盤價",
+            "漲跌價差",
+            "成交筆數",
         ],
         "data": [
-            ["113/01/02", "22,388,968", "13,130,657,808",
-             "589.00", "590.00", "586.00", "586.00", "-5.00", "30,718"],
-            ["113/01/03", "20,502,111", "12,017,236,456",
-             "588.00", "592.00", "586.00", "590.00", "4.00", "25,432"],
-            ["113/01/04", "18,934,567", "11,234,567,890",
-             "591.00", "594.00", "589.00", "593.00", "3.00", "22,891"],
+            [
+                "113/01/02",
+                "22,388,968",
+                "13,130,657,808",
+                "589.00",
+                "590.00",
+                "586.00",
+                "586.00",
+                "-5.00",
+                "30,718",
+            ],
+            [
+                "113/01/03",
+                "20,502,111",
+                "12,017,236,456",
+                "588.00",
+                "592.00",
+                "586.00",
+                "590.00",
+                "4.00",
+                "25,432",
+            ],
+            [
+                "113/01/04",
+                "18,934,567",
+                "11,234,567,890",
+                "591.00",
+                "594.00",
+                "589.00",
+                "593.00",
+                "3.00",
+                "22,891",
+            ],
             ["113/01/05", "--", "--", "--", "--", "--", "--", "--", "--"],
-        ]
+        ],
     }
 
 
@@ -84,12 +118,19 @@ class TestTC1Transform:
     def test_required_columns_exist(self, fetcher, raw_twse_2330):
         rows = fetcher._transform(raw_twse_2330, "2330")
         required = {
-            "stock_id", "date", "open", "high", "low", "close",
-            "volume", "amount", "trade_count", "spread", "source",
+            "stock_id",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "amount",
+            "trade_count",
+            "spread",
+            "source",
         }
-        assert required.issubset(set(rows[0].keys())), (
-            f"缺少欄位: {required - set(rows[0].keys())}"
-        )
+        assert required.issubset(set(rows[0].keys())), f"缺少欄位: {required - set(rows[0].keys())}"
 
     def test_no_adj_close_column(self, fetcher, raw_twse_2330):
         rows = fetcher._transform(raw_twse_2330, "2330")
@@ -160,9 +201,7 @@ class TestTC8BadStat:
         with pytest.raises(Exception) as exc_info:
             fetcher._transform(bad, "2330")
         msg = str(exc_info.value).lower()
-        assert "stat" in msg or "ok" in msg, (
-            f"Exception 應提及 stat/OK，實際：{exc_info.value}"
-        )
+        assert "stat" in msg or "ok" in msg, f"Exception 應提及 stat/OK，實際：{exc_info.value}"
 
 
 class TestTC9Source:
@@ -192,10 +231,10 @@ class TestTC10Integration:
         row = cur.fetchone()
         assert row is not None, "查不到 (2330, 2024-01-02)"
         assert row[0] == "2024-01-02"
-        assert row[1] == 589.0,        f"open 錯：{row[1]}"
-        assert row[2] == 590.0,        f"high 錯：{row[2]}"
-        assert row[3] == 586.0,        f"low 錯：{row[3]}"
-        assert row[4] == 586.0,        f"close 錯：{row[4]}"
-        assert row[5] == 22388968,     f"volume 錯：{row[5]}"
-        assert row[6] == 13130657808,  f"amount 錯：{row[6]}"
-        assert row[7] == "official",   f"source 錯：{row[7]}"
+        assert row[1] == 589.0, f"open 錯：{row[1]}"
+        assert row[2] == 590.0, f"high 錯：{row[2]}"
+        assert row[3] == 586.0, f"low 錯：{row[3]}"
+        assert row[4] == 586.0, f"close 錯：{row[4]}"
+        assert row[5] == 22388968, f"volume 錯：{row[5]}"
+        assert row[6] == 13130657808, f"amount 錯：{row[6]}"
+        assert row[7] == "official", f"source 錯：{row[7]}"

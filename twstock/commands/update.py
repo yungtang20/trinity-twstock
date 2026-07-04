@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """update 命令：單股歷史資料更新。"""
+
 from __future__ import annotations
 
 from datetime import datetime

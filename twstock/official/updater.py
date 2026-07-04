@@ -22,6 +22,7 @@ from .dividend_crawler import fetch_dividend_events, upsert_dividend_events
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from processor import DataProcessor
+
     PROCESSOR_AVAILABLE = True
 except ImportError:
     PROCESSOR_AVAILABLE = False
@@ -32,55 +33,79 @@ try:
 except ImportError:
     from ..db import get_connection
 
+
 # ---------- 通用寫入函數 ----------
 def upsert_dataframe(table_name: str, df):
     """將 DataFrame 寫入資料庫（轉換欄位名稱）"""
     import pandas as pd
+
     if df.empty:
         return
     df = df.copy()
-    if 'code' in df.columns:
-        df.rename(columns={'code': 'stock_id'}, inplace=True)
-    if 'date_int' in df.columns:
-        df['date'] = pd.to_datetime(df['date_int'].astype(str), format='%Y%m%d').dt.strftime('%Y-%m-%d')
+    if "code" in df.columns:
+        df.rename(columns={"code": "stock_id"}, inplace=True)
+    if "date_int" in df.columns:
+        df["date"] = pd.to_datetime(df["date_int"].astype(str), format="%Y%m%d").dt.strftime(
+            "%Y-%m-%d"
+        )
 
-    if table_name == 'stock_history':
+    if table_name == "stock_history":
         # 確保必要欄位存在
-        if 'amount' not in df.columns and 'turnover' in df.columns:
-            df['amount'] = df['turnover']
-        num_cols = ['stock_id', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount']
+        if "amount" not in df.columns and "turnover" in df.columns:
+            df["amount"] = df["turnover"]
+        num_cols = ["stock_id", "date", "open", "high", "low", "close", "volume", "amount"]
         for col in num_cols:
             if col not in df.columns:
                 df[col] = 0
         # 非數值欄位特別處理（ponytail: source 必須是字串 'official'）
-        if 'trade_count' not in df.columns:
-            df['trade_count'] = None
-        if 'spread' not in df.columns:
-            df['spread'] = None
-        if 'source' not in df.columns:
-            df['source'] = 'official'
-        df = df[num_cols + ['trade_count', 'spread', 'source']]
-    elif table_name == 'institutional_data':
-        if 'foreign_buy' in df.columns and 'foreign_sell' in df.columns:
-            df['foreign_net'] = df['foreign_buy'] - df['foreign_sell']
-        if 'trust_buy' in df.columns and 'trust_sell' in df.columns:
-            df['trust_net'] = df['trust_buy'] - df['trust_sell']
-        if 'dealer_buy' in df.columns and 'dealer_sell' in df.columns:
-            df['dealer_net'] = df['dealer_buy'] - df['dealer_sell']
-        df['institutional_net'] = df.get('foreign_net', 0) + df.get('trust_net', 0) + df.get('dealer_net', 0)
+        if "trade_count" not in df.columns:
+            df["trade_count"] = None
+        if "spread" not in df.columns:
+            df["spread"] = None
+        if "source" not in df.columns:
+            df["source"] = "official"
+        df = df[num_cols + ["trade_count", "spread", "source"]]
+    elif table_name == "institutional_data":
+        if "foreign_buy" in df.columns and "foreign_sell" in df.columns:
+            df["foreign_net"] = df["foreign_buy"] - df["foreign_sell"]
+        if "trust_buy" in df.columns and "trust_sell" in df.columns:
+            df["trust_net"] = df["trust_buy"] - df["trust_sell"]
+        if "dealer_buy" in df.columns and "dealer_sell" in df.columns:
+            df["dealer_net"] = df["dealer_buy"] - df["dealer_sell"]
+        df["institutional_net"] = (
+            df.get("foreign_net", 0) + df.get("trust_net", 0) + df.get("dealer_net", 0)
+        )
         # 保留所有可用欄位（含買賣明細），避免資料丟失
-        all_cols = ['stock_id', 'date',
-                    'foreign_net', 'trust_net', 'dealer_net', 'institutional_net',
-                    'foreign_buy', 'foreign_sell', 'trust_buy', 'trust_sell',
-                    'dealer_buy', 'dealer_sell']
+        all_cols = [
+            "stock_id",
+            "date",
+            "foreign_net",
+            "trust_net",
+            "dealer_net",
+            "institutional_net",
+            "foreign_buy",
+            "foreign_sell",
+            "trust_buy",
+            "trust_sell",
+            "dealer_buy",
+            "dealer_sell",
+        ]
         for col in all_cols:
             if col not in df.columns:
                 df[col] = 0
-        if 'source' not in df.columns:
-            df['source'] = 'official'
-        df = df[all_cols + ['source']]
-    elif table_name == 'shareholding_unified':
-        required = ['stock_id', 'date', 'source', 'total_shares', 'whale_ratio', 'total_people', 'whale_shares']
+        if "source" not in df.columns:
+            df["source"] = "official"
+        df = df[all_cols + ["source"]]
+    elif table_name == "shareholding_unified":
+        required = [
+            "stock_id",
+            "date",
+            "source",
+            "total_shares",
+            "whale_ratio",
+            "total_people",
+            "whale_shares",
+        ]
         for col in required:
             if col not in df.columns:
                 df[col] = 0
@@ -94,12 +119,13 @@ def upsert_dataframe(table_name: str, df):
         return
 
     proc = DataProcessor()
-    if table_name == 'stock_history':
+    if table_name == "stock_history":
         proc.upsert_history(df)
-    elif table_name == 'institutional_data':
+    elif table_name == "institutional_data":
         proc.upsert_institutional(df)
-    elif table_name == 'shareholding_unified':
+    elif table_name == "shareholding_unified":
         proc.upsert_shareholding(df)
+
 
 # ---------- 除權息事件更新 ----------
 def update_dividend_events_for_date_range(start_date: str, end_date: str):
@@ -109,18 +135,21 @@ def update_dividend_events_for_date_range(start_date: str, end_date: str):
     if not df.empty:
         upsert_dividend_events(df)
         print(f"  ✅ 除權息事件: {len(df)} 筆", flush=True)
-        return df['stock_id'].unique().tolist()
+        return df["stock_id"].unique().tolist()
     else:
         print("  ⚠️ 無除權息事件", flush=True)
         return []
 
+
 # ---------- 主更新函數 ----------
-def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: bool = False, auto_tdcc: bool = True):
+def update_official_daily(
+    date_int: Optional[int] = None, days: int = 1, force: bool = False, auto_tdcc: bool = True
+):
     """抓取官方資料（價量、法人、除權息事件、集保）"""
     print("📌 開始執行官方資料更新...", flush=True)
 
     # 確保交易日曆存在
-    conn = get_connection() # [AI MOD]
+    conn = get_connection()  # [AI MOD]
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM stock_trading_calendar")
     if cur.fetchone()[0] == 0:
@@ -195,11 +224,14 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                 if inst_max is None or str(inst_max) < str(latest_date):
                     parts = str(latest_date).split("-")
                     d_int = int(parts[0]) * 10000 + int(parts[1]) * 100 + int(parts[2])
-                    print(f"\n⚡ 補抓三大法人資料（最新交易日 {latest_date}，目前在庫 {inst_max or 'N/A'}）...", flush=True)
+                    print(
+                        f"\n⚡ 補抓三大法人資料（最新交易日 {latest_date}，目前在庫 {inst_max or 'N/A'}）...",
+                        flush=True,
+                    )
                     try:
                         inst_df = institutional.fetch_all_institutional(d_int)
                         if inst_df is not None and not inst_df.empty:
-                            upsert_dataframe('institutional_data', inst_df)
+                            upsert_dataframe("institutional_data", inst_df)
                             print(f"  ✅ 三大法人補抓: {len(inst_df)} 筆", flush=True)
                         else:
                             print("  ⚠️ 三大法人補抓為空（可能尚未公佈）", flush=True)
@@ -207,19 +239,26 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                         print(f"  ⚠️ 三大法人補抓失敗: {e}", flush=True)
 
             if latest_date:
-                cur.execute("SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4")
+                cur.execute(
+                    "SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4"
+                )
                 twse_expected = cur.fetchone()[0] or 1000
-                cur.execute("SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4")
+                cur.execute(
+                    "SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4"
+                )
                 tpex_expected = cur.fetchone()[0] or 800
 
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT 
                         SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
                         SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
                     FROM stock_history h
                     JOIN stock_meta m ON h.stock_id = m.stock_id
                     WHERE h.date = ? AND m.type = 'COMMON'
-                """, (latest_date,))
+                """,
+                    (latest_date,),
+                )
                 row = cur.fetchone()
                 twse_fetched = row[0] or 0
                 tpex_fetched = row[1] or 0
@@ -232,8 +271,14 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
                 tpex_missing = max(0, tpex_expected - tpex_fetched)
 
                 print(f"  📊 資料庫內最新進度 ({latest_date}):")
-                print(f"      [TWSE] 需抓 {twse_expected:4d} 檔，已在庫 {twse_fetched:4d} 檔，缺漏 {twse_missing:4d} 檔", flush=True)
-                print(f"      [TPEx] 需抓 {tpex_expected:4d} 檔，已在庫 {tpex_fetched:4d} 檔，缺漏 {tpex_missing:4d} 檔", flush=True)
+                print(
+                    f"      [TWSE] 需抓 {twse_expected:4d} 檔，已在庫 {twse_fetched:4d} 檔，缺漏 {twse_missing:4d} 檔",
+                    flush=True,
+                )
+                print(
+                    f"      [TPEx] 需抓 {tpex_expected:4d} 檔，已在庫 {tpex_fetched:4d} 檔，缺漏 {tpex_missing:4d} 檔",
+                    flush=True,
+                )
             conn_meta.close()
         except Exception:
             pass
@@ -252,22 +297,27 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             print("  → 抓取價量資料...", flush=True)
 
             import pandas as pd
+
             twse_df = quotes.fetch_twse_quotes(d)
             tpex_df = quotes.fetch_tpex_quotes(d)
 
             # 標記來源市場，供 update_stock_meta_from_df 寫入 stock_meta.market
             if not twse_df.empty:
-                twse_df['market'] = 'TSE'
+                twse_df["market"] = "TSE"
             if not tpex_df.empty:
-                tpex_df['market'] = 'OTC'
+                tpex_df["market"] = "OTC"
 
             # [AI MOD] Calculate target counts to display fetching progress
             try:
                 conn_meta = get_connection()
                 cur_meta = conn_meta.cursor()
-                cur_meta.execute("SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4")
+                cur_meta.execute(
+                    "SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4"
+                )
                 twse_expected = cur_meta.fetchone()[0] or 1000
-                cur_meta.execute("SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4")
+                cur_meta.execute(
+                    "SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4"
+                )
                 tpex_expected = cur_meta.fetchone()[0] or 800
                 conn_meta.close()
             except Exception:
@@ -283,28 +333,34 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
             twse_missing = max(0, twse_expected - twse_fetched)
             tpex_missing = max(0, tpex_expected - tpex_fetched)
 
-            print(f"      [TWSE] 今日需抓 {twse_expected:4d} 檔，已抓 {twse_fetched:4d} 檔，失敗 {twse_missing:4d} 檔", flush=True)
-            print(f"      [TPEx] 今日需抓 {tpex_expected:4d} 檔，已抓 {tpex_fetched:4d} 檔，失敗 {tpex_missing:4d} 檔", flush=True)
+            print(
+                f"      [TWSE] 今日需抓 {twse_expected:4d} 檔，已抓 {twse_fetched:4d} 檔，失敗 {twse_missing:4d} 檔",
+                flush=True,
+            )
+            print(
+                f"      [TPEx] 今日需抓 {tpex_expected:4d} 檔，已抓 {tpex_fetched:4d} 檔，失敗 {tpex_missing:4d} 檔",
+                flush=True,
+            )
 
             if twse_df.empty and tpex_df.empty:
                 print("  ⚠️ 價量資料為空 (可能為休市日)", flush=True)
                 continue
 
             price_df = pd.concat([twse_df, tpex_df], ignore_index=True)
-            price_df = price_df.drop_duplicates(subset=['stock_id', 'date'])
+            price_df = price_df.drop_duplicates(subset=["stock_id", "date"])
 
             # 更新股票名稱表
             quotes.update_stock_meta_from_df(price_df)
 
             # 寫入原始價量
-            upsert_dataframe('stock_history', price_df)
+            upsert_dataframe("stock_history", price_df)
             print(f"  ✅ 價量資料: {len(price_df)} 筆", flush=True)
 
             # 2. 抓取三大法人資料
             print("  → 抓取三大法人資料...", flush=True)
             inst_df = institutional.fetch_all_institutional(d)
             if not inst_df.empty:
-                upsert_dataframe('institutional_data', inst_df)
+                upsert_dataframe("institutional_data", inst_df)
                 print(f"  ✅ 三大法人: {len(inst_df)} 筆", flush=True)
             else:
                 print("  ⚠️ 三大法人資料為空", flush=True)
@@ -328,10 +384,11 @@ def update_official_daily(date_int: Optional[int] = None, days: int = 1, force: 
     if auto_tdcc:
         _auto_update_tdcc()
 
+
 def _auto_update_tdcc():
     """自動檢查並更新最新 TDCC"""
     try:
-        conn = get_connection() # [AI MOD]
+        conn = get_connection()  # [AI MOD]
         cur = conn.cursor()
         cur.execute("SELECT MAX(date) FROM shareholding_unified WHERE source='tdcc'")
         row = cur.fetchone()
@@ -345,23 +402,28 @@ def _auto_update_tdcc():
         this_sat_str = latest_sat.strftime("%Y-%m-%d")
 
         if not last_tdcc_date or str(last_tdcc_date) < this_sat_str:
-            print(f"\n📊 檢查到新的 TDCC 集保資料（最新: {last_tdcc_date or '無'}，本週六: {this_sat_str}），一併更新...", flush=True)
+            print(
+                f"\n📊 檢查到新的 TDCC 集保資料（最新: {last_tdcc_date or '無'}，本週六: {this_sat_str}），一併更新...",
+                flush=True,
+            )
             update_tdcc_weekly()
         else:
             print(f"\n📊 TDCC 資料已為最新（{last_tdcc_date}），無需更新。", flush=True)
     except Exception as e:
         print(f"⚠️ 自動檢查 TDCC 失敗: {e}", flush=True)
 
+
 def update_tdcc_weekly():
     """抓取最新一期 TDCC 資料（單週）"""
     update_tdcc_historical(weeks=1)
+
 
 def update_tdcc_historical(weeks: int = 1):
     """抓取最近 weeks 週的 TDCC 歷史資料"""
     print(f"🔄 抓取最近 {weeks} 週 TDCC 集保資料...", flush=True)
     tdcc_df = tdcc.fetch_tdcc_historical(weeks=weeks)
     if not tdcc_df.empty:
-        upsert_dataframe('shareholding_unified', tdcc_df)
+        upsert_dataframe("shareholding_unified", tdcc_df)
         print(f"  ✅ TDCC 資料: {len(tdcc_df)} 筆 (涵蓋 {weeks} 週)", flush=True)
     else:
         print("  ⚠️ TDCC 資料為空", flush=True)

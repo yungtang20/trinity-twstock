@@ -35,6 +35,7 @@ FINMIND_BASE_URL = "https://api.finmindtrade.com/api/v4/data"
 
 class _RateLimiter:
     """Thread-safe 滑動視窗速率限制器"""
+
     def __init__(self, max_calls=600, window=3600):
         self._max = max_calls
         self._window = window
@@ -63,13 +64,16 @@ class _RateLimiter:
 
 class FinMindClient:
     """封裝 FinMind API 的 HTTP 客戶端"""
+
     def __init__(self, token):
         self.token = token
         self._session = requests.Session()
-        self._session.headers.update({
-            "Authorization": f"Bearer {token}",
-            "User-Agent": "Trinity-Fetcher/1.0",
-        })
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "Trinity-Fetcher/1.0",
+            }
+        )
 
     def get(self, dataset, data_id="", start="", end="", retries=3):
         """呼叫 FinMind API，回傳 pd.DataFrame"""
@@ -120,6 +124,7 @@ def _get_client(token=None):
 # ============================================================================
 # DataFetcher 主類別
 # ============================================================================
+
 
 class DataFetcher:
     """台股資料抓取器，封裝所有資料源呼叫"""
@@ -216,7 +221,9 @@ class DataFetcher:
                 df[c] = 0
 
         df = df[required].copy()
-        df["foreign_shares"] = pd.to_numeric(df["foreign_shares"], errors="coerce").fillna(0).astype(int)
+        df["foreign_shares"] = (
+            pd.to_numeric(df["foreign_shares"], errors="coerce").fillna(0).astype(int)
+        )
         df["foreign_ratio"] = pd.to_numeric(df["foreign_ratio"], errors="coerce").fillna(0.0)
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
         return df
@@ -257,10 +264,12 @@ class DataFetcher:
             data = r.json()
             if data.get("msgArray") and len(data["msgArray"]) > 0:
                 item = data["msgArray"][0]
+
                 def _local_safe_float(val):
                     if val in ("-", "", None):
                         return None
                     return _safe_float(val, default=None)
+
                 return {
                     "o": _local_safe_float(item.get("o")),
                     "h": _local_safe_float(item.get("h")),
@@ -298,6 +307,7 @@ def fetch_stock_info():
 # FinMindFetcher — Issue 001 v3.0 (raw units, no adj_close)
 # ============================================================================
 
+
 class FinMindFetcher:
     """FinMind 日線資料抓取器，直接存原始值（股/元），不做單位轉換"""
 
@@ -333,27 +343,37 @@ class FinMindFetcher:
         if not raw.get("data"):
             raise Exception("Cannot transform empty data list")
 
-        required_fields = ["max", "min", "open", "close",
-                           "Trading_Volume", "Trading_money", "Trading_turnover", "spread"]
+        required_fields = [
+            "max",
+            "min",
+            "open",
+            "close",
+            "Trading_Volume",
+            "Trading_money",
+            "Trading_turnover",
+            "spread",
+        ]
         rows = []
         for row in raw["data"]:
             for field in required_fields:
                 if field not in row:
                     raise Exception(f"Missing required field: {field}")
 
-            rows.append({
-                "stock_id": row["stock_id"],
-                "date": row["date"],
-                "open": row["open"],
-                "high": row["max"],
-                "low": row["min"],
-                "close": row["close"],
-                "volume": row["Trading_Volume"],
-                "amount": row["Trading_money"],
-                "trade_count": row["Trading_turnover"],
-                "spread": row["spread"],
-                "source": "finmind",
-            })
+            rows.append(
+                {
+                    "stock_id": row["stock_id"],
+                    "date": row["date"],
+                    "open": row["open"],
+                    "high": row["max"],
+                    "low": row["min"],
+                    "close": row["close"],
+                    "volume": row["Trading_Volume"],
+                    "amount": row["Trading_money"],
+                    "trade_count": row["Trading_turnover"],
+                    "spread": row["spread"],
+                    "source": "finmind",
+                }
+            )
         return rows
 
     def save(self, rows):
@@ -381,6 +401,7 @@ class FinMindFetcher:
 # ============================================================================
 # TWSEFetcher — Issue 002 (ROC dates, comma removal, skip suspended)
 # ============================================================================
+
 
 class TWSEFetcher:
     """TWSE 官方日線資料抓取器，以月為單位"""
@@ -444,20 +465,22 @@ class TWSEFetcher:
                 cleaned = s.replace(",", "")
                 return int(cleaned) if is_int else float(cleaned)
 
-            rows.append({
-                "stock_id": stock_id,
-                "date": self._roc_to_ce(row[0]),
-                "open": parse_num(row[3], False),
-                "high": parse_num(row[4], False),
-                "low": parse_num(row[5], False),
-                "close": parse_num(row[6], False),
-                "volume": parse_num(row[1], True),
-                # TWSE API 回傳 volume(股) / amount(元)，DB_SCHEMA 規定相同單位，直接存
-                "amount": parse_num(row[2], True),
-                "trade_count": parse_num(row[8], True),
-                "spread": parse_num(row[7], False),
-                "source": "official",
-            })
+            rows.append(
+                {
+                    "stock_id": stock_id,
+                    "date": self._roc_to_ce(row[0]),
+                    "open": parse_num(row[3], False),
+                    "high": parse_num(row[4], False),
+                    "low": parse_num(row[5], False),
+                    "close": parse_num(row[6], False),
+                    "volume": parse_num(row[1], True),
+                    # TWSE API 回傳 volume(股) / amount(元)，DB_SCHEMA 規定相同單位，直接存
+                    "amount": parse_num(row[2], True),
+                    "trade_count": parse_num(row[8], True),
+                    "spread": parse_num(row[7], False),
+                    "source": "official",
+                }
+            )
         return rows
 
     def save(self, rows):
@@ -504,6 +527,7 @@ class TWSEFetcher:
 # InstitutionalFetcher — Issue 003 (pivot, dealer sum)
 # ============================================================================
 
+
 class InstitutionalFetcher:
     """三大法人買賣超資料抓取器，pivot 成一日一筆"""
 
@@ -545,6 +569,7 @@ class InstitutionalFetcher:
 
         # 按日期分組
         from collections import defaultdict
+
         by_date = defaultdict(list)
         for row in data:
             by_date[row["date"]].append(row)
@@ -555,9 +580,15 @@ class InstitutionalFetcher:
             result = {
                 "stock_id": stock_id,
                 "date": date,
-                "foreign_buy": 0, "foreign_sell": 0, "foreign_net": 0,
-                "trust_buy": 0, "trust_sell": 0, "trust_net": 0,
-                "dealer_buy": 0, "dealer_sell": 0, "dealer_net": 0,
+                "foreign_buy": 0,
+                "foreign_sell": 0,
+                "foreign_net": 0,
+                "trust_buy": 0,
+                "trust_sell": 0,
+                "trust_net": 0,
+                "dealer_buy": 0,
+                "dealer_sell": 0,
+                "dealer_net": 0,
                 "source": "finmind",
             }
             for e in entries:
@@ -615,6 +646,7 @@ class InstitutionalFetcher:
 # TDCCFetcher — Issue 004 (weekly, whale/retail ratio)
 # ============================================================================
 
+
 class TDCCFetcher:
     """集保持股資料抓取器，計算大股東/散戶比例"""
 
@@ -655,6 +687,7 @@ class TDCCFetcher:
         以 (stock_id, date_roc) 分組，計算各欄。
         """
         from collections import defaultdict
+
         by_key = defaultdict(list)
         for row in raw_rows:
             key = (row["stock_id"], row["date_roc"])
@@ -687,19 +720,21 @@ class TDCCFetcher:
             whale_ratio = (whale_shares / total_shares * 100) if total_shares > 0 else 0.0
             retail_ratio = (retail_shares / total_shares * 100) if total_shares > 0 else 0.0
 
-            rows.append({
-                "stock_id": stock_id,
-                "date": date,
-                "source": "tdcc",
-                "total_shares": total_shares,
-                "total_people": total_people,
-                "whale_shares": whale_shares,
-                "whale_people": whale_people,
-                "whale_ratio": whale_ratio,
-                "retail_ratio": retail_ratio,
-                "foreign_shares": None,
-                "foreign_ratio": None,
-            })
+            rows.append(
+                {
+                    "stock_id": stock_id,
+                    "date": date,
+                    "source": "tdcc",
+                    "total_shares": total_shares,
+                    "total_people": total_people,
+                    "whale_shares": whale_shares,
+                    "whale_people": whale_people,
+                    "whale_ratio": whale_ratio,
+                    "retail_ratio": retail_ratio,
+                    "foreign_shares": None,
+                    "foreign_ratio": None,
+                }
+            )
         return rows
 
     def save(self, rows):
@@ -727,6 +762,7 @@ class TDCCFetcher:
 # ============================================================================
 # DividendFetcher — Issue 005 (FinMind TaiwanStockDividend)
 # ============================================================================
+
 
 class DividendFetcher:
     """除權息事件抓取器"""
@@ -772,16 +808,18 @@ class DividendFetcher:
 
         rows = []
         for row in raw["data"]:
-            rows.append({
-                "stock_id": row["stock_id"],
-                "date": row["date"],
-                "before_price": float(row.get("beforeDividend", 0)),
-                "after_price": float(row.get("afterDividend", 0)),
-                "reference_price": float(row.get("reference", 0)),
-                "cash_dividend": float(row.get("CashDividend", 0)),
-                "stock_dividend": float(row.get("StockDividend", 0)),
-                "source": "finmind",
-            })
+            rows.append(
+                {
+                    "stock_id": row["stock_id"],
+                    "date": row["date"],
+                    "before_price": float(row.get("beforeDividend", 0)),
+                    "after_price": float(row.get("afterDividend", 0)),
+                    "reference_price": float(row.get("reference", 0)),
+                    "cash_dividend": float(row.get("CashDividend", 0)),
+                    "stock_dividend": float(row.get("StockDividend", 0)),
+                    "source": "finmind",
+                }
+            )
         return rows
 
     def save(self, rows):
@@ -809,6 +847,7 @@ class DividendFetcher:
 # ============================================================================
 # PERFetcher — Issue 006 (TWSE BWIBBU, monthly)
 # ============================================================================
+
 
 class PERFetcher:
     """本益比資料抓取器，以月為單位"""
@@ -865,16 +904,18 @@ class PERFetcher:
             per_val = float(row[3])
             pbr_val = float(row[4])
 
-            rows.append({
-                "stock_id": stock_id,
-                "date": date,
-                "dividend_yield": float(row[1]),
-                "per": per_val,
-                "pe_ratio": per_val,
-                "pbr": pbr_val,
-                "pb_ratio": pbr_val,
-                "source": "official",
-            })
+            rows.append(
+                {
+                    "stock_id": stock_id,
+                    "date": date,
+                    "dividend_yield": float(row[1]),
+                    "per": per_val,
+                    "pe_ratio": per_val,
+                    "pbr": pbr_val,
+                    "pb_ratio": pbr_val,
+                    "source": "official",
+                }
+            )
         return rows
 
     def save(self, rows):

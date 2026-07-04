@@ -32,22 +32,22 @@ from twstock.strategy._utils import fetch_klines
 from twstock.terminal import rconsole
 
 try:
-    from strategy.patterns_strategy import StockPredictionAnalyzer
+    from twstock.strategy.patterns_strategy import StockPredictionAnalyzer
 except ImportError:
     StockPredictionAnalyzer = None
 
 # [AI MOD] AI Prediction session scan cache to make switching sorting instantly fast
 _CACHE_TTL = 300  # 5 分鐘
 _PRED_CACHE = {
-    'date': None,
-    'min_volume': None,
-    'results': None,
-    'ts': 0,
+    "date": None,
+    "min_volume": None,
+    "results": None,
+    "ts": 0,
 }
 
 # Import shared engine components to eliminate duplication
 try:
-    from strategy.kronos_engine import (
+    from twstock.strategy.kronos_engine import (
         DEFAULT_CONFIG,
         DriftMonitor,
         DriftStatus,
@@ -63,11 +63,12 @@ try:
 except ImportError as e:
     # kronos_engine requires torch - not available in test env
     import warnings
+
     warnings.warn(f"kronos_engine import failed: {e}")
     load_kronos = None
     KronosRealEngine = None
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 # ── Module path ───────────────────────────────────────────
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -75,10 +76,9 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
-
 from twstock.db import get_connection  # [AI MOD]
 from twstock.display import price_color, vol_color  # [AI MOD]
+from twstock.strategy._utils import clear_screen, get_stock_name, render_header
 
 try:
     from twstock.input_helper import get_blocking_key
@@ -87,6 +87,7 @@ except ImportError:
 
 
 # ── Local helpers ─────────────────────────────────────────
+
 
 def _render_header(title, is_detail=False):
     render_header(title, is_detail=is_detail, console=rconsole)
@@ -110,19 +111,23 @@ def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine
         # Kronos 需要 DatetimeIndex；若 df 的 date 欄位是字串，先轉換
         work = df.copy()
         if not isinstance(work.index, pd.DatetimeIndex):
-            if 'date' in work.columns:
-                work['date'] = pd.to_datetime(work['date'])
-                work = work.set_index('date')
+            if "date" in work.columns:
+                work["date"] = pd.to_datetime(work["date"])
+                work = work.set_index("date")
             else:
                 work.index = pd.to_datetime(work.index)
         # 確保 index 是 monotonic increasing
         work = work.sort_index()
         pred = engine.kronos_engine.predict(work, engine.config)
-        current = float(work['close'].iloc[-1])
+        current = float(work["close"].iloc[-1])
         rconsole.print()
-        rconsole.print(Panel(
-            f"[bold bright_white]{code} {name} Kronos 5 日價格預測[/]",
-            border_style="bright_magenta", box=box.DOUBLE))
+        rconsole.print(
+            Panel(
+                f"[bold bright_white]{code} {name} Kronos 5 日價格預測[/]",
+                border_style="bright_magenta",
+                box=box.DOUBLE,
+            )
+        )
 
         # 绘制預測表格
         table = Table(box=box.SIMPLE, border_style="magenta")
@@ -138,9 +143,11 @@ def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine
 
         direction = "偏多" if pred.drift > 0 else "偏空" if pred.drift < 0 else "中性"
         dc = "bright_red" if pred.drift > 0 else "bright_green" if pred.drift < 0 else "white"
-        rconsole.print(f"  當前: {current:.2f}  目標: {pred.benchmark:.2f}  "
-                       f"預期: [{dc}]{direction} ({pred.drift:+.2%})[/]  "
-                       f"信心: {pred.confidence:.1%}")
+        rconsole.print(
+            f"  當前: {current:.2f}  目標: {pred.benchmark:.2f}  "
+            f"預期: [{dc}]{direction} ({pred.drift:+.2%})[/]  "
+            f"信心: {pred.confidence:.1%}"
+        )
     except Exception as e:
         rconsole.print(f"[red]❌ Kronos 預測失敗: {e}[/]")
 
@@ -166,42 +173,46 @@ class MarketScanner:
 
             # Check cache hit
             cache_hit = False
-            if (_PRED_CACHE['date'] == latest_date
-                and _PRED_CACHE['min_volume'] == min_volume
-                and _PRED_CACHE['results'] is not None
-                and time.time() - _PRED_CACHE.get('ts', 0) < _CACHE_TTL):
+            if (
+                _PRED_CACHE["date"] == latest_date
+                and _PRED_CACHE["min_volume"] == min_volume
+                and _PRED_CACHE["results"] is not None
+                and time.time() - _PRED_CACHE.get("ts", 0) < _CACHE_TTL
+            ):
                 cache_hit = True
-                preds = _PRED_CACHE['results']
-                rconsole.print(f"\n[green]⚡ 已載入今日AI預測掃描快取數據 (基準日: {latest_date}) [0.00s][/green]")
+                preds = _PRED_CACHE["results"]
+                rconsole.print(
+                    f"\n[green]⚡ 已載入今日AI預測掃描快取數據 (基準日: {latest_date}) [0.00s][/green]"
+                )
             else:
                 stock_ids = self._get_targets(latest_date, min_volume)
                 if not stock_ids:
                     rconsole.print("[yellow]⚠️ 無符合成交量門檻的標的[/]")
                     return
 
-                name_mapping = dict(self.conn.execute(
-                    "SELECT stock_id, stock_name FROM stock_meta"
-                ).fetchall())
+                name_mapping = dict(
+                    self.conn.execute("SELECT stock_id, stock_name FROM stock_meta").fetchall()
+                )
 
                 preds = self._analyze_stocks(stock_ids, name_mapping)
 
                 # Store in session cache
-                _PRED_CACHE['date'] = latest_date
-                _PRED_CACHE['min_volume'] = min_volume
-                _PRED_CACHE['results'] = preds
-                _PRED_CACHE['ts'] = time.time()
+                _PRED_CACHE["date"] = latest_date
+                _PRED_CACHE["min_volume"] = min_volume
+                _PRED_CACHE["results"] = preds
+                _PRED_CACHE["ts"] = time.time()
 
             sort_choice = "1"
             if preds:
                 rconsole.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
-                rconsole.print("  [1] 距潛力估值由大到小 (預設)") # [AI MOD]
+                rconsole.print("  [1] 距潛力估值由大到小 (預設)")  # [AI MOD]
                 rconsole.print("  [2] 成交金額由大到小")
                 ch = get_blocking_key()
-                if ch in ('1', '2'):
+                if ch in ("1", "2"):
                     sort_choice = ch
 
                 if sort_choice == "1":
-                    preds.sort(key=lambda x: x.score, reverse=True) # [AI MOD]
+                    preds.sort(key=lambda x: x.score, reverse=True)  # [AI MOD]
                 elif sort_choice == "2":
                     preds.sort(key=lambda x: x.amount, reverse=True)
 
@@ -220,7 +231,9 @@ class MarketScanner:
         ).fetchall()
         return [r[0] for r in rows]
 
-    def _analyze_stocks(self, stock_ids: List[str], name_mapping: Dict[str, str]) -> List[StockPrediction]:
+    def _analyze_stocks(
+        self, stock_ids: List[str], name_mapping: Dict[str, str]
+    ) -> List[StockPrediction]:
         preds = []
         with Progress(
             SpinnerColumn(),
@@ -241,44 +254,49 @@ class MarketScanner:
 
                     pred = self.engine.predict(df, self.config)
 
-                    price = float(df['close'].iloc[-1])  # [AI MOD] 使用原始價
+                    price = float(df["close"].iloc[-1])  # [AI MOD] 使用原始價
                     target = pred.benchmark
-                    vol = float(df['volume'].iloc[-1])
+                    vol = float(df["volume"].iloc[-1])
 
                     if price <= 0:
                         progress.advance(task)
                         continue
 
-                    prev_price = float(df['close'].iloc[-2]) if len(df) > 1 else price
-                    prev_vol = float(df['volume'].iloc[-2]) if len(df) > 1 else float(df['volume'].iloc[-1])
+                    prev_price = float(df["close"].iloc[-2]) if len(df) > 1 else price
+                    prev_vol = (
+                        float(df["volume"].iloc[-2])
+                        if len(df) > 1
+                        else float(df["volume"].iloc[-1])
+                    )
 
-                    preds.append(StockPrediction(
-                        code=code,
-                        name=name_mapping.get(code, "-"),
-                        current_price=price,
-                        volume=int(vol),
-                        amount=(price * vol) / 100_000_000,
-                        score=(target - price) / price,
-                        target_price=target,
-                        confidence=pred.confidence,
-                        prev_price=prev_price,
-                        prev_volume=prev_vol,
-                    ))
+                    preds.append(
+                        StockPrediction(
+                            code=code,
+                            name=name_mapping.get(code, "-"),
+                            current_price=price,
+                            volume=int(vol),
+                            amount=(price * vol) / 100_000_000,
+                            score=(target - price) / price,
+                            target_price=target,
+                            confidence=pred.confidence,
+                            prev_price=prev_price,
+                            prev_volume=prev_vol,
+                        )
+                    )
                 except Exception:
                     pass
                 progress.advance(task)
 
         return preds
 
-    def _display_results(self, preds: List[StockPrediction], latest_date: str, sort_choice: str = "1") -> None:
+    def _display_results(
+        self, preds: List[StockPrediction], latest_date: str, sort_choice: str = "1"
+    ) -> None:
         if not preds:
             rconsole.print("[yellow]📭 無符合分析條件標的[/]")
             return
 
-        sort_names = {
-            "1": "距潛力估值由大到小", # [AI MOD]
-            "2": "成交金額由大到小"
-        }
+        sort_names = {"1": "距潛力估值由大到小", "2": "成交金額由大到小"}  # [AI MOD]
         sort_name = sort_names.get(sort_choice, "距潛力估值由大到小")
 
         engine_label = "Kronos" if self.uses_kronos else "MonteCarlo"
@@ -336,6 +354,7 @@ class MarketScanner:
 
 
 # ── CLI Application ───────────────────────────────────────
+
 
 class PredictionAnalysisApp:
 
@@ -399,6 +418,7 @@ def get_latest_date() -> str:
     from db import (
         get_connection,  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
     )
+
     conn = get_connection(readonly=True)
     try:
         return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
@@ -407,11 +427,11 @@ def get_latest_date() -> str:
 
 
 def run_strategy(params: dict):
-    code = params.get('code')
-    scan = params.get('scan', False)
-    vol = params.get('vol', 500)
-    compact = params.get('compact', False)
-    mobile = params.get('mobile', False)
+    code = params.get("code")
+    scan = params.get("scan", False)
+    vol = params.get("vol", 500)
+    compact = params.get("compact", False)
+    mobile = params.get("mobile", False)
     app = PredictionAnalysisApp()
     if scan:
         conn = get_connection(readonly=True)
@@ -439,7 +459,9 @@ def run_strategy(params: dict):
                     # Fallback：Kronos 不可用時使用 Monte Carlo
                     mc = MonteCarloEngine()
                     pred = mc.predict(df, app.config)
-                    rconsole.print(f"[dim]  Kronos 未載入，使用 Monte Carlo fallback: {pred.benchmark:.2f} (信心 {pred.confidence:.1%})[/]")
+                    rconsole.print(
+                        f"[dim]  Kronos 未載入，使用 Monte Carlo fallback: {pred.benchmark:.2f} (信心 {pred.confidence:.1%})[/]"
+                    )
             else:
                 rconsole.print(f"[red]❌ 查無該股號資料：{code}[/]")
         finally:

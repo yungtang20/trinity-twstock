@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_official_trading_calendar.py — official/trading_calendar.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from datetime import datetime

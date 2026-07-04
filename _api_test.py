@@ -13,16 +13,18 @@ API 測試腳本 — 逐一驗證所有外部 API 端點
 - Rate Limit
 - Timeout
 """
-import os
-import sys
-import json
-import time
+
 import datetime
-import requests
+import json
 import logging
+import os
+import time
+
+import requests
 
 # Load env
 from dotenv import load_dotenv
+
 load_dotenv("twstock/api.env")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -30,15 +32,18 @@ log = logging.getLogger(__name__)
 
 RESULTS = []
 
+
 def record(name, status, details, ok=True):
     if isinstance(details, str):
         details = {"note": details}
-    RESULTS.append({
-        "name": name,
-        "status": status,
-        "ok": ok,
-        "details": details,
-    })
+    RESULTS.append(
+        {
+            "name": name,
+            "status": status,
+            "ok": ok,
+            "details": details,
+        }
+    )
     icon = "✅" if ok else "❌"
     log.info(f"{icon} {name}: {status}")
     if details and isinstance(details, dict):
@@ -116,7 +121,12 @@ def test_finmind():
     try:
         r = requests.get(url, timeout=10)
         data = r.json()
-        record("FinMind: Invalid token", f"HTTP {r.status_code}", {"msg": data.get("msg", "")}, ok=(r.status_code == 200))
+        record(
+            "FinMind: Invalid token",
+            f"HTTP {r.status_code}",
+            {"msg": data.get("msg", "")},
+            ok=(r.status_code == 200),
+        )
     except Exception as e:
         record("FinMind: Invalid token", f"ERROR: {e}", {}, ok=False)
 
@@ -129,7 +139,12 @@ def test_finmind():
             elapsed = time.time() - start
             results_rl.append((r.status_code, elapsed))
         avg = sum(e for _, e in results_rl) / len(results_rl)
-        record("FinMind: Rate limit (5 rapid calls)", f"Avg {avg:.3f}s", {"results": results_rl}, ok=True)
+        record(
+            "FinMind: Rate limit (5 rapid calls)",
+            f"Avg {avg:.3f}s",
+            {"results": results_rl},
+            ok=True,
+        )
     except Exception as e:
         record("FinMind: Rate limit", f"ERROR: {e}", {}, ok=False)
 
@@ -172,7 +187,7 @@ def test_twse():
         record("TWSE: MI_INDEX", f"ERROR: {e}", {}, ok=False)
 
     # Test 2: ExRight (dividend)
-    url = f"https://www.twse.com.tw/rwd/zh/exRight/TWT49U?response=json&startDate=20250101&endDate=20250131"
+    url = "https://www.twse.com.tw/rwd/zh/exRight/TWT49U?response=json&startDate=20250101&endDate=20250131"
     try:
         start = time.time()
         r = requests.get(url, timeout=15, verify=False)
@@ -360,7 +375,12 @@ def test_tdcc():
     try:
         r = requests.get(url, timeout=10)
         data = r.json()
-        record("TDCC: Invalid date", f"HTTP {r.status_code}", {"response": str(data)[:200]}, ok=(r.status_code == 200))
+        record(
+            "TDCC: Invalid date",
+            f"HTTP {r.status_code}",
+            {"response": str(data)[:200]},
+            ok=(r.status_code == 200),
+        )
     except Exception as e:
         record("TDCC: Invalid date", f"ERROR: {e}", {}, ok=False)
 
@@ -433,7 +453,12 @@ def test_longcat():
             timeout=10,
         )
         data = r.json()
-        record("LongCat: Bad model error", f"HTTP {r.status_code}", {"error": str(data)[:200]}, ok=(r.status_code == 200))
+        record(
+            "LongCat: Bad model error",
+            f"HTTP {r.status_code}",
+            {"error": str(data)[:200]},
+            ok=(r.status_code == 200),
+        )
     except Exception as e:
         record("LongCat: Bad model error", f"ERROR: {e}", {}, ok=False)
 
@@ -452,11 +477,12 @@ def test_kronos():
     # Test 1: Check if model exists on HuggingFace
     try:
         from huggingface_hub import model_info
+
         info = model_info(model_id)
         details = {
             "model_id": model_id,
-            "tags": info.tags if hasattr(info, 'tags') else "N/A",
-            "downloads": info.downloads if hasattr(info, 'downloads') else "N/A",
+            "tags": info.tags if hasattr(info, "tags") else "N/A",
+            "downloads": info.downloads if hasattr(info, "downloads") else "N/A",
         }
         record("Kronos: Model exists (HuggingFace)", f"Model: {model_id}", details, ok=True)
     except Exception as e:
@@ -465,10 +491,11 @@ def test_kronos():
     # Test 2: Check tokenizer
     try:
         from huggingface_hub import model_info
+
         info = model_info(tokenizer_id)
         details = {
             "tokenizer_id": tokenizer_id,
-            "downloads": info.downloads if hasattr(info, 'downloads') else "N/A",
+            "downloads": info.downloads if hasattr(info, "downloads") else "N/A",
         }
         record("Kronos: Tokenizer exists", f"Tokenizer: {tokenizer_id}", details, ok=True)
     except Exception as e:
@@ -485,7 +512,7 @@ def test_kronos():
 
         # Create dummy input
         dummy_prices = [100.0 + i * 0.5 for i in range(100)]
-        dummy_dates = [(datetime.datetime(2024, 1, i+1)).strftime("%Y-%m-%d") for i in range(100)]
+        dummy_dates = [(datetime.datetime(2024, 1, i + 1)).strftime("%Y-%m-%d") for i in range(100)]
 
         inputs = tokenizer(
             prices=dummy_prices,
@@ -546,4 +573,4 @@ if __name__ == "__main__":
     # Save results
     with open("d:/twse/API_TEST_RESULTS.json", "w", encoding="utf-8") as f:
         json.dump(RESULTS, f, ensure_ascii=False, indent=2)
-    print(f"\nResults saved to API_TEST_RESULTS.json")
+    print("\nResults saved to API_TEST_RESULTS.json")

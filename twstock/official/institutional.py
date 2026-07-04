@@ -10,12 +10,14 @@ from .utils import safe_int
 
 def _get_session():
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    })
+    session.headers.update(
+        {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    )
     return session
 
+
 SESSION = _get_session()
+
 
 def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
     """上市三大法人（DB 存原始值：股）"""
@@ -67,6 +69,7 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
     df["dealer_sell"] = 0
     return df
 
+
 def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
     """上櫃三大法人（DB 存原始值：股）"""
     roc_year = date_int // 10000 - 1911
@@ -99,21 +102,39 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
         return pd.DataFrame()
 
     # 保留 7 組買賣超
-    df = df.rename(columns={
-        0: "stock_id",
-        1: "name",
-        2: "g1_buy", 3: "g1_sell", 4: "g1_net",
-        5: "g2_buy", 6: "g2_sell", 7: "g2_net",
-        8: "g3_buy", 9: "g3_sell", 10: "g3_net",
-        11: "g4_buy", 12: "g4_sell", 13: "g4_net",
-        14: "g5_buy", 15: "g5_sell", 16: "g5_net",
-        17: "g6_buy", 18: "g6_sell", 19: "g6_net",
-        20: "g7_buy", 21: "g7_sell", 22: "g7_net",
-        23: "total_net"
-    })
+    df = df.rename(
+        columns={
+            0: "stock_id",
+            1: "name",
+            2: "g1_buy",
+            3: "g1_sell",
+            4: "g1_net",
+            5: "g2_buy",
+            6: "g2_sell",
+            7: "g2_net",
+            8: "g3_buy",
+            9: "g3_sell",
+            10: "g3_net",
+            11: "g4_buy",
+            12: "g4_sell",
+            13: "g4_net",
+            14: "g5_buy",
+            15: "g5_sell",
+            16: "g5_net",
+            17: "g6_buy",
+            18: "g6_sell",
+            19: "g6_net",
+            20: "g7_buy",
+            21: "g7_sell",
+            22: "g7_net",
+            23: "total_net",
+        }
+    )
 
     # 進行安全轉型
-    for col in [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + ["total_net"]:
+    for col in [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + [
+        "total_net"
+    ]:
         df[col] = df[col].apply(safe_int)
 
     # TPEx → TWSE 欄位映射（讓 updater 能正確計算 net）
@@ -129,7 +150,11 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
         df["g3_sell"].fillna(0) + df["g4_sell"].fillna(0) + df["g5_sell"].fillna(0)
     ).astype(int)
 
-    req_cols = ["stock_id", "name"] + [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")] + ["total_net"]
+    req_cols = (
+        ["stock_id", "name"]
+        + [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")]
+        + ["total_net"]
+    )
     df = df[req_cols].copy()
     date_str = str(date_int)
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
@@ -137,9 +162,10 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
 
     return df
 
+
 def fetch_all_institutional(date_int: int) -> pd.DataFrame:
     twse = fetch_twse_institutional(date_int)
     tpex = fetch_tpex_institutional(date_int)
     if twse.empty and tpex.empty:
         return pd.DataFrame()
-    return pd.concat([twse, tpex], ignore_index=True).drop_duplicates(subset=['stock_id','date'])
+    return pd.concat([twse, tpex], ignore_index=True).drop_duplicates(subset=["stock_id", "date"])

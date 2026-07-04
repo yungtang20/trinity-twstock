@@ -4,6 +4,7 @@ Unit Test — DoD 必跑
 
 執行（DoD）：python -m pytest tests/test_008_ma.py -v
 """
+
 import sqlite3
 
 import pytest
@@ -63,15 +64,14 @@ def insert_history(db, stock_id, dates, closes, volumes):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, close, volume, amount) VALUES (?, ?, ?, ?, ?)",
-            (stock_id, d, float(c), int(v), int(c * v))
+            (stock_id, d, float(c), int(v), int(c * v)),
         )
     db.commit()
 
 
 def get_indicator(db, stock_id, date, column):
     cur = db.execute(
-        f"SELECT {column} FROM stock_indicators WHERE stock_id=? AND date=?",
-        (stock_id, date)
+        f"SELECT {column} FROM stock_indicators WHERE stock_id=? AND date=?", (stock_id, date)
     )
     row = cur.fetchone()
     return row[0] if row else None
@@ -79,19 +79,19 @@ def get_indicator(db, stock_id, date, column):
 
 # 30 天測試資料
 DATES_30 = [f"2024-01-{i:02d}" for i in range(2, 32)]  # 2024-01-02 ~ 2024-01-31
-CLOSES_30 = list(range(1, 31))                          # 1, 2, ..., 30
-VOLUMES_30 = [i * 100 for i in range(1, 31)]            # 100, 200, ..., 3000
+CLOSES_30 = list(range(1, 31))  # 1, 2, ..., 30
+VOLUMES_30 = [i * 100 for i in range(1, 31)]  # 100, 200, ..., 3000
 
 # 期望值
-MA5_DATE    = "2024-01-06"   # index 4（第 5 天）
-MA5_EXPECTED = 3.0           # mean(1,2,3,4,5)
+MA5_DATE = "2024-01-06"  # index 4（第 5 天）
+MA5_EXPECTED = 3.0  # mean(1,2,3,4,5)
 
-MA25_DATE    = "2024-01-26"  # index 24（第 25 天）
-MA25_EXPECTED = 13.0         # mean(1..25) = 325/25
+MA25_DATE = "2024-01-26"  # index 24（第 25 天）
+MA25_EXPECTED = 13.0  # mean(1..25) = 325/25
 
 BIAS_MA25_EXPECTED = (25 - 13.0) / 13.0 * 100  # ≈ 92.307692
 
-VOL_MA5_EXPECTED = 300.0     # mean(100,200,300,400,500)
+VOL_MA5_EXPECTED = 300.0  # mean(100,200,300,400,500)
 
 
 class TestTC1Basic:
@@ -124,9 +124,7 @@ class TestTC2MA5Value:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", MA5_DATE, "ma5")
         assert actual is not None, f"{MA5_DATE} MA5 不應為 None"
-        assert abs(actual - MA5_EXPECTED) < 1e-6, (
-            f"MA5 應為 {MA5_EXPECTED}，實際 {actual}"
-        )
+        assert abs(actual - MA5_EXPECTED) < 1e-6, f"MA5 應為 {MA5_EXPECTED}，實際 {actual}"
 
 
 class TestTC3MA5NoneEarly:
@@ -148,9 +146,7 @@ class TestTC4MA25Value:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", MA25_DATE, "ma25")
         assert actual is not None, f"{MA25_DATE} MA25 不應為 None"
-        assert abs(actual - MA25_EXPECTED) < 1e-6, (
-            f"MA25 應為 {MA25_EXPECTED}，實際 {actual}"
-        )
+        assert abs(actual - MA25_EXPECTED) < 1e-6, f"MA25 應為 {MA25_EXPECTED}，實際 {actual}"
 
 
 class TestTC5MA60None:
@@ -172,9 +168,9 @@ class TestTC6VolMA5:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", MA5_DATE, "vol_ma5")
         assert actual is not None, "vol_ma5 不應為 None"
-        assert abs(actual - VOL_MA5_EXPECTED) < 1e-6, (
-            f"vol_ma5 應為 {VOL_MA5_EXPECTED}，實際 {actual}"
-        )
+        assert (
+            abs(actual - VOL_MA5_EXPECTED) < 1e-6
+        ), f"vol_ma5 應為 {VOL_MA5_EXPECTED}，實際 {actual}"
 
 
 class TestTC7BiasMA25:
@@ -186,9 +182,9 @@ class TestTC7BiasMA25:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", MA25_DATE, "bias_ma25")
         assert actual is not None, "bias_ma25 不應為 None"
-        assert abs(actual - BIAS_MA25_EXPECTED) < 0.001, (
-            f"bias_ma25 應為 {BIAS_MA25_EXPECTED:.4f}，實際 {actual}"
-        )
+        assert (
+            abs(actual - BIAS_MA25_EXPECTED) < 0.001
+        ), f"bias_ma25 應為 {BIAS_MA25_EXPECTED:.4f}，實際 {actual}"
 
 
 class TestTC8Dedup:
@@ -226,7 +222,7 @@ class TestTC10Integration:
         )
         row = cur.fetchone()
         assert row is not None, "查不到 (2330, 2024-01-06)"
-        assert abs(row[0] - 3.0) < 1e-6,   f"ma5 錯：{row[0]}"
+        assert abs(row[0] - 3.0) < 1e-6, f"ma5 錯：{row[0]}"
         assert abs(row[1] - 300.0) < 1e-6, f"vol_ma5 錯：{row[1]}"
 
     def test_multiple_stocks_independent(self, calc, db):

@@ -5,6 +5,7 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（DoD）：  python -m pytest tests/test_003_institutional.py -v -m "not live"
 執行（live）： python -m pytest tests/test_003_institutional.py -v -m live
 """
+
 import sqlite3
 
 import pytest
@@ -56,31 +57,71 @@ def raw_institutional_2days():
         "msg": "success",
         "status": 200,
         "data": [
-            {"date": "2024-01-02", "stock_id": "2330",
-             "name": "外資及陸資(不含外資自營商)",
-             "buy": 15000000, "sell": 8000000, "net": 7000000},
-            {"date": "2024-01-02", "stock_id": "2330",
-             "name": "投信",
-             "buy": 2000000, "sell": 1000000, "net": 1000000},
-            {"date": "2024-01-02", "stock_id": "2330",
-             "name": "自營商(自行買賣)",
-             "buy": 3000000, "sell": 2500000, "net": 500000},
-            {"date": "2024-01-02", "stock_id": "2330",
-             "name": "自營商(避險)",
-             "buy": 500000, "sell": 300000, "net": 200000},
-            {"date": "2024-01-03", "stock_id": "2330",
-             "name": "外資及陸資(不含外資自營商)",
-             "buy": 12000000, "sell": 9000000, "net": 3000000},
-            {"date": "2024-01-03", "stock_id": "2330",
-             "name": "投信",
-             "buy": 1500000, "sell": 800000, "net": 700000},
-            {"date": "2024-01-03", "stock_id": "2330",
-             "name": "自營商(自行買賣)",
-             "buy": 2000000, "sell": 1800000, "net": 200000},
-            {"date": "2024-01-03", "stock_id": "2330",
-             "name": "自營商(避險)",
-             "buy": 300000, "sell": 200000, "net": 100000},
-        ]
+            {
+                "date": "2024-01-02",
+                "stock_id": "2330",
+                "name": "外資及陸資(不含外資自營商)",
+                "buy": 15000000,
+                "sell": 8000000,
+                "net": 7000000,
+            },
+            {
+                "date": "2024-01-02",
+                "stock_id": "2330",
+                "name": "投信",
+                "buy": 2000000,
+                "sell": 1000000,
+                "net": 1000000,
+            },
+            {
+                "date": "2024-01-02",
+                "stock_id": "2330",
+                "name": "自營商(自行買賣)",
+                "buy": 3000000,
+                "sell": 2500000,
+                "net": 500000,
+            },
+            {
+                "date": "2024-01-02",
+                "stock_id": "2330",
+                "name": "自營商(避險)",
+                "buy": 500000,
+                "sell": 300000,
+                "net": 200000,
+            },
+            {
+                "date": "2024-01-03",
+                "stock_id": "2330",
+                "name": "外資及陸資(不含外資自營商)",
+                "buy": 12000000,
+                "sell": 9000000,
+                "net": 3000000,
+            },
+            {
+                "date": "2024-01-03",
+                "stock_id": "2330",
+                "name": "投信",
+                "buy": 1500000,
+                "sell": 800000,
+                "net": 700000,
+            },
+            {
+                "date": "2024-01-03",
+                "stock_id": "2330",
+                "name": "自營商(自行買賣)",
+                "buy": 2000000,
+                "sell": 1800000,
+                "net": 200000,
+            },
+            {
+                "date": "2024-01-03",
+                "stock_id": "2330",
+                "name": "自營商(避險)",
+                "buy": 300000,
+                "sell": 200000,
+                "net": 100000,
+            },
+        ],
     }
 
 
@@ -102,15 +143,21 @@ class TestTC1Pivot:
     def test_required_columns_exist(self, fetcher, raw_institutional_2days):
         rows = fetcher._transform(raw_institutional_2days)
         required = {
-            "stock_id", "date",
-            "foreign_buy", "foreign_sell", "foreign_net",
-            "trust_buy", "trust_sell", "trust_net",
-            "dealer_buy", "dealer_sell", "dealer_net",
-            "institutional_net", "source",
+            "stock_id",
+            "date",
+            "foreign_buy",
+            "foreign_sell",
+            "foreign_net",
+            "trust_buy",
+            "trust_sell",
+            "trust_net",
+            "dealer_buy",
+            "dealer_sell",
+            "dealer_net",
+            "institutional_net",
+            "source",
         }
-        assert required.issubset(set(rows[0].keys())), (
-            f"缺少欄位: {required - set(rows[0].keys())}"
-        )
+        assert required.issubset(set(rows[0].keys())), f"缺少欄位: {required - set(rows[0].keys())}"
 
 
 class TestTC2ForeignBuy:
@@ -119,7 +166,9 @@ class TestTC2ForeignBuy:
     def test_foreign_buy(self, fetcher, raw_institutional_2days):
         rows = fetcher._transform(raw_institutional_2days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["foreign_buy"] == 15000000, f"foreign_buy 應為 15000000，實際 {row['foreign_buy']}"
+        assert (
+            row["foreign_buy"] == 15000000
+        ), f"foreign_buy 應為 15000000，實際 {row['foreign_buy']}"
 
 
 class TestTC3DealerBuy:
@@ -129,9 +178,9 @@ class TestTC3DealerBuy:
         """3000000 + 500000 = 3500000"""
         rows = fetcher._transform(raw_institutional_2days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["dealer_buy"] == 3500000, (
-            f"dealer_buy 應為 3500000（3000000+500000），實際 {row['dealer_buy']}"
-        )
+        assert (
+            row["dealer_buy"] == 3500000
+        ), f"dealer_buy 應為 3500000（3000000+500000），實際 {row['dealer_buy']}"
 
 
 class TestTC4DealerNet:
@@ -141,9 +190,9 @@ class TestTC4DealerNet:
         """500000 + 200000 = 700000"""
         rows = fetcher._transform(raw_institutional_2days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["dealer_net"] == 700000, (
-            f"dealer_net 應為 700000（500000+200000），實際 {row['dealer_net']}"
-        )
+        assert (
+            row["dealer_net"] == 700000
+        ), f"dealer_net 應為 700000（500000+200000），實際 {row['dealer_net']}"
 
 
 class TestTC5InstitutionalNet:
@@ -153,9 +202,9 @@ class TestTC5InstitutionalNet:
         """7000000 + 1000000 + 700000 = 8700000"""
         rows = fetcher._transform(raw_institutional_2days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["institutional_net"] == 8700000, (
-            f"institutional_net 應為 8700000，實際 {row['institutional_net']}"
-        )
+        assert (
+            row["institutional_net"] == 8700000
+        ), f"institutional_net 應為 8700000，實際 {row['institutional_net']}"
 
 
 class TestTC6Dedup:
@@ -195,17 +244,21 @@ class TestTC9MissingField:
 
     def test_missing_name_raises(self, fetcher):
         broken = {
-            "msg": "success", "status": 200,
+            "msg": "success",
+            "status": 200,
             "data": [
-                {"date": "2024-01-02", "stock_id": "2330",
-                 "buy": 15000000, "sell": 8000000, "net": 7000000}
-            ]
+                {
+                    "date": "2024-01-02",
+                    "stock_id": "2330",
+                    "buy": 15000000,
+                    "sell": 8000000,
+                    "net": 7000000,
+                }
+            ],
         }
         with pytest.raises(Exception) as exc_info:
             fetcher._transform(broken)
-        assert "name" in str(exc_info.value), (
-            f"Exception 應含 'name'，實際：{exc_info.value}"
-        )
+        assert "name" in str(exc_info.value), f"Exception 應含 'name'，實際：{exc_info.value}"
 
 
 class TestTC10Integration:
@@ -225,6 +278,6 @@ class TestTC10Integration:
         row = cur.fetchone()
         assert row is not None
         assert row[0] == 15000000, f"foreign_buy 錯：{row[0]}"
-        assert row[1] == 3500000,  f"dealer_buy 錯：{row[1]}"
-        assert row[2] == 8700000,  f"institutional_net 錯：{row[2]}"
+        assert row[1] == 3500000, f"dealer_buy 錯：{row[1]}"
+        assert row[2] == 8700000, f"institutional_net 錯：{row[2]}"
         assert row[3] == "finmind", f"source 錯：{row[3]}"

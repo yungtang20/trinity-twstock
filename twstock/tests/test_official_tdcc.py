@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_official_tdcc.py — official/tdcc.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from twstock.official import tdcc
 # Helper: 建立 mock response
 # ---------------------------------------------------------------------------
 
+
 def _json_response(status_code: int, payload) -> SimpleNamespace:
     """回傳一個具備 status_code / json() / text 屬性的假 response。"""
     return SimpleNamespace(
@@ -26,6 +28,7 @@ def _json_response(status_code: int, payload) -> SimpleNamespace:
 # ---------------------------------------------------------------------------
 # fetch_tdcc_historical
 # ---------------------------------------------------------------------------
+
 
 class TestFetchTdccHistorical:
     """fetch_tdcc_historical 測試（OpenAPI JSON 路徑）。"""
@@ -55,8 +58,15 @@ class TestFetchTdccHistorical:
         # whale_ratio = 200000 / 1000000 * 100 = 20.0
         assert row["whale_ratio"] == pytest.approx(20.0)
         # 欄位檢查
-        for col in ("stock_id", "date_int", "total_shares", "whale_ratio",
-                    "total_people", "whale_shares", "whale_people"):
+        for col in (
+            "stock_id",
+            "date_int",
+            "total_shares",
+            "whale_ratio",
+            "total_people",
+            "whale_shares",
+            "whale_people",
+        ):
             assert col in df.columns
 
     @patch("twstock.official.tdcc.requests.get")
@@ -66,7 +76,7 @@ class TestFetchTdccHistorical:
         mock_get.return_value = _json_response(
             200,
             [
-                {"證券代號": "233", "持股分級": "17", "股數": "100", "人數": "1"},   # 3 位數
+                {"證券代號": "233", "持股分級": "17", "股數": "100", "人數": "1"},  # 3 位數
                 {"證券代號": "23301", "持股分級": "17", "股數": "100", "人數": "1"},  # 5 位數
                 {"證券代號": "2330", "持股分級": "17", "股數": "500", "人數": "5"},
             ],
@@ -156,6 +166,7 @@ class TestFetchTdccHistorical:
 # ---------------------------------------------------------------------------
 # fetch_latest_tdcc
 # ---------------------------------------------------------------------------
+
 
 class TestFetchLatestTdcc:
     """fetch_latest_tdcc 測試。"""

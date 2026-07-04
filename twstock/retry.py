@@ -5,6 +5,7 @@ retry.py — 統一的 HTTP GET 重試包裝器
 所有官方 API Fetcher 都應使用此模組的 retry_get() 替代直接 requests.get()，
 以確保網路暫時故障時能自動重試。
 """
+
 import logging
 import time
 
@@ -56,13 +57,19 @@ def retry_get(
             last_err = e
             logger.warning(
                 "HTTP error on attempt %d/%d for %s: %s",
-                attempt + 1, 1 + retries, url, e,
+                attempt + 1,
+                1 + retries,
+                url,
+                e,
             )
         except requests.exceptions.SSLError as e:
             last_err = e
             logger.warning(
                 "SSL error on attempt %d/%d for %s: %s",
-                attempt + 1, 1 + retries, url, e,
+                attempt + 1,
+                1 + retries,
+                url,
+                e,
             )
             # SSL 驗證失敗且允許 fallback：以 verify=False 再試一次
             if ssl_fallback and verify is not False:
@@ -73,6 +80,7 @@ def retry_get(
                 )
                 try:
                     import urllib3
+
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                     resp = requests.get(
                         url,
@@ -87,17 +95,21 @@ def retry_get(
                     last_err = e2
                     logger.warning(
                         "Fallback (verify=False) also failed for %s: %s",
-                        url, e2,
+                        url,
+                        e2,
                     )
         except requests.exceptions.RequestException as e:
             last_err = e
             logger.warning(
                 "Request error on attempt %d/%d for %s: %s",
-                attempt + 1, 1 + retries, url, e,
+                attempt + 1,
+                1 + retries,
+                url,
+                e,
             )
 
         if attempt < retries:
-            sleep_time = backoff * (2 ** attempt)
+            sleep_time = backoff * (2**attempt)
             logger.info("Retrying in %.1fs...", sleep_time)
             time.sleep(sleep_time)
 

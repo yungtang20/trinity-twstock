@@ -4,6 +4,7 @@
 遵循 CONTEXT.md 架構規則 5：直接呼叫 requests，不注入 client。
 測試時透過 responses / requests_mock 在模組層級 mock。
 """
+
 from __future__ import annotations
 
 import os
@@ -68,7 +69,8 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
 
     策略：優先嘗試 TWSE OpenAPI（多數環境可連線），失敗才用 MIS API。
     """
-    from twstock.utils import safe_http_get, get_ssl_verify
+    from twstock.utils import get_ssl_verify, safe_http_get
+
     session = get_http_session()
     if session is None:
         return {}
@@ -88,7 +90,9 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
     try:
         safe_http_get(
             "https://mis.twstock.com.tw/stock/index.jsp",
-            session=session, timeout=3, verify=get_ssl_verify(),
+            session=session,
+            timeout=3,
+            verify=get_ssl_verify(),
         )
     except Exception:
         pass
@@ -122,7 +126,6 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
     注意：TWSE MI_INDEX type=MS 回傳的是「各類商品成交金額/收盤指數」表格，
     需要找 fields 中有「收盤指數」的表格，不能直接用總計 row。
     """
-    import re as _re
     result: Dict[str, Any] = {"msgArray": [], "queryTime": {}}
     sys_date = data.get("date", "")
     if sys_date and len(sys_date) == 8:
@@ -143,6 +146,7 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
     if not result["msgArray"]:
         try:
             from twstock.utils import get_http_session, safe_http_get
+
             session = get_http_session()
             if session:
                 url2 = "https://www.twse.com.tw/exchangeReport/FMTQIK?response=json"
@@ -159,11 +163,13 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
                                 idx_val = float(idx_str)
                                 chg_val = float(chg_str)
                                 prev_val = idx_val - chg_val
-                                result["msgArray"].append({
-                                    "c": "t00",
-                                    "z": idx_str,
-                                    "y": f"{prev_val:.2f}",
-                                })
+                                result["msgArray"].append(
+                                    {
+                                        "c": "t00",
+                                        "z": idx_str,
+                                        "y": f"{prev_val:.2f}",
+                                    }
+                                )
                                 result["queryTime"]["sysDate"] = str(latest[0]).replace("/", "-")
                             except ValueError:
                                 pass
@@ -176,7 +182,8 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
 # ── OTC 指數（TPEx）─────────────────────────────────────
 def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
     """從 TPEx highlight API 取得櫃買指數。回傳 dict 或 None。"""
-    from twstock.utils import safe_http_get, get_ssl_verify
+    from twstock.utils import get_ssl_verify, safe_http_get
+
     session = get_http_session()
     if session is None:
         return None
@@ -202,7 +209,8 @@ def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
     change = safe_float(row[chg_i]) if chg_i is not None and chg_i < len(row) else 0
     prev = price - change
     return {
-        "price": price, "change": change,
+        "price": price,
+        "change": change,
         "pct": (change / prev * 100) if prev else 0,
     }
 
@@ -211,11 +219,30 @@ def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
 def fetch_market_indices() -> Optional[Dict[str, Any]]:
     """抓取 TAIEX + OTC 即時指數 + 成交量。失败回傳 None。"""
     results = {
-        "TAIEX": {"price": 0, "change": 0, "pct": 0, "amount": 0,
-                  "up": None, "down": None, "flat": None, "l_up": None, "l_down": None},
-        "OTC":   {"price": 0, "change": 0, "pct": 0, "amount": 0,
-                  "up": None, "down": None, "flat": None, "l_up": None, "l_down": None},
-        "time": "", "date": "",
+        "TAIEX": {
+            "price": 0,
+            "change": 0,
+            "pct": 0,
+            "amount": 0,
+            "up": None,
+            "down": None,
+            "flat": None,
+            "l_up": None,
+            "l_down": None,
+        },
+        "OTC": {
+            "price": 0,
+            "change": 0,
+            "pct": 0,
+            "amount": 0,
+            "up": None,
+            "down": None,
+            "flat": None,
+            "l_up": None,
+            "l_down": None,
+        },
+        "time": "",
+        "date": "",
     }
     try:
         data = get_realtime_mis_data()
@@ -226,10 +253,13 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 y = safe_float(item.get("y"), 0)
                 if z == 0:
                     z = y
-                results[k].update({
-                    "price": z, "change": z - y,
-                    "pct": (z - y) / y * 100 if y else 0,
-                })
+                results[k].update(
+                    {
+                        "price": z,
+                        "change": z - y,
+                        "pct": (z - y) / y * 100 if y else 0,
+                    }
+                )
             if data.get("queryTime"):
                 results["time"] = data["queryTime"].get("sysTime", "")
                 results["date"] = data["queryTime"].get("sysDate", "")
@@ -262,10 +292,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             return None
         from twstock.utils import safe_http_get
 
-        url_tse = (
-            "https://www.twstock.com.tw/rwd/zh/afterTrading/"
-            "MI_INDEX?type=MS&response=json"
-        )
+        url_tse = "https://www.twstock.com.tw/rwd/zh/afterTrading/" "MI_INDEX?type=MS&response=json"
         r_tse_data = None
         for _ in range(1):
             r_tse = safe_http_get(
@@ -282,6 +309,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                     pass
 
         if r_tse_data and r_tse_data.get("tables"):
+
             def _clean(s):
                 return str(s).replace(",", "").strip()
 
@@ -296,15 +324,22 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 return "".join(str(title or "").split())
 
             t_breadth = next(
-                (t for t in r_tse_data["tables"]
-                 if "漲跌證券數合計" in _normalize_title(t.get("title", ""))),
+                (
+                    t
+                    for t in r_tse_data["tables"]
+                    if "漲跌證券數合計" in _normalize_title(t.get("title", ""))
+                ),
                 None,
             )
             if t_breadth:
                 data_rows = t_breadth.get("data", [])
                 if len(data_rows) >= 3:
-                    results["TAIEX"]["up"], results["TAIEX"]["l_up"] = _parse_breadth(data_rows[0][2])
-                    results["TAIEX"]["down"], results["TAIEX"]["l_down"] = _parse_breadth(data_rows[1][2])
+                    results["TAIEX"]["up"], results["TAIEX"]["l_up"] = _parse_breadth(
+                        data_rows[0][2]
+                    )
+                    results["TAIEX"]["down"], results["TAIEX"]["l_down"] = _parse_breadth(
+                        data_rows[1][2]
+                    )
                     results["TAIEX"]["flat"] = _parse_breadth(data_rows[2][2])[0]
 
             t_total = next(
@@ -345,11 +380,11 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                     val = str(row[idx]).replace(",", "").strip()
                     return int(val) if val.isdigit() else None
 
-                results["OTC"]["up"]    = _safe_int_idx(field_idx.get("上漲家數"))
-                results["OTC"]["l_up"]  = _safe_int_idx(field_idx.get("漲停家數"))
-                results["OTC"]["down"]  = _safe_int_idx(field_idx.get("下跌家數"))
+                results["OTC"]["up"] = _safe_int_idx(field_idx.get("上漲家數"))
+                results["OTC"]["l_up"] = _safe_int_idx(field_idx.get("漲停家數"))
+                results["OTC"]["down"] = _safe_int_idx(field_idx.get("下跌家數"))
                 results["OTC"]["l_down"] = _safe_int_idx(field_idx.get("跌停家數"))
-                results["OTC"]["flat"]  = _safe_int_idx(field_idx.get("平盤家數"))
+                results["OTC"]["flat"] = _safe_int_idx(field_idx.get("平盤家數"))
                 if len(row) > 3:
                     amt_str = row[3].replace(",", "")
                     if amt_str.isdigit():

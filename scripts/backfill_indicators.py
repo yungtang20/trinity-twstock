@@ -2,14 +2,14 @@
 backfill_indicators.py — 一次性灌入 stock_indicators
 執行：python backfill_indicators.py
 """
-import sqlite3
-import time
-import sys
+
 import os
+import sys
+import time
 
 # 使用 db.py 的唯一入口取得路徑（避免寫死 Windows 路徑）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from twstock.db import get_path, get_connection
+from twstock.db import get_connection
 
 
 def main():
@@ -23,6 +23,7 @@ def main():
 
     # ====== Step 1: MACalculator ======
     from twstock.calculator import MACalculator
+
     print("\n[1/3] MACalculator (stock_history → stock_indicators MA/vol_ma/bias)")
     t0 = time.time()
     calc2 = MACalculator(db=conn)
@@ -32,6 +33,7 @@ def main():
 
     # ====== Step 2: ATRCalculator ======
     from twstock.calculator import ATRCalculator
+
     print("\n[2/3] ATRCalculator (stock_history → stock_indicators atr14)")
     t0 = time.time()
     calc3 = ATRCalculator(db=conn)
@@ -41,6 +43,7 @@ def main():
 
     # ====== Step 3: VWAPCalculator ======
     from twstock.calculator import VWAPCalculator
+
     print("\n[3/3] VWAPCalculator (stock_history → stock_indicators vwap)")
     t0 = time.time()
     calc4 = VWAPCalculator(db=conn)
@@ -54,21 +57,15 @@ def main():
     total_rows = cur.fetchone()[0]
     print(f"stock_indicators 總筆數：{total_rows}")
 
-    cur = conn.execute(
-        "SELECT COUNT(*) FROM stock_indicators WHERE ma5 IS NOT NULL"
-    )
+    cur = conn.execute("SELECT COUNT(*) FROM stock_indicators WHERE ma5 IS NOT NULL")
     ma5_count = cur.fetchone()[0]
     print(f"ma5 有值筆數：{ma5_count}")
 
-    cur = conn.execute(
-        "SELECT COUNT(*) FROM stock_indicators WHERE atr14 IS NOT NULL"
-    )
+    cur = conn.execute("SELECT COUNT(*) FROM stock_indicators WHERE atr14 IS NOT NULL")
     atr_count = cur.fetchone()[0]
     print(f"atr14 有值筆數：{atr_count}")
 
-    cur = conn.execute(
-        "SELECT COUNT(*) FROM stock_indicators WHERE vwap IS NOT NULL"
-    )
+    cur = conn.execute("SELECT COUNT(*) FROM stock_indicators WHERE vwap IS NOT NULL")
     vwap_count = cur.fetchone()[0]
     print(f"vwap 有值筆數：{vwap_count}")
 
@@ -80,7 +77,7 @@ def main():
     )
     row = cur.fetchone()
     if row:
-        print(f"\n抽查 2330 最近一筆：")
+        print("\n抽查 2330 最近一筆：")
         print(f"  stock_id={row[0]}, date={row[1]}")
         print(f"  ma5={row[2]}, ma25={row[3]}, vol_ma5={row[4]}")
         print(f"  bias_ma25={row[5]}, atr14={row[6]}, vwap={row[7]}")

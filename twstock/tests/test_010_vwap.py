@@ -4,6 +4,7 @@ Unit Test — DoD 必跑
 
 執行（DoD）：python -m pytest tests/test_010_vwap.py -v
 """
+
 import sqlite3
 
 import pytest
@@ -58,7 +59,7 @@ def calc(db):
     return VWAPCalculator(db=db)
 
 
-DATES_5   = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"]
+DATES_5 = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"]
 VOLUMES_5 = [1000, 2000, 3000, 4000, 0]
 AMOUNTS_5 = [10000, 22000, 33000, 44000, 0]
 # VWAP:  [10.0,   11.0,  11.0,  11.0,   None]
@@ -69,15 +70,14 @@ def insert_history(db, stock_id, dates, volumes, amounts):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, volume, amount) VALUES (?, ?, ?, ?)",
-            (stock_id, d, int(v), int(a))
+            (stock_id, d, int(v), int(a)),
         )
     db.commit()
 
 
 def get_vwap(db, stock_id, date):
     cur = db.execute(
-        "SELECT vwap FROM stock_indicators WHERE stock_id=? AND date=?",
-        (stock_id, date)
+        "SELECT vwap FROM stock_indicators WHERE stock_id=? AND date=?", (stock_id, date)
     )
     row = cur.fetchone()
     return row[0] if row else None
@@ -96,9 +96,7 @@ class TestTC1Basic:
     def test_vwap_column_exists(self, calc, db):
         insert_history(db, "2330", DATES_5, VOLUMES_5, AMOUNTS_5)
         calc.calculate("2330")
-        cur = db.execute(
-            "SELECT vwap FROM stock_indicators WHERE stock_id='2330' LIMIT 1"
-        )
+        cur = db.execute("SELECT vwap FROM stock_indicators WHERE stock_id='2330' LIMIT 1")
         assert cur.fetchone() is not None, "vwap 欄位應存在"
 
 
@@ -133,7 +131,7 @@ class TestTC4UpsertPreservesMA5:
         insert_history(db, "2330", DATES_5, VOLUMES_5, AMOUNTS_5)
         db.execute(
             "INSERT INTO stock_indicators (stock_id, date, ma5) VALUES (?, ?, ?)",
-            ("2330", "2024-01-02", 999.0)
+            ("2330", "2024-01-02", 999.0),
         )
         db.commit()
         calc.calculate("2330")
@@ -180,6 +178,4 @@ class TestTC7DBVerification:
                 assert actual is None, f"{date} vwap 應為 None，實際 {actual}"
             else:
                 assert actual is not None, f"{date} vwap 不應為 None"
-                assert abs(actual - exp) < 1e-6, (
-                    f"{date} vwap 應為 {exp}，實際 {actual}"
-                )
+                assert abs(actual - exp) < 1e-6, f"{date} vwap 應為 {exp}，實際 {actual}"

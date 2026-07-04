@@ -7,6 +7,7 @@ tests/conftest.py — 共享測試夾具
 - db_conn: 已連線到臨時 DB 的 Connection
 - patch_db_path: 讓 db.py 指向臨時 DB 的 monkeypatch
 """
+
 from __future__ import annotations
 
 import os
@@ -37,6 +38,7 @@ def db_conn(temp_db_path: Path) -> sqlite3.Connection:
 def patch_db_path(monkeypatch, temp_db_path: Path) -> Path:
     """Monkeypatch db.py 的 DB_PATH，讓它指向臨時 DB。"""
     import twstock.db as db_module
+
     monkeypatch.setattr(db_module, "DB_PATH", str(temp_db_path))
     os.environ["TWSTOCK_DB_PATH"] = str(temp_db_path)
     return temp_db_path

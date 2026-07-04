@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_composites.py — strategy/composites.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -59,9 +60,7 @@ class TestFetchLiveQuote:
         """應回傳 (price, volume) 或 (None, None)。"""
         mock_session.return_value = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "msgArray": [{"c": "2330", "z": "100.00", "v": "1000"}]
-        }
+        mock_response.json.return_value = {"msgArray": [{"c": "2330", "z": "100.00", "v": "1000"}]}
         mock_get.return_value = mock_response
 
         result = composites._fetch_live_quote("2330")

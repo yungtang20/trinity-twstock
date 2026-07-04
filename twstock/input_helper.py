@@ -16,6 +16,7 @@ chcp / cls 全部收攏到此模組，對外只暴露：
 使用方式：
   from input_helper import get_interactive_input, clear_screen, setup_console_encoding
 """
+
 from __future__ import annotations
 
 import os

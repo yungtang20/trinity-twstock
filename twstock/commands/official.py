@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """official 命令：TWSE/TPEx 全市場官方資料抓取。"""
+
 from __future__ import annotations
 
 from twstock.official import update_official_daily, update_tdcc_historical, update_tdcc_weekly

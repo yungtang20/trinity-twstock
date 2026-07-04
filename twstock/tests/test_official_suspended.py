@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_official_suspended.py — official/suspended.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from twstock.official.suspended import get_today_suspended

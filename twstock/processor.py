@@ -5,6 +5,7 @@ ETL data processing and high-performance database writing engine.
 Uses INSERT ... ON CONFLICT DO UPDATE to preserve existing column values
 when a new write doesn't provide them (prevents NULL/empty overwrite bugs).
 """
+
 import logging
 import sqlite3
 
@@ -54,18 +55,26 @@ class DataProcessor:
         if df is None or df.empty:
             return 0
         df_write = df.copy()
-        if 'source' not in df_write.columns:
-            df_write['source'] = 'official'
+        if "source" not in df_write.columns:
+            df_write["source"] = "official"
         expected = [
-            "stock_id", "date", "open", "high", "low", "close",
-            "volume", "amount", "trade_count", "spread",
-            "source"
+            "stock_id",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "amount",
+            "trade_count",
+            "spread",
+            "source",
         ]
         cols = [c for c in expected if c in df_write.columns]
         df_write = df_write[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
-        df_write = df_write.dropna(subset=['close'])
+        if "date" in df_write.columns:
+            df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
+        df_write = df_write.dropna(subset=["close"])
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
@@ -103,32 +112,52 @@ class DataProcessor:
         if df is None or df.empty:
             return 0
         df_write = df.copy()
-        if 'source' not in df_write.columns:
-            df_write['source'] = 'official'
+        if "source" not in df_write.columns:
+            df_write["source"] = "official"
         expected = [
-            "stock_id", "date",
-            "foreign_net", "trust_net", "dealer_net", "institutional_net",
-            "foreign_buy", "foreign_sell", "trust_buy", "trust_sell", "dealer_buy", "dealer_sell",
-            "source"
+            "stock_id",
+            "date",
+            "foreign_net",
+            "trust_net",
+            "dealer_net",
+            "institutional_net",
+            "foreign_buy",
+            "foreign_sell",
+            "trust_buy",
+            "trust_sell",
+            "dealer_buy",
+            "dealer_sell",
+            "source",
         ]
         cols = [c for c in expected if c in df_write.columns]
         df_write = df_write[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
+        if "date" in df_write.columns:
+            df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
         # 動態建立 SQL，只包含實際存在的欄位（避免 binding 數量不符）
         all_expected = [
-            "stock_id", "date",
-            "foreign_net", "trust_net", "dealer_net", "institutional_net",
-            "foreign_buy", "foreign_sell", "trust_buy", "trust_sell", "dealer_buy", "dealer_sell",
+            "stock_id",
+            "date",
+            "foreign_net",
+            "trust_net",
+            "dealer_net",
+            "institutional_net",
+            "foreign_buy",
+            "foreign_sell",
+            "trust_buy",
+            "trust_sell",
+            "dealer_buy",
+            "dealer_sell",
             "source",
         ]
         insert_cols = [c for c in all_expected if c in cols]
         placeholders = ",".join(["?"] * len(insert_cols))
         col_sql = ",".join(insert_cols)
-        updates = ", ".join(f"{c} = excluded.{c}" for c in insert_cols if c not in ("stock_id", "date"))
+        updates = ", ".join(
+            f"{c} = excluded.{c}" for c in insert_cols if c not in ("stock_id", "date")
+        )
         sql = f"""
         INSERT INTO institutional_data ({col_sql})
         VALUES ({placeholders})
@@ -145,7 +174,9 @@ class DataProcessor:
         finally:
             conn.close()
 
-    def _upsert_shareholding_unified(self, df: pd.DataFrame, extra_cols_sql: str, extra_cols_values: str):
+    def _upsert_shareholding_unified(
+        self, df: pd.DataFrame, extra_cols_sql: str, extra_cols_values: str
+    ):
         """
         Internal helper for upsert_tdcc / upsert_shareholding / upsert_shareholding_unified.
         All three write to shareholding_unified with the same ON CONFLICT logic.
@@ -155,8 +186,8 @@ class DataProcessor:
         if df.empty:
             return
         df_write = df.copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
+        if "date" in df_write.columns:
+            df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
 
         # Build the full column list
         base_cols = ["stock_id", "date", "source"]
@@ -202,55 +233,60 @@ class DataProcessor:
         if df.empty:
             return
         df_write = df.copy()
-        if 'source' not in df_write.columns:
-            df_write['source'] = 'tdcc'
+        if "source" not in df_write.columns:
+            df_write["source"] = "tdcc"
         expected = [
-            "stock_id", "date", "source",
-            "total_shares", "whale_ratio", "retail_ratio",
-            "total_people", "whale_shares", "whale_people",
+            "stock_id",
+            "date",
+            "source",
+            "total_shares",
+            "whale_ratio",
+            "retail_ratio",
+            "total_people",
+            "whale_shares",
+            "whale_people",
         ]
         cols = [c for c in expected if c in df_write.columns]
         df_write = df_write[cols].copy()
         self._upsert_shareholding_unified(
             df_write,
             "total_shares, whale_ratio, retail_ratio, total_people, whale_shares, whale_people",
-            ""
+            "",
         )
 
     def upsert_shareholding(self, df: pd.DataFrame):
         """Upserts foreign shareholding into shareholding_unified."""
         if df.empty:
             return
-        expected = [
-            "stock_id", "date",
-            "foreign_shares", "foreign_ratio",
-            "source"
-        ]
+        expected = ["stock_id", "date", "foreign_shares", "foreign_ratio", "source"]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
-        df_write['source'] = 'twse_foreign'
-        self._upsert_shareholding_unified(
-            df_write,
-            "foreign_shares, foreign_ratio",
-            ""
-        )
+        df_write["source"] = "twse_foreign"
+        self._upsert_shareholding_unified(df_write, "foreign_shares, foreign_ratio", "")
 
     def upsert_shareholding_unified(self, df: pd.DataFrame):
         """Upserts weekly concentrations and foreign details into shareholding_unified."""
         if df.empty:
             return
         expected = [
-            "stock_id", "date", "source",
-            "total_shares", "whale_ratio", "retail_ratio",
-            "foreign_shares", "foreign_ratio",
-            "total_people", "whale_shares", "whale_people",
+            "stock_id",
+            "date",
+            "source",
+            "total_shares",
+            "whale_ratio",
+            "retail_ratio",
+            "foreign_shares",
+            "foreign_ratio",
+            "total_people",
+            "whale_shares",
+            "whale_people",
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
         self._upsert_shareholding_unified(
             df_write,
             "total_shares, whale_ratio, retail_ratio, foreign_shares, foreign_ratio, total_people, whale_shares, whale_people",
-            ""
+            "",
         )
 
     def upsert_dividend_events(self, df: pd.DataFrame):
@@ -258,15 +294,19 @@ class DataProcessor:
         if df.empty:
             return
         expected = [
-            "stock_id", "date",
-            "before_price", "after_price", "reference_price",
-            "cash_dividend", "stock_dividend",
-            "source"
+            "stock_id",
+            "date",
+            "before_price",
+            "after_price",
+            "reference_price",
+            "cash_dividend",
+            "stock_dividend",
+            "source",
         ]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
+        if "date" in df_write.columns:
+            df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
@@ -298,24 +338,30 @@ class DataProcessor:
             return
         df_write = df.copy()
         # Dynamic mapping for aliases
-        if 'per' in df_write.columns:
-            df_write['pe_ratio'] = df_write['per']
-        elif 'pe_ratio' in df_write.columns:
-            df_write['per'] = df_write['pe_ratio']
+        if "per" in df_write.columns:
+            df_write["pe_ratio"] = df_write["per"]
+        elif "pe_ratio" in df_write.columns:
+            df_write["per"] = df_write["pe_ratio"]
 
-        if 'pbr' in df_write.columns:
-            df_write['pb_ratio'] = df_write['pbr']
-        elif 'pb_ratio' in df_write.columns:
-            df_write['pbr'] = df_write['pb_ratio']
+        if "pbr" in df_write.columns:
+            df_write["pb_ratio"] = df_write["pbr"]
+        elif "pb_ratio" in df_write.columns:
+            df_write["pbr"] = df_write["pb_ratio"]
 
         expected = [
-            "stock_id", "date", "per", "pbr", "pe_ratio", "pb_ratio", "dividend_yield",
-            "source"
+            "stock_id",
+            "date",
+            "per",
+            "pbr",
+            "pe_ratio",
+            "pb_ratio",
+            "dividend_yield",
+            "source",
         ]
         cols = [c for c in expected if c in df_write.columns]
         df_write = df_write[cols].copy()
-        if 'date' in df_write.columns:
-            df_write['date'] = pd.to_datetime(df_write['date']).dt.strftime('%Y-%m-%d')
+        if "date" in df_write.columns:
+            df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
@@ -346,10 +392,7 @@ class DataProcessor:
         """
         if df.empty:
             return
-        expected = [
-            "stock_id", "stock_name", "industry_category",
-            "market", "type", "source"
-        ]
+        expected = ["stock_id", "stock_name", "industry_category", "market", "type", "source"]
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
 
@@ -376,5 +419,5 @@ class DataProcessor:
             conn.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("processor.py loaded successfully. Run main.py to execute.")

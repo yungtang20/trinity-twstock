@@ -4,6 +4,7 @@ _utils.py — 策略模組共用工具函式
 
 所有 strategy/*.py 檔案應從此模組匯入共用工具，避免重複實作。
 """
+
 import os
 import sqlite3
 import warnings
@@ -74,7 +75,9 @@ def render_header(title: str, is_detail: bool = False, console=None) -> None:
             print("═" * w)
 
 
-def fetch_klines(conn: sqlite3.Connection, stock_id: str, limit: int = 512, include_amount: bool = False) -> pd.DataFrame:
+def fetch_klines(
+    conn: sqlite3.Connection, stock_id: str, limit: int = 512, include_amount: bool = False
+) -> pd.DataFrame:
     """Fetch OHLCV data from klines view.
 
     Args:
@@ -95,6 +98,6 @@ def fetch_klines(conn: sqlite3.Connection, stock_id: str, limit: int = 512, incl
         params=(stock_id, limit),
     )
     # ponytail: DESC LIMIT 取最新 N 筆，再 sort 回 ASC 讓 iloc[-1]=最新
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values('date').reset_index(drop=True)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date").reset_index(drop=True)
     return df

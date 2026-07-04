@@ -7,6 +7,7 @@ for the current year, and writes to dividend_events table.
 Called by: main.py -> run_historical_update_menu() 選項 4（手動「同步除權息事件」）
 Writes to: taiwan_stock_unified.db -> dividend_events
 """
+
 import logging
 import sys
 from datetime import date
@@ -33,6 +34,7 @@ def fetch_current_year_dividends() -> pd.DataFrame:
     logger.info(f"Scanning dividend events for {start_date} ~ {end_date}...")
 
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     try:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_output_writer.py — OutputWriter 協定與實作測試。"""
+
 from __future__ import annotations
 
 import io

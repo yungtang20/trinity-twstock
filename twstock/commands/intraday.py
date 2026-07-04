@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """intraday 命令：盤中即時指標。"""
+
 from __future__ import annotations
 
 from datetime import datetime

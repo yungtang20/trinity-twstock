@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_calculator.py — calculator.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch

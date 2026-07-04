@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """互動式子選單流程（daily / historical / maintenance）。"""
+
 from __future__ import annotations
 
 import os
@@ -32,13 +33,18 @@ def run_daily_update() -> None:
     from rich.panel import Panel
     from rich.text import Text
 
-    console.print(Panel(
-        Align.center(Text(
-            "☀️ 每日資料更新 (最新價量、法人、集保、除權息、處置股票)",
-            style="bold yellow",
-        )),
-        box=box.DOUBLE, border_style="yellow",
-    ))
+    console.print(
+        Panel(
+            Align.center(
+                Text(
+                    "☀️ 每日資料更新 (最新價量、法人、集保、除權息、處置股票)",
+                    style="bold yellow",
+                )
+            ),
+            box=box.DOUBLE,
+            border_style="yellow",
+        )
+    )
     console.print("[cyan]>> 正在從官方網站抓取最新交易日資料與集保數據...[/cyan]")
 
     # 處置股票
@@ -59,22 +65,24 @@ def run_daily_update() -> None:
 def _show_data_progress_summary() -> None:
     """顯示三大類資料的最新進度摘要。"""
     from twstock.db import get_connection
+
     try:
         with get_connection(readonly=True) as conn:
             row_t = conn.execute("SELECT MAX(date), COUNT(*) FROM stock_history").fetchone()
             row_i = conn.execute("SELECT MAX(date), COUNT(*) FROM institutional_data").fetchone()
             # TDCC 可能尚未建立（若無自動補爬），用 shareholding_unified
             try:
-                row_d = conn.execute("SELECT MAX(date), COUNT(*) FROM shareholding_unified").fetchone()
+                row_d = conn.execute(
+                    "SELECT MAX(date), COUNT(*) FROM shareholding_unified"
+                ).fetchone()
             except Exception:
                 row_d = (None, 0)
-        console.print(f"\n[cyan]📊 最新資料進度:[/cyan]")
+        console.print("\n[cyan]📊 最新資料進度:[/cyan]")
         console.print(f"  [white]價量行情: {row_t[0]} ({row_t[1]:,} 筆)[/white]")
         console.print(f"  [white]三大法人: {row_i[0]} ({row_i[1]:,} 筆)[/white]")
         console.print(f"  [white]集保數據: {row_d[0]} ({row_d[1]:,} 筆)[/white]")
     except Exception as e:
         console.print(f"[dim]  (無法取得進度: {e})[/dim]")
-
 
 
 def run_historical_update_menu() -> None:
@@ -87,13 +95,18 @@ def run_historical_update_menu() -> None:
         from rich.table import Table
         from rich.text import Text
 
-        console.print(Panel(
-            Align.center(Text(
-                "📅 歷史資料更新中心 (補齊歷史價量、集保與除權息)",
-                style="bold yellow",
-            )),
-            box=box.DOUBLE, border_style="yellow",
-        ))
+        console.print(
+            Panel(
+                Align.center(
+                    Text(
+                        "📅 歷史資料更新中心 (補齊歷史價量、集保與除權息)",
+                        style="bold yellow",
+                    )
+                ),
+                box=box.DOUBLE,
+                border_style="yellow",
+            )
+        )
 
         t = Table(box=box.SIMPLE, show_header=True, expand=False, padding=(0, 2))
         t.add_column("Key", style="bold cyan")
@@ -126,7 +139,9 @@ def run_historical_update_menu() -> None:
             start_dt = get_nth_trading_day_back(days)
             start_date = start_dt.strftime("%Y-%m-%d")
             end_date = end_dt.strftime("%Y-%m-%d")
-            console.print(f"\n[cyan]>> 同步區間: {start_date} ~ {end_date}（過去 {days} 個交易日）[/cyan]")
+            console.print(
+                f"\n[cyan]>> 同步區間: {start_date} ~ {end_date}（過去 {days} 個交易日）[/cyan]"
+            )
             console.print("[cyan]>> 開始同步除權息事件...[/cyan]")
             try:
                 df = fetch_dividend_events(start_date, end_date)
@@ -190,8 +205,7 @@ def _check_zero_volume_anomalies(suspended: set | list) -> None:
 
         if anomaly_zero:
             console.print(
-                f"  [yellow]⚠️ 非處置股票但零量價 ({latest}): "
-                f"{len(anomaly_zero)} 支[/yellow]"
+                f"  [yellow]⚠️ 非處置股票但零量價 ({latest}): " f"{len(anomaly_zero)} 支[/yellow]"
             )
             preview = ", ".join(sorted(anomaly_zero)[:15])
             suffix = "..." if len(anomaly_zero) > 15 else ""
@@ -211,10 +225,13 @@ def run_db_maintenance() -> None:
     from rich.panel import Panel
     from rich.text import Text
 
-    console.print(Panel(
-        Align.center(Text("🔧 資料庫結構重整與維護", style="bold yellow")),
-        box=box.DOUBLE, border_style="yellow",
-    ))
+    console.print(
+        Panel(
+            Align.center(Text("🔧 資料庫結構重整與維護", style="bold yellow")),
+            box=box.DOUBLE,
+            border_style="yellow",
+        )
+    )
     console.print("[cyan]>> 正在重整 SQLite 資料庫 (VACUUM)...[/cyan]")
     try:
         with get_connection() as conn:
@@ -226,8 +243,7 @@ def run_db_maintenance() -> None:
 
 
 # ── 內部輸入工具：委派至 input_helper（統一實作）──────────
-def _get_interactive_input(prompt: str = "\n🔍 指令: ",
-                           menu_keys: str = "01234") -> str:
+def _get_interactive_input(prompt: str = "\n🔍 指令: ", menu_keys: str = "01234") -> str:
     """單鍵輸入（委派至 twstock.input_helper.get_interactive_input）。"""
     result = get_interactive_input(prompt=prompt, menu_keys=menu_keys)
     # 統一 ESC 行為：input_helper 回傳 "0"，menu.py 預期 ""（break 信號）

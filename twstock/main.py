@@ -14,6 +14,7 @@ twstock — CLI & TUI 入口
   - utils.py         → 共用工具
   - strategy/composites.py → 複合分析
 """
+
 import argparse
 import os
 import sys
@@ -36,12 +37,12 @@ from twstock.utils import get_token
 
 # 命令分派表
 _ACTION_MAP = {
-    "update":    "twstock.commands.update",
+    "update": "twstock.commands.update",
     "indicators": "twstock.commands.indicators",
-    "intraday":  "twstock.commands.intraday",
-    "strategy":  "twstock.commands.strategy",
-    "official":  "twstock.commands.official",
-    "dividend":  "twstock.commands.dividend",
+    "intraday": "twstock.commands.intraday",
+    "strategy": "twstock.commands.strategy",
+    "official": "twstock.commands.official",
+    "dividend": "twstock.commands.dividend",
 }
 
 
@@ -50,6 +51,7 @@ class _LazyToken:
 
     讓 indicators 等不需要 token 的命令可以在無 token 環境下執行。
     """
+
     def __str__(self) -> str:
         return get_token()
 
@@ -90,6 +92,7 @@ def main() -> None:
 
     if len(sys.argv) == 1:
         from twstock.tui.app import TUIApp
+
         TUIApp().run()
         return
 

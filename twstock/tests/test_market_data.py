@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for twstock/market_data/ — cache and fetcher logic."""
+
 from __future__ import annotations
 
 import sys
@@ -59,4 +60,5 @@ class TestMarketCache:
 class TestPackageImport:
     def test_cache_importable(self):
         from twstock.market_data import MarketCache as MC
+
         assert MC is MarketCache

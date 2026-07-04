@@ -5,6 +5,7 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（DoD）：  python -m pytest tests/test_004_tdcc.py -v -m "not live"
 執行（live）： python -m pytest tests/test_004_tdcc.py -v -m live
 """
+
 import sqlite3
 
 import pytest
@@ -50,32 +51,97 @@ def raw_tdcc_2330():
     retail_ratio = 43000000 / 5254000000 * 100 ≈ 0.8184
     """
     return [
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "1~999",
-         "people": 5000,  "shares": 2000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "1000~5000",
-         "people": 8000,  "shares": 20000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "5001~10000",
-         "people": 3000,  "shares": 21000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "10001~15000",
-         "people": 1500,  "shares": 18000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "15001~20000",
-         "people": 800,   "shares": 14000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "20001~30000",
-         "people": 600,   "shares": 14000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "30001~40000",
-         "people": 300,   "shares": 11000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "40001~50000",
-         "people": 200,   "shares": 9000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "50001~100000",
-         "people": 500,   "shares": 37000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "100001~200000",
-         "people": 300,   "shares": 44000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "200001~400000",
-         "people": 200,   "shares": 55000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "400001以上",
-         "people": 100,   "shares": 5009000000},
-        {"date_roc": "1130105", "stock_id": "2330", "bracket": "合計",
-         "people": 20500, "shares": 5254000000},
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "1~999",
+            "people": 5000,
+            "shares": 2000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "1000~5000",
+            "people": 8000,
+            "shares": 20000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "5001~10000",
+            "people": 3000,
+            "shares": 21000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "10001~15000",
+            "people": 1500,
+            "shares": 18000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "15001~20000",
+            "people": 800,
+            "shares": 14000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "20001~30000",
+            "people": 600,
+            "shares": 14000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "30001~40000",
+            "people": 300,
+            "shares": 11000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "40001~50000",
+            "people": 200,
+            "shares": 9000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "50001~100000",
+            "people": 500,
+            "shares": 37000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "100001~200000",
+            "people": 300,
+            "shares": 44000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "200001~400000",
+            "people": 200,
+            "shares": 55000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "400001以上",
+            "people": 100,
+            "shares": 5009000000,
+        },
+        {
+            "date_roc": "1130105",
+            "stock_id": "2330",
+            "bracket": "合計",
+            "people": 20500,
+            "shares": 5254000000,
+        },
     ]
 
 
@@ -97,14 +163,17 @@ class TestTC1Transform:
     def test_required_columns_exist(self, fetcher, raw_tdcc_2330):
         rows = fetcher._transform(raw_tdcc_2330)
         required = {
-            "stock_id", "date", "source",
-            "total_shares", "total_people",
-            "whale_shares", "whale_people",
-            "whale_ratio", "retail_ratio",
+            "stock_id",
+            "date",
+            "source",
+            "total_shares",
+            "total_people",
+            "whale_shares",
+            "whale_people",
+            "whale_ratio",
+            "retail_ratio",
         }
-        assert required.issubset(set(rows[0].keys())), (
-            f"缺少欄位: {required - set(rows[0].keys())}"
-        )
+        assert required.issubset(set(rows[0].keys())), f"缺少欄位: {required - set(rows[0].keys())}"
 
 
 class TestTC2DateConversion:
@@ -113,9 +182,7 @@ class TestTC2DateConversion:
     def test_roc_date_conversion(self, fetcher, raw_tdcc_2330):
         """'1130105' → '2024-01-05'"""
         rows = fetcher._transform(raw_tdcc_2330)
-        assert rows[0]["date"] == "2024-01-05", (
-            f"date 應為 2024-01-05，實際 {rows[0]['date']}"
-        )
+        assert rows[0]["date"] == "2024-01-05", f"date 應為 2024-01-05，實際 {rows[0]['date']}"
 
 
 class TestTC3WhaleShares:
@@ -123,9 +190,9 @@ class TestTC3WhaleShares:
 
     def test_whale_shares(self, fetcher, raw_tdcc_2330):
         rows = fetcher._transform(raw_tdcc_2330)
-        assert rows[0]["whale_shares"] == 5009000000, (
-            f"whale_shares 應為 5009000000，實際 {rows[0]['whale_shares']}"
-        )
+        assert (
+            rows[0]["whale_shares"] == 5009000000
+        ), f"whale_shares 應為 5009000000，實際 {rows[0]['whale_shares']}"
 
 
 class TestTC4WhaleRatio:
@@ -134,9 +201,9 @@ class TestTC4WhaleRatio:
     def test_whale_ratio(self, fetcher, raw_tdcc_2330):
         rows = fetcher._transform(raw_tdcc_2330)
         expected = 5009000000 / 5254000000 * 100
-        assert abs(rows[0]["whale_ratio"] - expected) < 0.001, (
-            f"whale_ratio 應為 {expected:.4f}，實際 {rows[0]['whale_ratio']}"
-        )
+        assert (
+            abs(rows[0]["whale_ratio"] - expected) < 0.001
+        ), f"whale_ratio 應為 {expected:.4f}，實際 {rows[0]['whale_ratio']}"
 
 
 class TestTC5RetailShares:
@@ -146,9 +213,9 @@ class TestTC5RetailShares:
         """2000000 + 20000000 + 21000000 = 43000000"""
         rows = fetcher._transform(raw_tdcc_2330)
         retail_shares = rows[0]["retail_ratio"] / 100 * 5254000000
-        assert abs(retail_shares - 43000000) < 1, (
-            f"retail_shares 應為 43000000，推算值 {retail_shares}"
-        )
+        assert (
+            abs(retail_shares - 43000000) < 1
+        ), f"retail_shares 應為 43000000，推算值 {retail_shares}"
 
 
 class TestTC6RetailRatio:
@@ -157,9 +224,9 @@ class TestTC6RetailRatio:
     def test_retail_ratio(self, fetcher, raw_tdcc_2330):
         rows = fetcher._transform(raw_tdcc_2330)
         expected = 43000000 / 5254000000 * 100
-        assert abs(rows[0]["retail_ratio"] - expected) < 0.001, (
-            f"retail_ratio 應為 {expected:.4f}，實際 {rows[0]['retail_ratio']}"
-        )
+        assert (
+            abs(rows[0]["retail_ratio"] - expected) < 0.001
+        ), f"retail_ratio 應為 {expected:.4f}，實際 {rows[0]['retail_ratio']}"
 
 
 class TestTC7TotalShares:
@@ -167,9 +234,9 @@ class TestTC7TotalShares:
 
     def test_total_shares(self, fetcher, raw_tdcc_2330):
         rows = fetcher._transform(raw_tdcc_2330)
-        assert rows[0]["total_shares"] == 5254000000, (
-            f"total_shares 應為 5254000000，實際 {rows[0]['total_shares']}"
-        )
+        assert (
+            rows[0]["total_shares"] == 5254000000
+        ), f"total_shares 應為 5254000000，實際 {rows[0]['total_shares']}"
 
 
 class TestTC8Source:
@@ -186,8 +253,7 @@ class TestTC9SaveToTable:
     def test_save_writes_to_shareholding_unified(self, fetcher, db):
         fetcher.fetch_and_save("2024-01-05")
         cur = db.execute(
-            "SELECT COUNT(*) FROM shareholding_unified "
-            "WHERE stock_id='2330' AND source='tdcc'"
+            "SELECT COUNT(*) FROM shareholding_unified " "WHERE stock_id='2330' AND source='tdcc'"
         )
         assert cur.fetchone()[0] == 1, "預期 1 筆寫入 shareholding_unified"
 
@@ -203,10 +269,10 @@ class TestTC10Integration:
         )
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "2024-01-05",    f"date 錯：{row[0]}"
-        assert row[1] == 5009000000,      f"whale_shares 錯：{row[1]}"
-        assert row[2] == 5254000000,      f"total_shares 錯：{row[2]}"
-        assert row[3] == "tdcc",          f"source 錯：{row[3]}"
+        assert row[0] == "2024-01-05", f"date 錯：{row[0]}"
+        assert row[1] == 5009000000, f"whale_shares 錯：{row[1]}"
+        assert row[2] == 5254000000, f"total_shares 錯：{row[2]}"
+        assert row[3] == "tdcc", f"source 錯：{row[3]}"
 
     def test_dedup(self, fetcher, db):
         fetcher.fetch_and_save("2024-01-05")

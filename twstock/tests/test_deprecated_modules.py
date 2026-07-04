@@ -5,6 +5,7 @@ test_deprecated_modules.py — 已淘汰模組驗證
 確認已刪除的模組：(1) 檔案不存在，(2) 不再被任何 production 程式引用。
 仍在使用中的模組（kronos_engine, prediction_strategy, suspended, utils）不列於此處。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -54,6 +55,5 @@ def test_production_code_does_not_reference_deleted_modules():
                 if fragment in line and not stripped.startswith("#"):
                     offending_lines.append((lineno, stripped))
             assert not offending_lines, (
-                f"{file_path} 仍引用已刪除模組 '{fragment}': "
-                f"{offending_lines[:3]}"
+                f"{file_path} 仍引用已刪除模組 '{fragment}': " f"{offending_lines[:3]}"
             )

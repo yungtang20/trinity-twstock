@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_tui_render.py — tui/render.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -43,10 +44,28 @@ class TestRenderMarketPanel:
         """有指數資料時應渲染表格。"""
         mock_layout = MagicMock()
         indices = {
-            "TAIEX": {"price": 22000, "change": 100, "pct": 0.45, "amount": 3000,
-                      "up": 500, "down": 300, "flat": 100, "l_up": 10, "l_down": 5},
-            "OTC": {"price": 230, "change": 2, "pct": 0.87, "amount": 800,
-                    "up": 200, "down": 150, "flat": 50, "l_up": 3, "l_down": 2},
+            "TAIEX": {
+                "price": 22000,
+                "change": 100,
+                "pct": 0.45,
+                "amount": 3000,
+                "up": 500,
+                "down": 300,
+                "flat": 100,
+                "l_up": 10,
+                "l_down": 5,
+            },
+            "OTC": {
+                "price": 230,
+                "change": 2,
+                "pct": 0.87,
+                "amount": 800,
+                "up": 200,
+                "down": 150,
+                "flat": 50,
+                "l_up": 3,
+                "l_down": 2,
+            },
             "date": "2026-07-02",
         }
         render._render_market_panel(mock_layout, indices=indices)
@@ -84,8 +103,14 @@ class TestRenderStatus:
 
     def test_status_renders(self):
         mock_layout = MagicMock()
-        info = {"status": "✅ 就緒", "size": "100 MB", "path": "/db", "stocks": 100,
-                "first": "20200101", "last": "20260702"}
+        info = {
+            "status": "✅ 就緒",
+            "size": "100 MB",
+            "path": "/db",
+            "stocks": 100,
+            "first": "20200101",
+            "last": "20260702",
+        }
         render._render_status(mock_layout, info, "🟢 盤中")
         mock_layout.__getitem__.return_value.update.assert_called_once()
 

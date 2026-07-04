@@ -11,10 +11,11 @@ from rich.text import Text
 
 # ── Constants ──────────────────────────────────────────
 # 臺股標準漲跌停幅度（普通股 10%）
-LIMIT_UP_PCT = 9.8    # ≥ 9.8% 視為漲停
-LIMIT_DN_PCT = -9.8   # ≤ -9.8% 視為跌停
+LIMIT_UP_PCT = 9.8  # ≥ 9.8% 視為漲停
+LIMIT_DN_PCT = -9.8  # ≤ -9.8% 視為跌停
 
 # ── Price Colors ───────────────────────────────────────
+
 
 def price_color(change: float, pct: float) -> str:
     """
@@ -26,15 +27,15 @@ def price_color(change: float, pct: float) -> str:
         Rich style string
     """
     if pct >= LIMIT_UP_PCT:
-        return "white on red"       # 漲停：紅底白字
+        return "white on red"  # 漲停：紅底白字
     elif pct <= LIMIT_DN_PCT:
-        return "white on green"     # 跌停：綠底白字
+        return "white on green"  # 跌停：綠底白字
     elif change > 0:
-        return "bright_red"         # 上漲：紅
+        return "bright_red"  # 上漲：紅
     elif change < 0:
-        return "bright_green"       # 下跌：綠
+        return "bright_green"  # 下跌：綠
     else:
-        return "white"              # 平盤：白
+        return "white"  # 平盤：白
 
 
 def price_str(price: float, prev_price: float, show_sign: bool = True) -> Text:
@@ -86,14 +87,15 @@ def chg_rich(change: float, pct: float) -> str:
 
 # ── Volume Colors ──────────────────────────────────────
 
+
 def vol_color(current: int, previous: int) -> str:
     """
     成交量配色：比昨高紅 / 比昨低綠 / 持平白。
     """
     if current > previous:
-        return "bright_red"         # 量增：紅
+        return "bright_red"  # 量增：紅
     elif current < previous:
-        return "bright_green"       # 量縮：綠
+        return "bright_green"  # 量縮：綠
     return "white"
 
 
@@ -115,6 +117,7 @@ def vol_diff_rich(current: int, previous: int) -> str:
 
 # ── Volume Formatting ──────────────────────────────────
 
+
 def vol_fmt(vol: int) -> str:
     """Human-readable volume in 萬/千/個. Expects volume in shares (股), formats as sheets (張)."""
     sheets = vol / 1000.0
@@ -127,6 +130,7 @@ def vol_fmt(vol: int) -> str:
 
 # ── MA Colors ──────────────────────────────────────────
 
+
 def ma_color(trend: str) -> str:
     """
     均線趨勢配色：上揚紅 / 下降綠 / 走平白。
@@ -136,10 +140,10 @@ def ma_color(trend: str) -> str:
         Rich style string
     """
     if trend in ("up", "↑ 上揚", "上揚"):
-        return "bright_red"         # 均線上揚：紅
+        return "bright_red"  # 均線上揚：紅
     elif trend in ("down", "↓ 下彎", "下彎"):
-        return "bright_green"       # 均線下降：綠
-    return "white"                  # 均線走平：白
+        return "bright_green"  # 均線下降：綠
+    return "white"  # 均線走平：白
 
 
 def ma_str(value: float, trend: str) -> str:
@@ -160,6 +164,7 @@ def vol_fmt_short(vol: int) -> str:
 
 # ── K-Line Chart ────────────────────────────────────────
 
+
 def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -> str:
     """
     渲染文字 K 線圖（Rich markup）。
@@ -176,12 +181,12 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
     df = df.tail(days).copy().reset_index(drop=True)
     if len(df) < 2:
         return "[yellow]資料不足[/]"
-    for col in ['open', 'high', 'low', 'close', 'volume']:
+    for col in ["open", "high", "low", "close", "volume"]:
         if col not in df.columns:
             return f"[yellow]缺少 {col} 欄位[/]"
 
-    price_high = float(df['high'].max())
-    price_low = float(df['low'].min())
+    price_high = float(df["high"].max())
+    price_low = float(df["low"].min())
     price_range = price_high - price_low
     if price_range <= 0:
         price_range = 1.0
@@ -192,8 +197,8 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
 
     # 標題
     title = f"{stock_id} {stock_name}" if stock_id else "K 線圖"
-    last_close = float(df['close'].iloc[-1])
-    prev_close = float(df['close'].iloc[-2]) if len(df) > 1 else last_close
+    last_close = float(df["close"].iloc[-1])
+    prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else last_close
     change = last_close - prev_close
     pct = (change / prev_close * 100) if prev_close else 0.0
     color = price_color(change, pct)
@@ -216,10 +221,10 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
 
         line_chars = []
         for i in range(len(df)):
-            o = float(df['open'].iloc[i])
-            h = float(df['high'].iloc[i])
-            l = float(df['low'].iloc[i])
-            c = float(df['close'].iloc[i])
+            o = float(df["open"].iloc[i])
+            h = float(df["high"].iloc[i])
+            l = float(df["low"].iloc[i])
+            c = float(df["close"].iloc[i])
             is_up = c >= o
             body_top = max(o, c)
             body_bot = min(o, c)
@@ -243,7 +248,7 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
     # 成交量
     lines.append("")
     lines.append("[dim]─ 成交量 ─[/]")
-    vol_max = int(df['volume'].max())
+    vol_max = int(df["volume"].max())
     if vol_max <= 0:
         vol_max = 1
     for row in range(vol_height):
@@ -251,8 +256,8 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
         label = f"{vol_fmt_short(int(vol_threshold)):>8s} " if row == 0 else "          "
         line_chars = []
         for i in range(len(df)):
-            v = int(df['volume'].iloc[i])
-            is_up = float(df['close'].iloc[i]) >= float(df['open'].iloc[i])
+            v = int(df["volume"].iloc[i])
+            is_up = float(df["close"].iloc[i]) >= float(df["open"].iloc[i])
             if v >= vol_threshold:
                 line_chars.append("[bright_red]█[/]" if is_up else "[bright_green]█[/]")
             else:
@@ -261,7 +266,7 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
 
     # 日期標籤
     date_label = "          "
-    dates = df['date'].astype(str).tolist()
+    dates = df["date"].astype(str).tolist()
     if len(dates) > 2:
         lines.append(date_label + dates[0][:5] + " " * (len(dates) - 10) + dates[-1][:5])
     else:

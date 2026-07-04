@@ -3,6 +3,7 @@
 
 Mock HTTP requests to test all code paths without network.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -12,6 +13,7 @@ import pytest
 from twstock.market_data import fetcher
 
 # ── Fixtures ──────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_session():
@@ -137,6 +139,8 @@ class TestFetchMarketIndices:
         result = fetcher.fetch_market_indices()
         # 可能因 TWSE/TPEx API 失敗而回傳 None，但不應拋異常
         assert result is None or isinstance(result, dict)
+
+
 # ════════════════════════════════════════════════════════════════
 # NEW TESTS — append-only, patch correct targets
 #   - session:  patch("twstock.market_data.fetcher.get_http_session")
@@ -174,9 +178,7 @@ class TestGetYahooMarketVolumesBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_twse_volume_matched(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
-        mock_get.return_value = SimpleNamespace(
-            text="上市 加權指數\t12,345.67 億 其他..."
-        )
+        mock_get.return_value = SimpleNamespace(text="上市 加權指數\t12,345.67 億 其他...")
         twse, _ = fetcher.get_yahoo_market_volumes()
         assert twse == "12,345.67"
 
@@ -184,9 +186,7 @@ class TestGetYahooMarketVolumesBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_tpex_volume_matched(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
-        mock_get.return_value = SimpleNamespace(
-            text="上櫃 櫃買指數 999.9 億 ..."
-        )
+        mock_get.return_value = SimpleNamespace(text="上櫃 櫃買指數 999.9 億 ...")
         _, tpex = fetcher.get_yahoo_market_volumes()
         assert tpex == "999.9"
 
@@ -222,9 +222,7 @@ class TestGetYahooMarketVolumesBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_html_without_target_text(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
-        mock_get.return_value = SimpleNamespace(
-            text="<html>完全不相干的內容</html>"
-        )
+        mock_get.return_value = SimpleNamespace(text="<html>完全不相干的內容</html>")
         assert fetcher.get_yahoo_market_volumes() == ("無資料", "無資料")
 
 
@@ -243,10 +241,12 @@ class TestGetRealtimeMisDataBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_warmup_raises_swallowed(self, mock_sess, mock_get):
         """Warmup safe_http_get is allowed to raise; main call returns None."""
+
         def side(url, *a, **k):
             if "index.jsp" in url:
                 raise RuntimeError("warmup down")
             return None
+
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
@@ -258,6 +258,7 @@ class TestGetRealtimeMisDataBranches:
             if "index.jsp" in url:
                 return SimpleNamespace()
             return None
+
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
@@ -271,6 +272,7 @@ class TestGetRealtimeMisDataBranches:
             bad = MagicMock()
             bad.json.side_effect = ValueError("bad json")
             return bad
+
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
@@ -279,10 +281,12 @@ class TestGetRealtimeMisDataBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_success_returns_dict(self, mock_sess, mock_get):
         payload = {"msgArray": [{"c": "t00", "z": "22000"}]}
+
         def side(url, *a, **k):
             if "index.jsp" in url:
                 return SimpleNamespace()
             return SimpleNamespace(json=lambda: payload)
+
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == payload
@@ -291,12 +295,14 @@ class TestGetRealtimeMisDataBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_with_symbols_appends_ex_ch(self, mock_sess, mock_get):
         """symbols passed → extra ex_ch args added to URL."""
+
         def side(url, *a, **k):
             if "index.jsp" in url:
                 return SimpleNamespace()
             assert "tse_2330.tw" in url
             assert "otc_2330.tw" in url
             return SimpleNamespace(json=lambda: {"msgArray": []})
+
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = side
         result = fetcher.get_realtime_mis_data(symbols=["2330"])
@@ -364,28 +370,60 @@ class TestFetchMarketIndicesBranches:
 
         def side(url, *a, **k):
             if "MI_INDEX" in url:
-                return SimpleNamespace(json=lambda: {
-                    "tables": [
-                        {"title": "漲跌證券數合 計", "data": [
-                            ["a", "b", "100(5)"],
-                            ["a", "b", "200(10)"],
-                            ["a", "b", "50(0)"],
-                        ]},
-                        {"title": "大盤統計資訊", "data": [
-                            ["總計", "123456789"],
-                        ]},
-                    ]
-                })
+                return SimpleNamespace(
+                    json=lambda: {
+                        "tables": [
+                            {
+                                "title": "漲跌證券數合 計",
+                                "data": [
+                                    ["a", "b", "100(5)"],
+                                    ["a", "b", "200(10)"],
+                                    ["a", "b", "50(0)"],
+                                ],
+                            },
+                            {
+                                "title": "大盤統計資訊",
+                                "data": [
+                                    ["總計", "123456789"],
+                                ],
+                            },
+                        ]
+                    }
+                )
             if "tpex.org.tw" in url:
-                return SimpleNamespace(json=lambda: {
-                    "stat": "ok",
-                    "tables": [{
-                        "fields": ["日期","時間","成交張數","成交金額",
-                                   "上漲家數","漲停家數","下跌家數","跌停家數","平盤家數"],
-                        "data": [["2026/07/02","10:00","12345","987654321",
-                                  "300","10","150","5","40"]],
-                    }],
-                })
+                return SimpleNamespace(
+                    json=lambda: {
+                        "stat": "ok",
+                        "tables": [
+                            {
+                                "fields": [
+                                    "日期",
+                                    "時間",
+                                    "成交張數",
+                                    "成交金額",
+                                    "上漲家數",
+                                    "漲停家數",
+                                    "下跌家數",
+                                    "跌停家數",
+                                    "平盤家數",
+                                ],
+                                "data": [
+                                    [
+                                        "2026/07/02",
+                                        "10:00",
+                                        "12345",
+                                        "987654321",
+                                        "300",
+                                        "10",
+                                        "150",
+                                        "5",
+                                        "40",
+                                    ]
+                                ],
+                            }
+                        ],
+                    }
+                )
             return None
 
         mock_get.side_effect = side
@@ -428,13 +466,17 @@ class TestFetchMarketIndicesBranches:
             if "MI_INDEX" in url:
                 return SimpleNamespace(json=lambda: {"tables": []})
             if "tpex.org.tw" in url:
-                return SimpleNamespace(json=lambda: {
-                    "stat": "ok",
-                    "tables": [{
-                        "fields": ["a","b","c","d"],
-                        "data": [["x","y","z","5000"]],
-                    }],
-                })
+                return SimpleNamespace(
+                    json=lambda: {
+                        "stat": "ok",
+                        "tables": [
+                            {
+                                "fields": ["a", "b", "c", "d"],
+                                "data": [["x", "y", "z", "5000"]],
+                            }
+                        ],
+                    }
+                )
             return None
 
         mock_get.side_effect = side
@@ -459,17 +501,25 @@ class TestFetchMarketIndicesBranches:
 
         def side(url, *a, **k):
             if "MI_INDEX" in url:
-                return SimpleNamespace(json=lambda: {
-                    "tables": [
-                        {"title": "漲跌證券數合計", "data": [
-                            ["a", "b", "100(5)"],
-                        ]},
-                    ]
-                })
+                return SimpleNamespace(
+                    json=lambda: {
+                        "tables": [
+                            {
+                                "title": "漲跌證券數合計",
+                                "data": [
+                                    ["a", "b", "100(5)"],
+                                ],
+                            },
+                        ]
+                    }
+                )
             if "tpex.org.tw" in url:
-                return SimpleNamespace(json=lambda: {
-                    "stat": "ok", "tables": [{"fields": [], "data": []}],
-                })
+                return SimpleNamespace(
+                    json=lambda: {
+                        "stat": "ok",
+                        "tables": [{"fields": [], "data": []}],
+                    }
+                )
             return None
 
         mock_get.side_effect = side
@@ -514,7 +564,10 @@ class TestFetchMarketIndicesBranches:
         """Exception in MIS block → pass, continue to Yahoo."""
         mock_mis.side_effect = RuntimeError("mis boom")
         mock_yahoo.return_value = ("無資料", "無資料")
-        with patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),              patch("utils.safe_http_get", return_value=None):
+        with (
+            patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),
+            patch("utils.safe_http_get", return_value=None),
+        ):
             r = fetcher.fetch_market_indices()
             assert r is None or isinstance(r, dict)
 
@@ -529,7 +582,10 @@ class TestFetchMarketIndicesBranches:
             ],
         }
         mock_yahoo.side_effect = RuntimeError("yahoo boom")
-        with patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),              patch("utils.safe_http_get", return_value=None):
+        with (
+            patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),
+            patch("utils.safe_http_get", return_value=None),
+        ):
             r = fetcher.fetch_market_indices()
             assert r is None or isinstance(r, dict)
 

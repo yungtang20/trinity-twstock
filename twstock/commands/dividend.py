@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """dividend 命令：抓取除權息資料。"""
+
 from __future__ import annotations
 
 from twstock.official import fetch_dividend_events, upsert_dividend_events

@@ -8,6 +8,7 @@
 
 子類別只需實作核心演算法：prepare_data()、analyze()、render()。
 """
+
 from __future__ import annotations
 
 import logging

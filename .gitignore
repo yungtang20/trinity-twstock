@@ -78,3 +78,9 @@ _test*.txt
 _cov*.txt
 _coll.txt
 _f.txt
+
+# Archives and outputs
+*.rar
+test-results/
+*.bak*
+archive/

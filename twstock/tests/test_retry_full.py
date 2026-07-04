@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_retry_full.py — retry.py 完整覆蓋率測試。"""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch

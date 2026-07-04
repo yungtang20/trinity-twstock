@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_fetcher.py — fetcher.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from twstock.fetcher import (
@@ -25,6 +26,7 @@ class TestRateLimiter:
         limiter.acquire()
         # 第二次應進入等待（但測試中快速完成）
         import time
+
         time.sleep(0.15)  # 等待窗口過期
         limiter.acquire()  # 現在應該可以
 

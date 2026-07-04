@@ -5,12 +5,13 @@ test_db_admin_idempotent.py — db_admin 建立表與 VIEW 的冪等測試
 驗證 create_tables() 與 create_views() 可重複執行不拋例外，
 且結果一致（表格與 VIEW 都存在）。
 """
+
 from __future__ import annotations
 
 
 def test_create_tables_is_idempotent(db_conn, patch_db_path):
     """create_tables() 可重複執行不拋例外。"""
-    from db_admin import create_tables
+    from twstock.db_admin import create_tables
 
     # 第一次
     create_tables(db_conn)
@@ -31,7 +32,7 @@ def test_create_tables_is_idempotent(db_conn, patch_db_path):
 
 def test_create_views_is_idempotent(db_conn, patch_db_path):
     """create_views() 可重複執行不拋例外。"""
-    from db_admin import create_tables, create_views
+    from twstock.db_admin import create_tables, create_views
 
     create_tables(db_conn)
 
@@ -53,7 +54,7 @@ def test_create_views_is_idempotent(db_conn, patch_db_path):
 
 def test_init_db_is_idempotent(db_conn, patch_db_path):
     """init_db() 可重複執行不拋例外。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     # 第一次
     init_db()
@@ -82,7 +83,7 @@ def test_init_db_is_idempotent(db_conn, patch_db_path):
 
 def test_compatibility_views_exist(db_conn, patch_db_path):
     """向後相容的 VIEW 應存在且可被查詢。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 

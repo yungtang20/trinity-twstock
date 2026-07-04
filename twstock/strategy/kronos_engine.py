@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
 @dataclass
 class PredictionResult:
     """單筆預測結果"""
+
     benchmark: float = 0.0
     confidence: float = 0.0
     drift: float = 0.0
@@ -45,6 +46,7 @@ class PredictionResult:
 @dataclass
 class StockPrediction:
     """股票預測資料"""
+
     code: str
     name: str
     current_price: float
@@ -59,6 +61,7 @@ class StockPrediction:
 
 class DriftStatus:
     """漂移監測狀態"""
+
     STABLE = "stable"
     DRIFT_UP = "drift_up"
     DRIFT_DOWN = "drift_down"
@@ -96,9 +99,9 @@ def _find_kronos_model_src() -> Optional[str]:
     """
     strategy_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = [
-        os.path.join(strategy_dir, "..", "..", "model"),   # twse/model/
-        os.path.join(strategy_dir, "..", "model"),          # twstock/model/
-        os.path.join(strategy_dir, "model"),                # strategy/model/
+        os.path.join(strategy_dir, "..", "..", "model"),  # twse/model/
+        os.path.join(strategy_dir, "..", "model"),  # twstock/model/
+        os.path.join(strategy_dir, "model"),  # strategy/model/
     ]
     for c in candidates:
         c = os.path.normpath(c)
@@ -107,8 +110,9 @@ def _find_kronos_model_src() -> Optional[str]:
     return None
 
 
-def load_kronos(model_path: str = "models/kronos-base",
-                tokenizer_path: str = "models/kronos-tokenizer-base"):
+def load_kronos(
+    model_path: str = "models/kronos-base", tokenizer_path: str = "models/kronos-tokenizer-base"
+):
     """
     載入 Kronos 模型與 tokenizer。
     回傳 (tokenizer, model, predictor) 或 raise ImportError。
@@ -143,8 +147,11 @@ class KronosRealEngine:
     使用 NeoQuasar/Kronos-base 模型進行 5 日 OHLCV 預測
     """
 
-    def __init__(self, model_path: str = "models/kronos-base",
-                 tokenizer_path: str = "models/kronos-tokenizer-base"):
+    def __init__(
+        self,
+        model_path: str = "models/kronos-base",
+        tokenizer_path: str = "models/kronos-tokenizer-base",
+    ):
         self.model_path = model_path
         self.tokenizer_path = tokenizer_path
         self._predictor = None
@@ -265,10 +272,11 @@ class MonteCarloEngine:
         df 需有 'close' 欄位
         回傳 PredictionResult
         """
-        closes = df['close'].dropna().values
+        closes = df["close"].dropna().values
         if len(closes) < 5:
-            return PredictionResult(benchmark=float(closes[-1]) if len(closes) > 0 else 0.0,
-                                    confidence=0.0)
+            return PredictionResult(
+                benchmark=float(closes[-1]) if len(closes) > 0 else 0.0, confidence=0.0
+            )
 
         # 計算日報酬率
         returns = np.diff(closes) / closes[:-1]
@@ -322,7 +330,9 @@ class PredictionEngine:
         try:
             self.kronos_engine = KronosRealEngine(
                 model_path=self.config.get("kronos_model_path", "models/kronos-base"),
-                tokenizer_path=self.config.get("kronos_tokenizer_path", "models/kronos-tokenizer-base"),
+                tokenizer_path=self.config.get(
+                    "kronos_tokenizer_path", "models/kronos-tokenizer-base"
+                ),
             )
         except Exception:
             pass

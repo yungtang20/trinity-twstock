@@ -204,6 +204,7 @@ VIEWS_SQL = [
     """,
 ]
 
+
 def create_tables(conn: sqlite3.Connection) -> None:
     """建立所有資料表（若不存在）。可重複執行（idempotent）。"""
     cursor = conn.cursor()
@@ -244,7 +245,9 @@ def _ensure_institutional_schema(conn: sqlite3.Connection) -> None:
     ]
     for name, typ, default in columns:
         if name not in existing:
-            conn.execute(f"ALTER TABLE institutional_data ADD COLUMN {name} {typ} DEFAULT {default}")
+            conn.execute(
+                f"ALTER TABLE institutional_data ADD COLUMN {name} {typ} DEFAULT {default}"
+            )
 
 
 def migrate_db() -> None:
@@ -267,4 +270,3 @@ def show_tables() -> None:
     for t in tables:
         print(f"  - {t['name']}")
     conn.close()
-

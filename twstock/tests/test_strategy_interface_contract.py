@@ -5,6 +5,7 @@ test_strategy_interface_contract.py — 策略介面契約測試
 驗證所有策略模組是否提供 analyze(stock_id) 統一介面。
 若策略尚未提供，strategy_runner 內部會用 adapter 包裝。
 """
+
 from __future__ import annotations
 
 import importlib
@@ -29,12 +30,8 @@ def test_all_strategies_expose_analyze():
             module = importlib.import_module(module_name)
             cls = getattr(module, class_name)
             instance = cls()
-            assert hasattr(instance, "analyze"), (
-                f"{class_name} 應有 analyze() 方法"
-            )
-            assert callable(instance.analyze), (
-                f"{class_name}.analyze 應為 callable"
-            )
+            assert hasattr(instance, "analyze"), f"{class_name} 應有 analyze() 方法"
+            assert callable(instance.analyze), f"{class_name}.analyze 應為 callable"
         except (ImportError, AttributeError):
             # 類別不存在 — 檢查 strategy_runner 是否有對應的 adapter
             adapter_name = f"_{class_name}Adapter"

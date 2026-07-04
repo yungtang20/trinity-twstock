@@ -4,6 +4,7 @@ test_no_plaintext_secrets.py — Secrets 防呆測試
 
 確保 repo 中沒有被提交的真實 secrets 檔案。
 """
+
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,6 @@ def test_gitignore_blocks_secrets():
     assert gitignore.exists(), "必須有 .gitignore 檔案"
 
     content = gitignore.read_text(encoding="utf-8")
-    assert ".env" in content or "api.env" in content, (
-        ".gitignore 應排除 .env / api.env 等 secrets 檔案"
-    )
+    assert (
+        ".env" in content or "api.env" in content
+    ), ".gitignore 應排除 .env / api.env 等 secrets 檔案"

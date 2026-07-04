@@ -11,12 +11,14 @@ from .utils import safe_float, safe_int
 
 def _get_session():
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    })
+    session.headers.update(
+        {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    )
     return session
 
+
 SESSION = _get_session()
+
 
 def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
     """抓取上市公司當日收盤行情（DB 存原始值：volume 股、amount 元）"""
@@ -57,7 +59,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         "開盤價": "open",
         "最高價": "high",
         "最低價": "low",
-        "收盤價": "close"
+        "收盤價": "close",
     }
 
     df = df.rename(columns=col_map)
@@ -79,9 +81,10 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
         df[col] = df[col].apply(safe_float)
 
     # [AI MOD] 只保留 4 碼純股票（排除 ETF、REITs、權證、期貨等衍生商品）
-    df = df[df["stock_id"].astype(str).str.match(r'^\d{4}$')]
+    df = df[df["stock_id"].astype(str).str.match(r"^\d{4}$")]
 
     return df
+
 
 def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
     """抓取上櫃公司當日收盤行情（DB 存原始值：volume 股、amount 元）"""
@@ -111,7 +114,9 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
             fields = tables[0].get("fields", [])
 
     if not raw_data or not fields:
-        logging.warning("TPEx quotes data or fields missing (old format detected), aborting to avoid index guess.")
+        logging.warning(
+            "TPEx quotes data or fields missing (old format detected), aborting to avoid index guess."
+        )
         return pd.DataFrame()
 
     df = pd.DataFrame(raw_data, columns=[f.strip() for f in fields])
@@ -123,7 +128,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         "最高": "high",
         "最低": "low",
         "成交股數": "volume",
-        "成交金額(元)": "amount"
+        "成交金額(元)": "amount",
     }
     df = df.rename(columns=col_map)
 
@@ -146,16 +151,18 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         df[col] = df[col].apply(safe_float)
 
     # [AI MOD] 只保留 4 碼純股票（排除 ETF、REITs、權證等）
-    df = df[df["stock_id"].astype(str).str.match(r'^\d{4}$')]
+    df = df[df["stock_id"].astype(str).str.match(r"^\d{4}$")]
 
     return df
+
 
 def fetch_all_quotes(date_int: int) -> pd.DataFrame:
     twse = fetch_twse_quotes(date_int)
     tpex = fetch_tpex_quotes(date_int)
     if twse.empty and tpex.empty:
         return pd.DataFrame()
-    return pd.concat([twse, tpex], ignore_index=True).drop_duplicates(subset=['stock_id','date'])
+    return pd.concat([twse, tpex], ignore_index=True).drop_duplicates(subset=["stock_id", "date"])
+
 
 def update_stock_meta_from_df(df: pd.DataFrame):
     """從行情 df 擷取 stock_id, name, market → 更新 stock_meta"""
@@ -169,7 +176,7 @@ def update_stock_meta_from_df(df: pd.DataFrame):
         needed.append("market")
     meta_df = df[needed].copy()
     meta_df["stock_name"] = meta_df["name"]
-    meta_df["type"] = "COMMON"          # 與 trading_calendar.py / updater.py 查詢條件一致
+    meta_df["type"] = "COMMON"  # 與 trading_calendar.py / updater.py 查詢條件一致
     meta_df["source"] = "quotes"
     meta_df["industry_category"] = ""
     # market 若沒帶入（舊呼叫端相容），保留空字串；否則用標記值（TSE/OTC）

@@ -4,6 +4,7 @@
 定義 InputProvider 協定，並提供 Windows、Unix、Mock 三種實作。
 Mock 實作供測試使用，可預設按鍵序列。
 """
+
 from __future__ import annotations
 
 import sys
@@ -37,6 +38,7 @@ class _WindowsInputProvider:
 
     def get_key(self, prompt: str = "") -> str:
         import msvcrt
+
         if prompt:
             sys.stdout.write(prompt)
             sys.stdout.flush()
@@ -44,10 +46,12 @@ class _WindowsInputProvider:
 
     def kbhit(self) -> bool:
         import msvcrt
+
         return msvcrt.kbhit()
 
     def flush(self) -> None:
         import msvcrt
+
         while msvcrt.kbhit():
             msvcrt.getwch()
 
@@ -63,6 +67,7 @@ class _UnixInputProvider:
         try:
             import termios
             import tty
+
             old = termios.tcgetattr(fd)
             tty.setraw(fd)
             ch = sys.stdin.read(1)
@@ -74,6 +79,7 @@ class _UnixInputProvider:
         if not sys.stdin.isatty():
             return False
         import select
+
         r, _, _ = select.select([sys.stdin], [], [], 0)
         return bool(r)
 
@@ -81,6 +87,7 @@ class _UnixInputProvider:
         if sys.stdin.isatty():
             try:
                 import termios
+
                 termios.tcflush(sys.stdin, termios.TCIFLUSH)
             except Exception:
                 pass
@@ -114,6 +121,7 @@ def create_default_provider() -> InputProvider:
     if sys.platform == "win32":
         try:
             import msvcrt  # noqa: F401
+
             return _WindowsInputProvider()
         except ImportError:
             return _UnixInputProvider()

@@ -4,6 +4,7 @@
 策略整合_籌碼分析 v12.0 (統一資料庫版)
 # [AI MOD] Migrated to taiwan_stock_unified.db + klines view
 """
+
 import os
 import signal
 import sys
@@ -12,7 +13,7 @@ import warnings
 from rich import box
 from rich.table import Table
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import rconsole
@@ -23,15 +24,15 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.strategy._utils import clear_screen, get_stock_name, render_header
-
 from twstock.db import get_connection  # [AI MOD]
 from twstock.display import price_color, vol_color
+from twstock.strategy._utils import clear_screen, get_stock_name, render_header
 
 try:
     from twstock.input_helper import get_interactive_input
 except ImportError:
     from input_helper import get_interactive_input
+
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
     """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
@@ -39,6 +40,7 @@ def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str
 
 
 # ── Local helpers ─────────────────────────────────────────
+
 
 def _render_header(title, is_detail=False):
     render_header(title, is_detail=is_detail, console=rconsole)
@@ -69,13 +71,9 @@ class StockAnalyzer:
 
     def get_latest_dates(self):
         """回傳 (hist_date, inst_date)"""
-        cur = self.conn.execute(
-            "SELECT MAX(date) FROM stock_history"
-        )
+        cur = self.conn.execute("SELECT MAX(date) FROM stock_history")
         hist_date = cur.fetchone()[0]
-        cur = self.conn.execute(
-            "SELECT MAX(date) FROM institutional_data"
-        )
+        cur = self.conn.execute("SELECT MAX(date) FROM institutional_data")
         row = cur.fetchone()
         inst_date = row[0] if row and row[0] else hist_date
         return hist_date, inst_date
@@ -129,17 +127,19 @@ class StockAnalyzer:
         rows = self.conn.execute(sql, (min_consecutive_days,)).fetchall()
         results = []
         for r in rows:
-            results.append({
-                'stock_id': r[0],
-                'name': r[8] or '---',
-                'buy_days': r[1],
-                'total_net': r[2],
-                'date': r[3],
-                'close': r[4] or 0.0,
-                'volume': r[5] or 0,
-                'prev_close': r[6] or r[4] or 0.0,
-                'prev_volume': r[7] or r[5] or 0,
-            })
+            results.append(
+                {
+                    "stock_id": r[0],
+                    "name": r[8] or "---",
+                    "buy_days": r[1],
+                    "total_net": r[2],
+                    "date": r[3],
+                    "close": r[4] or 0.0,
+                    "volume": r[5] or 0,
+                    "prev_close": r[6] or r[4] or 0.0,
+                    "prev_volume": r[7] or r[5] or 0,
+                }
+            )
         return results
 
     @staticmethod
@@ -199,17 +199,19 @@ class StockAnalyzer:
             prev_volume = int(r[9]) if r[9] is not None else 0
             price_change = ((close - prev_close) / prev_close * 100) if prev_close > 0 else 0.0
             vol_change = ((volume - prev_volume) / prev_volume * 100) if prev_volume > 0 else 0.0
-            results.append({
-                'stock_id': r[0],
-                'name': r[10] or '---',
-                'close': close,
-                'price_change': price_change,
-                'volume': volume,
-                'vol_change': vol_change,
-                'curr_whale': float(r[1]) if r[1] is not None else 0.0,
-                'whale_change': float(r[3]) if r[3] is not None else 0.0,
-                'people_change': people_change,
-            })
+            results.append(
+                {
+                    "stock_id": r[0],
+                    "name": r[10] or "---",
+                    "close": close,
+                    "price_change": price_change,
+                    "volume": volume,
+                    "vol_change": vol_change,
+                    "curr_whale": float(r[1]) if r[1] is not None else 0.0,
+                    "whale_change": float(r[3]) if r[3] is not None else 0.0,
+                    "people_change": people_change,
+                }
+            )
         return results, latest_date, prev_date
 
     def display_institutional_results(self, results, investor_type, date):
@@ -228,26 +230,26 @@ class StockAnalyzer:
         table.add_column("連買天數", justify="right")
         table.add_column("買超張數", justify="right")
         for r in results:
-            net_val = r['total_net'] // 1000
+            net_val = r["total_net"] // 1000
             net_str = self._fmt_change(net_val, "", "d")
             # 收盤顏色
-            prev_close = r.get('prev_close', r['close'])
-            price_change = r['close'] - prev_close
+            prev_close = r.get("prev_close", r["close"])
+            price_change = r["close"] - prev_close
             pct = (price_change / prev_close * 100) if prev_close else 0.0
             price_str = f"[{price_color(price_change, pct)}]{r['close']:.2f}[/]"
             # 成交量顏色
-            vol_sheets = r['volume'] // 1000
-            prev_vol = r.get('prev_volume', r['volume'])
+            vol_sheets = r["volume"] // 1000
+            prev_vol = r.get("prev_volume", r["volume"])
             vol_str = f"[{vol_color(r['volume'], prev_vol)}]{vol_sheets:,}[/]"
             # 額(億)
-            amount = (r['close'] * r['volume']) / 1e8
+            amount = (r["close"] * r["volume"]) / 1e8
             table.add_row(
-                r['stock_id'],
-                r['name'],
+                r["stock_id"],
+                r["name"],
                 price_str,
                 vol_str,
                 f"{amount:.2f}",
-                str(r['buy_days']),
+                str(r["buy_days"]),
                 net_str,
             )
         rconsole.print(table)
@@ -268,24 +270,24 @@ class StockAnalyzer:
         table.add_column("變化", justify="right")
         table.add_column("人數變化", justify="right")
         for r in results[:20]:
-            pc = r['people_change'] or 0
+            pc = r["people_change"] or 0
             # 收盤顏色
-            prev_close = r.get('prev_close', r['close'])
-            price_change = r['close'] - prev_close
+            prev_close = r.get("prev_close", r["close"])
+            price_change = r["close"] - prev_close
             pct = (price_change / prev_close * 100) if prev_close else 0.0
             price_str = f"[{price_color(price_change, pct)}]{r['close']:.2f}[/]"
             # 成交量顏色
-            vol_sheets = r['volume'] // 1000
-            prev_vol = r.get('prev_volume', r['volume'])
+            vol_sheets = r["volume"] // 1000
+            prev_vol = r.get("prev_volume", r["volume"])
             vol_str = f"[{vol_color(r['volume'], prev_vol)}]{vol_sheets:,}[/]"
             # 額(億)
-            amount = (r['close'] * r['volume']) / 1e8
-            whale_str = f"{r['curr_whale']:.2f}%" if r['curr_whale'] else "N/A"
-            change_str = self._fmt_change(r['whale_change'], "%")
+            amount = (r["close"] * r["volume"]) / 1e8
+            whale_str = f"{r['curr_whale']:.2f}%" if r["curr_whale"] else "N/A"
+            change_str = self._fmt_change(r["whale_change"], "%")
             people_str = self._fmt_change(pc, "", "d")
             table.add_row(
-                r['stock_id'],
-                r['name'],
+                r["stock_id"],
+                r["name"],
                 price_str,
                 vol_str,
                 f"{amount:.2f}",
@@ -303,16 +305,18 @@ class StockAnalyzer:
         rows = self.conn.execute(
             "SELECT date, foreign_net, trust_net, institutional_net "
             "FROM institutional_data WHERE stock_id = ? ORDER BY date DESC LIMIT 10",
-            (code,)
+            (code,),
         ).fetchall()
         # 取得近60日股價（收盤、成交量）供表格顯示
         # 集保資料每月公佈，需要更多交易日才能匹配到每月對應日期
         kline_rows = self.conn.execute(
             "SELECT date, close, volume FROM stock_history WHERE stock_id = ? ORDER BY date DESC LIMIT 60",
-            (code,)
+            (code,),
         ).fetchall()
         # NULL 防護：DB 回傳的 close/volume 可能為 NULL，用 0 替代
-        kline_map = {r[0]: (float(r[1] or 0), int(r[2] or 0)) for r in kline_rows}  # date -> (close, volume)
+        kline_map = {
+            r[0]: (float(r[1] or 0), int(r[2] or 0)) for r in kline_rows
+        }  # date -> (close, volume)
         kline_dates = [r[0] for r in kline_rows]  # 依日期 DESC
 
         def _get_kline(date, idx=0):
@@ -393,7 +397,7 @@ class StockAnalyzer:
         sh = self.conn.execute(
             "SELECT date, whale_ratio, total_people, whale_people, whale_shares "
             "FROM shareholding_unified WHERE stock_id = ? ORDER BY date DESC LIMIT 5",
-            (code,)
+            (code,),
         ).fetchall()
         if sh:
             rconsole.print("\n[bold cyan]📊 集保持股分布:[/]")
@@ -415,14 +419,20 @@ class StockAnalyzer:
                     f"{row[1]:.2f}%" if row[1] is not None else "N/A",
                     f"{row[2]:,}" if row[2] is not None else "N/A",
                     # whale_people 若為 NULL，用 whale_ratio 推算
-                    f"{int(row[3] * row[1] / 100):,}" if (row[3] is not None and row[1] is not None) else "N/A",
+                    (
+                        f"{int(row[3] * row[1] / 100):,}"
+                        if (row[3] is not None and row[1] is not None)
+                        else "N/A"
+                    ),
                 )
             rconsole.print(tbl2)
         else:
             rconsole.print("  [dim]查不到法人/集保資料[/]")
 
 
-def scan_market(analyzer: StockAnalyzer, strat_choice: str = None, n_days: int = 2, sort_choice: int = 1):
+def scan_market(
+    analyzer: StockAnalyzer, strat_choice: str = None, n_days: int = 2, sort_choice: int = 1
+):
     """市場掃描主函數（參數由 strategies.py 或 run_strategy 傳入，不再互動提示）"""
     hist_date, inst_date = analyzer.get_latest_dates()
     if not inst_date:
@@ -441,7 +451,9 @@ def scan_market(analyzer: StockAnalyzer, strat_choice: str = None, n_days: int =
         else:
             rconsole.print(f"[yellow]📭 無符合標的 ({investor_name}連買 >= {n_days} 天)")
     elif strat_choice == "3":
-        results, latest_date, prev_date = analyzer.analyze_main_force_vs_retail(sort_choice=sort_choice)
+        results, latest_date, prev_date = analyzer.analyze_main_force_vs_retail(
+            sort_choice=sort_choice
+        )
         if results:
             analyzer.display_main_force_results(results, latest_date or "N/A", prev_date or "N/A")
         else:
@@ -457,13 +469,13 @@ def get_latest_date() -> str:
 
 
 def run_strategy(params: dict):
-    code = params.get('code')
-    scan = params.get('scan', False)
-    strat_choice = params.get('strat_choice')
-    n_days = params.get('n_days', 2)
-    sort_choice = params.get('sort_choice', 1)
-    compact = params.get('compact', False)
-    mobile = params.get('mobile', False)
+    code = params.get("code")
+    scan = params.get("scan", False)
+    strat_choice = params.get("strat_choice")
+    n_days = params.get("n_days", 2)
+    sort_choice = params.get("sort_choice", 1)
+    compact = params.get("compact", False)
+    mobile = params.get("mobile", False)
     with StockAnalyzer() as analyzer:
         if scan:
             scan_market(analyzer, strat_choice=strat_choice, n_days=n_days, sort_choice=sort_choice)
@@ -549,9 +561,9 @@ class ChipsStrategy:
             if cons == 0:
                 cons = 1 if val > 0 else (-1 if val < 0 else 0)
             else:
-                if (cons > 0 and val > 0):
+                if cons > 0 and val > 0:
                     cons += 1
-                elif (cons < 0 and val < 0):
+                elif cons < 0 and val < 0:
                     cons -= 1
                 else:
                     break

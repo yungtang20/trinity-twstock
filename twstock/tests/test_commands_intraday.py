@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_commands_intraday.py — commands/intraday.py execute 測試。"""
+
 from __future__ import annotations
 
 from argparse import Namespace
@@ -23,7 +24,13 @@ def populated_engine():
     engine = MagicMock()
     engine.df = pd.DataFrame({"date": ["2025-01-01"], "close": [100.0]})
     engine.build.return_value = pd.DataFrame(
-        {"close": [105.0], "volume": [1000], "sma_20": [102.0], "macd": [0.5], "institutional_net": [500]}
+        {
+            "close": [105.0],
+            "volume": [1000],
+            "sma_20": [102.0],
+            "macd": [0.5],
+            "institutional_net": [500],
+        }
     )
     return engine
 
@@ -33,17 +40,21 @@ class TestIntradayExecute:
     @patch("twstock.commands.intraday.DataFetcher")
     @patch("twstock.commands.intraday.IndicatorEngine")
     @patch("twstock.commands.intraday.console")
-    def test_normal_flow(
-        self, mock_console, MockEngine, MockFetcher, mock_conn, populated_engine
-    ):
+    def test_normal_flow(self, mock_console, MockEngine, MockFetcher, mock_conn, populated_engine):
         MockEngine.return_value = populated_engine
         mock_fetcher = MagicMock()
         mock_fetcher.fetch_intraday_snapshot.return_value = {
-            "o": "100", "h": "110", "l": "95", "z": "105", "v": "1000",
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "z": "105",
+            "v": "1000",
         }
         MockFetcher.return_value = mock_fetcher
         mock_conn.return_value.__enter__ = MagicMock(
-            return_value=MagicMock(execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None))))
+            return_value=MagicMock(
+                execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
+            )
         )
         mock_conn.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -63,10 +74,18 @@ class TestIntradayExecute:
         # First call returns empty, second returns populated
         MockEngine.side_effect = [empty_engine, populated_engine]
         mock_fetcher = MagicMock()
-        mock_fetcher.fetch_intraday_snapshot.return_value = {"z": "105", "o": "100", "h": "110", "l": "95", "v": "1000"}
+        mock_fetcher.fetch_intraday_snapshot.return_value = {
+            "z": "105",
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "v": "1000",
+        }
         MockFetcher.return_value = mock_fetcher
         mock_conn.return_value.__enter__ = MagicMock(
-            return_value=MagicMock(execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None))))
+            return_value=MagicMock(
+                execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
+            )
         )
         mock_conn.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -79,12 +98,24 @@ class TestIntradayExecute:
     @patch("twstock.commands.intraday.console")
     def test_passes_token_to_datafetcher(self, mock_console, MockEngine, MockFetcher):
         mock_fetcher = MagicMock()
-        mock_fetcher.fetch_intraday_snapshot.return_value = {"z": "105", "o": "100", "h": "110", "l": "95", "v": "1000"}
+        mock_fetcher.fetch_intraday_snapshot.return_value = {
+            "z": "105",
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "v": "1000",
+        }
         MockFetcher.return_value = mock_fetcher
         engine = MagicMock()
         engine.df = pd.DataFrame({"date": ["2025-01-01"], "close": [100.0]})
         engine.build.return_value = pd.DataFrame(
-            {"close": [105.0], "volume": [1000], "sma_20": [102.0], "macd": [0.5], "institutional_net": [500]}
+            {
+                "close": [105.0],
+                "volume": [1000],
+                "sma_20": [102.0],
+                "macd": [0.5],
+                "institutional_net": [500],
+            }
         )
         MockEngine.return_value = engine
 
@@ -115,7 +146,13 @@ class TestIntradayExecute:
     ):
         MockEngine.return_value = populated_engine
         mock_fetcher = MagicMock()
-        mock_fetcher.fetch_intraday_snapshot.return_value = {"z": "105", "o": "100", "h": "110", "l": "95", "v": "1000"}
+        mock_fetcher.fetch_intraday_snapshot.return_value = {
+            "z": "105",
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "v": "1000",
+        }
         MockFetcher.return_value = mock_fetcher
 
         mock_db = MagicMock()
@@ -131,18 +168,24 @@ class TestIntradayExecute:
     @patch("twstock.commands.intraday.DataFetcher")
     @patch("twstock.commands.intraday.IndicatorEngine")
     @patch("twstock.commands.intraday.console")
-    def test_empty_after_build_returns(
-        self, mock_console, MockEngine, MockFetcher, mock_conn
-    ):
+    def test_empty_after_build_returns(self, mock_console, MockEngine, MockFetcher, mock_conn):
         engine = MagicMock()
         engine.df = pd.DataFrame({"date": ["2025-01-01"], "close": [100.0]})
         engine.build.return_value = pd.DataFrame()  # empty
         MockEngine.return_value = engine
         mock_fetcher = MagicMock()
-        mock_fetcher.fetch_intraday_snapshot.return_value = {"z": "105", "o": "100", "h": "110", "l": "95", "v": "1000"}
+        mock_fetcher.fetch_intraday_snapshot.return_value = {
+            "z": "105",
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "v": "1000",
+        }
         MockFetcher.return_value = mock_fetcher
         mock_conn.return_value.__enter__ = MagicMock(
-            return_value=MagicMock(execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None))))
+            return_value=MagicMock(
+                execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
+            )
         )
         mock_conn.return_value.__exit__ = MagicMock(return_value=False)
 

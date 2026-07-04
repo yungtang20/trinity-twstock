@@ -5,12 +5,13 @@ test_units_contract.py — 單位轉換契約測試
 驗證 DB 層存原始值（volume=股, amount=元），
 顯示層（display.py）才轉 張/萬/億。
 """
+
 from __future__ import annotations
 
 
 def test_stock_history_stores_volume_in_shares(db_conn, patch_db_path):
     """stock_history.volume 存股，不存張。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 
@@ -20,19 +21,15 @@ def test_stock_history_stores_volume_in_shares(db_conn, patch_db_path):
     """)
     db_conn.commit()
 
-    row = db_conn.execute(
-        "SELECT volume FROM stock_history WHERE stock_id='2330'"
-    ).fetchone()
+    row = db_conn.execute("SELECT volume FROM stock_history WHERE stock_id='2330'").fetchone()
 
     # 32000000 股，不是 32000 張
-    assert row[0] == 32000000, (
-        f"volume 應存股（32000000），實際 {row[0]}"
-    )
+    assert row[0] == 32000000, f"volume 應存股（32000000），實際 {row[0]}"
 
 
 def test_stock_history_stores_amount_in_yuan(db_conn, patch_db_path):
     """stock_history.amount 存元，不存千萬元。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 
@@ -42,14 +39,10 @@ def test_stock_history_stores_amount_in_yuan(db_conn, patch_db_path):
     """)
     db_conn.commit()
 
-    row = db_conn.execute(
-        "SELECT amount FROM stock_history WHERE stock_id='2330'"
-    ).fetchone()
+    row = db_conn.execute("SELECT amount FROM stock_history WHERE stock_id='2330'").fetchone()
 
     # 30500000000 元，不是 30500 千萬元
-    assert row[0] == 30500000000, (
-        f"amount 應存元（30500000000），實際 {row[0]}"
-    )
+    assert row[0] == 30500000000, f"amount 應存元（30500000000），實際 {row[0]}"
 
 
 def test_display_vol_fmt_converts_to_sheets():
@@ -78,7 +71,7 @@ def test_display_vol_rich_shows_sheets():
 
 def test_institutional_data_stores_shares(db_conn, patch_db_path):
     """institutional_data 的 net/buy/sell 存股。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 
@@ -102,7 +95,7 @@ def test_institutional_data_stores_shares(db_conn, patch_db_path):
 
 def test_shareholding_unified_stores_shares(db_conn, patch_db_path):
     """shareholding_unified.total_shares 存股。"""
-    from db_admin import init_db
+    from twstock.db_admin import init_db
 
     init_db()
 
@@ -117,8 +110,4 @@ def test_shareholding_unified_stores_shares(db_conn, patch_db_path):
         "SELECT total_shares FROM shareholding_unified WHERE stock_id='2330'"
     ).fetchone()
 
-    assert row[0] == 486000000, (
-        f"total_shares 應存股（486000000），實際 {row[0]}"
-    )
-
-
+    assert row[0] == 486000000, f"total_shares 應存股（486000000），實際 {row[0]}"

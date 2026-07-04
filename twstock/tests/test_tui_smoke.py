@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for tui/ package — verify TUIApp is instantiable."""
+
 from __future__ import annotations
 
 from twstock.tui.app import TUIApp

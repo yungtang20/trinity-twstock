@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """市場指數快取（背景 thread + TTL + timeout）。"""
+
 from __future__ import annotations
 
 import logging

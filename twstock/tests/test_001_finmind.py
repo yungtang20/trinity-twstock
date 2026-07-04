@@ -5,6 +5,7 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（DoD）：  python -m pytest tests/test_001_finmind.py -v -m "not live"
 執行（live）： python -m pytest tests/test_001_finmind.py -v -m live
 """
+
 import sqlite3
 
 import pytest
@@ -19,8 +20,7 @@ def db():
     注意：volume 是股（INTEGER），amount 是元（INTEGER），沒有 adj_close。
     """
     conn = sqlite3.connect(":memory:")
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE stock_history (
             stock_id    TEXT NOT NULL,
             date        TEXT NOT NULL,
@@ -36,8 +36,7 @@ def db():
             updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (stock_id, date)
         )
-        """
-    )
+        """)
     conn.commit()
     yield conn
     conn.close()
@@ -112,13 +111,19 @@ class TestTC1Transform:
     def test_required_columns_exist(self, fetcher, raw_2330_3days):
         rows = fetcher._transform(raw_2330_3days)
         required = {
-            "stock_id", "date", "open", "high", "low", "close",
-            "volume", "amount", "trade_count", "spread",
+            "stock_id",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "amount",
+            "trade_count",
+            "spread",
             "source",
         }
-        assert required.issubset(set(rows[0].keys())), (
-            f"缺少欄位: {required - set(rows[0].keys())}"
-        )
+        assert required.issubset(set(rows[0].keys())), f"缺少欄位: {required - set(rows[0].keys())}"
 
     def test_no_adj_close_column(self, fetcher, raw_2330_3days):
         rows = fetcher._transform(raw_2330_3days)
@@ -131,9 +136,7 @@ class TestTC2Volume:
     def test_volume_raw_value(self, fetcher, raw_2330_3days):
         rows = fetcher._transform(raw_2330_3days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["volume"] == 31530000, (
-            f"volume 應為 31530000（原始股數），實際 {row['volume']}"
-        )
+        assert row["volume"] == 31530000, f"volume 應為 31530000（原始股數），實際 {row['volume']}"
 
 
 class TestTC3Amount:
@@ -142,9 +145,9 @@ class TestTC3Amount:
     def test_amount_raw_value(self, fetcher, raw_2330_3days):
         rows = fetcher._transform(raw_2330_3days)
         row = next(r for r in rows if r["date"] == "2024-01-02")
-        assert row["amount"] == 18750000000, (
-            f"amount 應為 18750000000（原始元），實際 {row['amount']}"
-        )
+        assert (
+            row["amount"] == 18750000000
+        ), f"amount 應為 18750000000（原始元），實際 {row['amount']}"
 
 
 class TestTC4FieldMapping:
@@ -191,15 +194,13 @@ class TestTC5Dedup:
         fetcher.save(rows)
 
         cur = db.execute(
-            "SELECT COUNT(*) FROM stock_history "
-            "WHERE stock_id='2330' AND date='2024-01-02'"
+            "SELECT COUNT(*) FROM stock_history " "WHERE stock_id='2330' AND date='2024-01-02'"
         )
         count = cur.fetchone()[0]
         assert count == 1, f"預期 1 筆，實際 {count} 筆"
 
         cur = db.execute(
-            "SELECT close FROM stock_history "
-            "WHERE stock_id='2330' AND date='2024-01-02'"
+            "SELECT close FROM stock_history " "WHERE stock_id='2330' AND date='2024-01-02'"
         )
         close_val = cur.fetchone()[0]
         assert close_val == 600.0, f"預期 close=600.0，實際 {close_val}"
@@ -213,9 +214,9 @@ class TestTC7EmptyResponse:
         with pytest.raises(Exception) as exc_info:
             fetcher._transform(empty_response)
         error_msg = str(exc_info.value).lower()
-        assert "empty" in error_msg or "空" in error_msg, (
-            f"Exception 訊息應包含 'empty' 或 '空'，實際：{exc_info.value}"
-        )
+        assert (
+            "empty" in error_msg or "空" in error_msg
+        ), f"Exception 訊息應包含 'empty' 或 '空'，實際：{exc_info.value}"
 
 
 class TestTC8MissingField:
@@ -242,9 +243,9 @@ class TestTC8MissingField:
         with pytest.raises(Exception) as exc_info:
             fetcher._transform(broken_response)
         error_msg = str(exc_info.value)
-        assert "Trading_Volume" in error_msg, (
-            f"Exception 訊息應包含 'Trading_Volume'，實際：{error_msg}"
-        )
+        assert (
+            "Trading_Volume" in error_msg
+        ), f"Exception 訊息應包含 'Trading_Volume'，實際：{error_msg}"
 
 
 class TestTC9SourceField:
@@ -253,9 +254,7 @@ class TestTC9SourceField:
     def test_source_is_finmind(self, fetcher, raw_2330_3days):
         rows = fetcher._transform(raw_2330_3days)
         for r in rows:
-            assert r["source"] == "finmind", (
-                f"source 應為 'finmind'，實際 {r['source']}"
-            )
+            assert r["source"] == "finmind", f"source 應為 'finmind'，實際 {r['source']}"
 
 
 class TestTC10Integration:
@@ -264,9 +263,7 @@ class TestTC10Integration:
     def test_fetch_and_save_writes_to_db(self, fetcher, db):
         """fetch_and_save 後 DB 應有 3 筆資料"""
         fetcher.fetch_and_save("2330", "2024-01-02", "2024-01-04")
-        cur = db.execute(
-            "SELECT COUNT(*) FROM stock_history WHERE stock_id='2330'"
-        )
+        cur = db.execute("SELECT COUNT(*) FROM stock_history WHERE stock_id='2330'")
         count = cur.fetchone()[0]
         assert count == 3, f"預期 3 筆，實際 {count} 筆"
 

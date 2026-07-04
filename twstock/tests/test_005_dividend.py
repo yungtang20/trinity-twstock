@@ -5,6 +5,7 @@ Unit Test (mock HTTP) — DoD 必跑
 執行（DoD）：  python -m pytest tests/test_005_dividend.py -v -m "not live"
 執行（live）： python -m pytest tests/test_005_dividend.py -v -m live
 """
+
 import sqlite3
 
 import pytest
@@ -63,7 +64,7 @@ def raw_dividend_2330():
                 "CashDividend": 3.0,
                 "StockDividend": 0.0,
             },
-        ]
+        ],
     }
 
 
@@ -84,13 +85,16 @@ class TestTC1Transform:
     def test_required_columns_exist(self, fetcher, raw_dividend_2330):
         rows = fetcher._transform(raw_dividend_2330)
         required = {
-            "stock_id", "date",
-            "before_price", "after_price", "reference_price",
-            "cash_dividend", "stock_dividend", "source",
+            "stock_id",
+            "date",
+            "before_price",
+            "after_price",
+            "reference_price",
+            "cash_dividend",
+            "stock_dividend",
+            "source",
         }
-        assert required.issubset(set(rows[0].keys())), (
-            f"缺少欄位: {required - set(rows[0].keys())}"
-        )
+        assert required.issubset(set(rows[0].keys())), f"缺少欄位: {required - set(rows[0].keys())}"
 
 
 class TestTC2BeforePrice:
@@ -99,9 +103,7 @@ class TestTC2BeforePrice:
     def test_before_price(self, fetcher, raw_dividend_2330):
         rows = fetcher._transform(raw_dividend_2330)
         row = next(r for r in rows if r["date"] == "2023-07-21")
-        assert row["before_price"] == 543.0, (
-            f"before_price 應為 543.0，實際 {row['before_price']}"
-        )
+        assert row["before_price"] == 543.0, f"before_price 應為 543.0，實際 {row['before_price']}"
 
 
 class TestTC3ReferencePrice:
@@ -110,9 +112,9 @@ class TestTC3ReferencePrice:
     def test_reference_price(self, fetcher, raw_dividend_2330):
         rows = fetcher._transform(raw_dividend_2330)
         row = next(r for r in rows if r["date"] == "2023-07-21")
-        assert row["reference_price"] == 528.5, (
-            f"reference_price 應為 528.5，實際 {row['reference_price']}"
-        )
+        assert (
+            row["reference_price"] == 528.5
+        ), f"reference_price 應為 528.5，實際 {row['reference_price']}"
 
 
 class TestTC4Dividends:
@@ -126,7 +128,9 @@ class TestTC4Dividends:
     def test_stock_dividend(self, fetcher, raw_dividend_2330):
         rows = fetcher._transform(raw_dividend_2330)
         row = next(r for r in rows if r["date"] == "2023-07-21")
-        assert row["stock_dividend"] == 0.0, f"stock_dividend 應為 0.0，實際 {row['stock_dividend']}"
+        assert (
+            row["stock_dividend"] == 0.0
+        ), f"stock_dividend 應為 0.0，實際 {row['stock_dividend']}"
 
 
 class TestTC5Dedup:
@@ -177,7 +181,7 @@ class TestTC8Integration:
         )
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == 543.0,    f"before_price 錯：{row[0]}"
-        assert row[1] == 528.5,    f"reference_price 錯：{row[1]}"
-        assert row[2] == 3.0,      f"cash_dividend 錯：{row[2]}"
+        assert row[0] == 543.0, f"before_price 錯：{row[0]}"
+        assert row[1] == 528.5, f"reference_price 錯：{row[1]}"
+        assert row[2] == 3.0, f"cash_dividend 錯：{row[2]}"
         assert row[3] == "finmind", f"source 錯：{row[3]}"

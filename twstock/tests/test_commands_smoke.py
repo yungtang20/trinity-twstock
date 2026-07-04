@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Smoke tests for commands/ package — verify execute() is importable."""
+
 from __future__ import annotations
 
 import importlib

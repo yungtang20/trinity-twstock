@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_commands_official.py — commands/official.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from argparse import Namespace
@@ -32,7 +33,9 @@ class TestOfficialExecute:
     @patch("twstock.commands.official.update_official_daily")
     def test_with_date(self, mock_daily):
         """有 date 參數應解析並傳入 update_official_daily。"""
-        args = Namespace(tdcc_only=False, tdcc_weeks=None, days=1, date="2026-07-02", with_tdcc=True)
+        args = Namespace(
+            tdcc_only=False, tdcc_weeks=None, days=1, date="2026-07-02", with_tdcc=True
+        )
         official.execute(args)
         mock_daily.assert_called_once()
         call_kwargs = mock_daily.call_args

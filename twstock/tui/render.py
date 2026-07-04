@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Dashboard 渲染（Rich layout components）。"""
+
 from __future__ import annotations
 
 import os
@@ -103,8 +104,10 @@ def _render_market_panel(layout, indices) -> None:
     if not indices:
         indices = _market_cache.get()
 
-    if not indices or (indices.get("TAIEX", {}).get("price", 0) == 0
-                       and indices.get("OTC", {}).get("price", 0) == 0):
+    if not indices or (
+        indices.get("TAIEX", {}).get("price", 0) == 0
+        and indices.get("OTC", {}).get("price", 0) == 0
+    ):
         # 資料尚未到達或全部失敗
         status = _market_cache.get_status()
         if status["is_fetching"]:
@@ -113,10 +116,12 @@ def _render_market_panel(layout, indices) -> None:
             msg = f"⚠️ 即時行情失敗：{status['last_error']}"
         else:
             msg = "⚠️ 無法取得即時行情"
-        layout["market"].update(Panel(
-            Align.left(Text(msg, style="dim")),
-            title=" 市場行情 ",
-        ))
+        layout["market"].update(
+            Panel(
+                Align.left(Text(msg, style="dim")),
+                title=" 市場行情 ",
+            )
+        )
         return
 
     def _get_market_text(data, label):
@@ -136,7 +141,8 @@ def _render_market_panel(layout, indices) -> None:
             return f"{v}" if v is not None else "-"
 
         b_text = Text.assemble(
-            ("漲停", "white on red"), (f"{_f(data['l_up'])}", "white on red"),
+            ("漲停", "white on red"),
+            (f"{_f(data['l_up'])}", "white on red"),
             (" ", "white"),
             (f"上漲{_f(data['up'])}", "red"),
             (" ", "white"),
@@ -144,7 +150,8 @@ def _render_market_panel(layout, indices) -> None:
             (" ", "white"),
             (f"下跌{_f(data['down'])}", "green"),
             (" ", "white"),
-            ("跌停", "white on green"), (f"{_f(data['l_down'])}", "white on green"),
+            ("跌停", "white on green"),
+            (f"{_f(data['l_down'])}", "white on green"),
         )
         return Group(title, amount, b_text)
 
@@ -166,13 +173,15 @@ def _render_market_panel(layout, indices) -> None:
             _get_market_text(indices["TAIEX"], "加權指數"),
             _get_market_text(indices["OTC"], "櫃買指數"),
         )
-    layout["market"].update(Panel(
-        m_grid,
-        title="[bold white] 市 場 即 時 行 情 [/]",
-        border_style="bright_blue",
-        box=box.ROUNDED,
-        padding=(0, 1),
-    ))
+    layout["market"].update(
+        Panel(
+            m_grid,
+            title="[bold white] 市 場 即 時 行 情 [/]",
+            border_style="bright_blue",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+    )
 
 
 def _render_header(layout, indices, now, is_live, current_minutes) -> None:
@@ -183,8 +192,7 @@ def _render_header(layout, indices, now, is_live, current_minutes) -> None:
 
     if is_live:
         time_display = (
-            indices.get("time") if indices and indices.get("time")
-            else now.strftime("%H:%M:%S")
+            indices.get("time") if indices and indices.get("time") else now.strftime("%H:%M:%S")
         )
     else:
         time_display = now.strftime("%H:%M:%S")
@@ -195,9 +203,7 @@ def _render_header(layout, indices, now, is_live, current_minutes) -> None:
         ("v3.3 ", "dim"),
         (f" │ {date_str} {time_display} ", "grey70"),
     )
-    layout["header"].update(Align.left(Panel(
-        header_text, style="on grey15", box=box.HORIZONTALS
-    )))
+    layout["header"].update(Align.left(Panel(header_text, style="on grey15", box=box.HORIZONTALS)))
 
 
 def _render_menu(layout) -> None:
@@ -223,13 +229,15 @@ def _render_menu(layout) -> None:
     menu_table.add_row("", "")
     menu_table.add_row("[bold grey70][0][/] 退出系統", "")
 
-    layout["menu"].update(Panel(
-        menu_table,
-        title="[bold white] 主 功 能 選 單 [/]",
-        border_style="cyan",
-        padding=(0, 2),
-        box=box.ROUNDED,
-    ))
+    layout["menu"].update(
+        Panel(
+            menu_table,
+            title="[bold white] 主 功 能 選 單 [/]",
+            border_style="cyan",
+            padding=(0, 2),
+            box=box.ROUNDED,
+        )
+    )
 
 
 def _render_status(layout, info, market_mode) -> None:
@@ -246,22 +254,28 @@ def _render_status(layout, info, market_mode) -> None:
     )
     status_table.add_row("📊 市場:", market_mode)
 
-    layout["status"].update(Panel(
-        status_table,
-        title="[bold white] 系 統 狀 態 [/]",
-        border_style="grey37",
-        padding=(0, 1),
-        box=box.ROUNDED,
-    ))
+    layout["status"].update(
+        Panel(
+            status_table,
+            title="[bold white] 系 統 狀 態 [/]",
+            border_style="grey37",
+            padding=(0, 1),
+            box=box.ROUNDED,
+        )
+    )
 
 
 def _render_footer(layout) -> None:
     footer_text = Text.assemble(
         (" 💡 提示: ", "bold yellow"),
-        "直接輸入 ", ("4 碼股號", "bold cyan"), " 即可進行綜合策略分析",
+        "直接輸入 ",
+        ("4 碼股號", "bold cyan"),
+        " 即可進行綜合策略分析",
     )
-    layout["footer"].update(Panel(
-        footer_text,
-        border_style="grey15",
-        padding=(0, 1),
-    ))
+    layout["footer"].update(
+        Panel(
+            footer_text,
+            border_style="grey15",
+            padding=(0, 1),
+        )
+    )

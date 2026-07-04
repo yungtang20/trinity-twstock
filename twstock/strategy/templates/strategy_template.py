@@ -26,10 +26,10 @@ from rich.panel import Panel
 
 # ── Windows Encoding Fix ──
 if sys.platform == "win32":
-    os.system('chcp 65001 > nul')
+    os.system("chcp 65001 > nul")
     try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stdin.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdin.reconfigure(encoding="utf-8")
     except AttributeError:
         pass
 
@@ -42,15 +42,15 @@ if _TWSTOCK_DIR not in sys.path:
 from twstock.db import get_connection
 
 # ── Strategy Configuration ──
-STRATEGY_ID = "NEW"          # 策略編號（在 STRATEGY_REGISTRY 中的 key）
-STRATEGY_NAME = "策略名稱"    # 策略顯示名稱
+STRATEGY_ID = "NEW"  # 策略編號（在 STRATEGY_REGISTRY 中的 key）
+STRATEGY_NAME = "策略名稱"  # 策略顯示名稱
 STRATEGY_DESCRIPTION = "策略說明"  # 策略描述
 
 # ── Session Cache ──
 _SCAN_CACHE = {
-    'date': None,
-    'min_volume': None,
-    'results': None,
+    "date": None,
+    "min_volume": None,
+    "results": None,
 }
 
 console = Console()
@@ -69,7 +69,7 @@ def analyze(params: dict) -> dict:
     Returns:
         dict — 統一口徑
     """
-    stock_id = params.get('code', '')
+    stock_id = params.get("code", "")
 
     # 從 SQLite 讀取資料（不碰外部 API）
     conn = get_connection(readonly=True)
@@ -78,7 +78,8 @@ def analyze(params: dict) -> dict:
             "SELECT date, open, high, low, close, volume "
             "FROM stock_history WHERE stock_id = ? "
             "ORDER BY date DESC LIMIT 250",
-            conn, params=(stock_id,),
+            conn,
+            params=(stock_id,),
         )
     finally:
         conn.close()
@@ -97,20 +98,20 @@ def analyze(params: dict) -> dict:
     # ── 在此實作你的分析邏輯 ──
     # 例如：計算均線、偵測型態、分析籌碼...
     # 示例（請刪除）：
-    closes = df['close'].tolist()
+    closes = df["close"].tolist()
     latest = closes[-1] if closes else 0
 
     return {
         "strategy": STRATEGY_NAME,
         "stock_id": stock_id,
-        "score": 50,              # 綜合評分 0~100
-        "signal": "HOLD",         # BUY / HOLD / SELL
-        "confidence": 50,         # 信心指數 0~100
+        "score": 50,  # 綜合評分 0~100
+        "signal": "HOLD",  # BUY / HOLD / SELL
+        "confidence": 50,  # 信心指數 0~100
         "summary": f"{stock_id} 最新收盤 {latest:.2f}",
         "details": {
             "latest_price": latest,
-            "latest_date": str(df['date'].iloc[-1]),
-            "volume": int(df['volume'].iloc[-1]) if not df.empty else 0,
+            "latest_date": str(df["date"].iloc[-1]),
+            "volume": int(df["volume"].iloc[-1]) if not df.empty else 0,
             # 策略專屬詳細資料
         },
     }
@@ -123,14 +124,16 @@ def run_strategy(params: dict) -> None:
     Args:
         params: 同 analyze() 的 params
     """
-    stock_id = params.get('code', '')
+    stock_id = params.get("code", "")
     stock_name = ""  # 可從 stock_meta 查詢
 
-    console.print(Panel(
-        f"[bold]{stock_id} {stock_name} — {STRATEGY_NAME}[/]",
-        title="[bold cyan]策略分析[/]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[bold]{stock_id} {stock_name} — {STRATEGY_NAME}[/]",
+            title="[bold cyan]策略分析[/]",
+            border_style="cyan",
+        )
+    )
 
     result = analyze(params)
 
@@ -155,8 +158,7 @@ def scan_market(vol: int = 500) -> list[dict]:
     try:
         # 讀取所有有資料的股票
         stocks = conn.execute(
-            "SELECT DISTINCT stock_id FROM stock_history "
-            "WHERE volume >= ? ORDER BY stock_id",
+            "SELECT DISTINCT stock_id FROM stock_history " "WHERE volume >= ? ORDER BY stock_id",
             (vol,),
         ).fetchall()
     finally:
@@ -164,21 +166,21 @@ def scan_market(vol: int = 500) -> list[dict]:
 
     results = []
     for row in stocks:
-        stock_id = row['stock_id']
+        stock_id = row["stock_id"]
         try:
-            result = analyze({'code': stock_id})
+            result = analyze({"code": stock_id})
             results.append(result)
         except Exception:
             continue  # 單支失敗不影響其他
 
     # 按 score 降序排列
-    results.sort(key=lambda x: x.get('score', 0), reverse=True)
+    results.sort(key=lambda x: x.get("score", 0), reverse=True)
     return results
 
 
 if __name__ == "__main__":
     # 獨立測試
     if len(sys.argv) > 1:
-        run_strategy({'code': sys.argv[1]})
+        run_strategy({"code": sys.argv[1]})
     else:
         print(f"用法: python {__file__} <stock_id>")

@@ -4,6 +4,7 @@
 遵循 CONTEXT.md 架構規則 6：策略組合邏輯歸屬 strategy 套件。
 上層只呼叫 run_composite(code)，不用 __import__ 動態載入。
 """
+
 from __future__ import annotations
 
 import os
@@ -50,9 +51,7 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
     try:
         now = datetime.now()
         with get_connection(readonly=True) as conn:
-            latest_db = conn.execute(
-                "SELECT MAX(date) FROM stock_history"
-            ).fetchone()[0]
+            latest_db = conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
         if latest_db:
             db_date = datetime.strptime(str(latest_db), "%Y-%m-%d")
             lag = (now - db_date).days
@@ -64,9 +63,13 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
     except Exception:
         pass
 
-    console.print(Panel(
-        Align.center(Text(f"🚀 {stock_id} {stock_name}", style="bold yellow")),
-        box=box.DOUBLE, border_style="yellow"))
+    console.print(
+        Panel(
+            Align.center(Text(f"🚀 {stock_id} {stock_name}", style="bold yellow")),
+            box=box.DOUBLE,
+            border_style="yellow",
+        )
+    )
 
     # ── Market Status ──
     now = datetime.now()
@@ -87,10 +90,15 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
         rows = []
 
     if len(rows) >= 2:
-        d0 = str(rows[0][0]); p0 = float(rows[0][1]); v0 = int(rows[0][2])
-        d1 = str(rows[1][0]); p1 = float(rows[1][1]); v1 = int(rows[1][2])
+        d0 = str(rows[0][0])
+        p0 = float(rows[0][1])
+        v0 = int(rows[0][2])
+        d1 = str(rows[1][0])
+        p1 = float(rows[1][1])
+        v1 = int(rows[1][2])
         if len(rows) >= 3:
-            p2 = float(rows[2][1]); v2 = int(rows[2][2])
+            p2 = float(rows[2][1])
+            v2 = int(rows[2][2])
         else:
             p2, v2 = 0.0, 0
 
@@ -100,9 +108,20 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
             live_price, live_vol = _fetch_live_quote(stock_id)
 
         _render_price_panel(
-            mobile, is_trading, today_str, now,
-            d0, p0, v0, d1, p1, v1, p2, v2,
-            live_price, live_vol,
+            mobile,
+            is_trading,
+            today_str,
+            now,
+            d0,
+            p0,
+            v0,
+            d1,
+            p1,
+            v1,
+            p2,
+            v2,
+            live_price,
+            live_vol,
         )
     else:
         console.print(f"[yellow]⚠️ {stock_id} 歷史資料不足[/yellow]")
@@ -181,21 +200,46 @@ def _fetch_live_quote(stock_id: str):
 
 
 def _render_price_panel(
-    mobile: bool, is_trading: bool, today_str: str, now: datetime,
-    d0: str, p0: float, v0: int, d1: str, p1: float, v1: int,
-    p2: float, v2: int, live_price, live_vol,
+    mobile: bool,
+    is_trading: bool,
+    today_str: str,
+    now: datetime,
+    d0: str,
+    p0: float,
+    v0: int,
+    d1: str,
+    p1: float,
+    v1: int,
+    p2: float,
+    v2: int,
+    live_price,
+    live_vol,
 ) -> None:
     """渲染價格 + 成交量面板。"""
     if mobile:
-        _render_mobile(is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol)
+        _render_mobile(
+            is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol
+        )
     else:
-        _render_wide(is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol)
+        _render_wide(
+            is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol
+        )
 
 
 def _render_mobile(
-    is_trading: bool, today_str: str, now: datetime,
-    d0: str, p0: float, v0: int, d1: str, p1: float, v1: int,
-    p2: float, v2: int, live_price, live_vol,
+    is_trading: bool,
+    today_str: str,
+    now: datetime,
+    d0: str,
+    p0: float,
+    v0: int,
+    d1: str,
+    p1: float,
+    v1: int,
+    p2: float,
+    v2: int,
+    live_price,
+    live_vol,
 ) -> None:
     if is_trading:
         console.print(f"[bright_cyan]▶ 開盤中   {today_str}  {now.strftime('%H:%M')}[/]")
@@ -221,9 +265,19 @@ def _render_mobile(
 
 
 def _render_wide(
-    is_trading: bool, today_str: str, now: datetime,
-    d0: str, p0: float, v0: int, d1: str, p1: float, v1: int,
-    p2: float, v2: int, live_price, live_vol,
+    is_trading: bool,
+    today_str: str,
+    now: datetime,
+    d0: str,
+    p0: float,
+    v0: int,
+    d1: str,
+    p1: float,
+    v1: int,
+    p2: float,
+    v2: int,
+    live_price,
+    live_vol,
 ) -> None:
     info = Table.grid(padding=(0, 2))
     info.add_column()

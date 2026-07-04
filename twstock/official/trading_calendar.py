@@ -22,6 +22,7 @@ from twstock.utils import get_ssl_verify
 def _date_to_int(dt: datetime) -> int:
     return int(dt.strftime("%Y%m%d"))
 
+
 def _int_to_date(date_int: int) -> datetime:
     try:
         s = str(date_int)
@@ -31,12 +32,14 @@ def _int_to_date(date_int: int) -> datetime:
     except (ValueError, TypeError):
         return None
 
+
 def init_trading_calendar():
     try:
         print("📅 正在從 TWSE 官方同步交易日曆...", flush=True)
         url = "https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule"
 
         import urllib3
+
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         resp = retry_get(url, timeout=15, retries=3, backoff=1.0, verify=get_ssl_verify())
@@ -82,13 +85,17 @@ def init_trading_calendar():
         # 使用 REPLACE 來覆寫本年度日曆，保留歷史其他年度
         conn.executemany(
             "INSERT OR REPLACE INTO stock_trading_calendar (date, is_open, description) VALUES (?, ?, ?)",
-            calendar_data
+            calendar_data,
         )
         conn.commit()
         conn.close()
-        print(f"✅ 官方交易日曆已同步，更新區間: {min_year} ~ {max_year} (共 {len(calendar_data)} 天)", flush=True)
+        print(
+            f"✅ 官方交易日曆已同步，更新區間: {min_year} ~ {max_year} (共 {len(calendar_data)} 天)",
+            flush=True,
+        )
     except Exception as e:
         print(f"❌ 交易日曆初始化失敗: {e}", flush=True)
+
 
 def is_trading_day(date_int: int) -> bool:
     dt = _int_to_date(date_int)
@@ -101,6 +108,7 @@ def is_trading_day(date_int: int) -> bool:
     row = cur.fetchone()
     conn.close()
     return row is not None and row[0] == 1
+
 
 def get_last_trading_day() -> int:
     today = datetime.now()
@@ -126,6 +134,7 @@ def get_last_trading_day() -> int:
         dt -= timedelta(days=1)
     return _date_to_int(today)
 
+
 def get_nth_trading_day_back(n: int) -> datetime:  # [AI MOD] 取得過去第 N 個交易日的日期
     """從最近交易日往前數 N 個交易日，回傳該日期。
     n=0 表示最近交易日，n=1 表示再前一個交易日，以此類推。
@@ -140,6 +149,7 @@ def get_nth_trading_day_back(n: int) -> datetime:  # [AI MOD] 取得過去第 N 
             count += 1
     return dt
 
+
 def date_exists_in_history(date_int: int) -> bool:
     dt = _int_to_date(date_int)
     if dt is None:
@@ -149,14 +159,17 @@ def date_exists_in_history(date_int: int) -> bool:
     cur = conn.cursor()
     # [AI MOD] 確保該日期的資料「夠完整」(上市與上櫃皆需大於 500 檔)。
     # 精確計算兩市場的數量，避免單一市場歷史資料過多造成總數誤判。
-    cur.execute("""
+    cur.execute(
+        """
         SELECT 
             SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
             SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
         FROM stock_history h
         JOIN stock_meta m ON h.stock_id = m.stock_id
         WHERE h.date = ?
-    """, (date_str,))
+    """,
+        (date_str,),
+    )
     row = cur.fetchone()
     conn.close()
 

@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """TUIApp — 互動式選單主循環（狀態封裝）。"""
+
 from __future__ import annotations
 
 import sys
 
 from twstock.input_helper import HAS_MSVCRT, msvcrt
-from twstock.market_data import MarketCache
 from twstock.strategy.composites import run_composite
 from twstock.strategy.strategies import interactive_menu as strategies_menu
+from twstock.market_data import MarketCache
 from twstock.tui.menu import (
     run_daily_update,
     run_db_maintenance,
@@ -33,6 +34,7 @@ class TUIApp:
     def __init__(self):
         # 使用 render 模組的共享快取實例（與 render_dashboard 使用同一個）
         from twstock.tui.render import _market_cache
+
         self._cache = _market_cache
 
     # ── public ─────────────────────────────────────────────
@@ -71,9 +73,9 @@ class TUIApp:
             run_composite(transition.payload)
 
     # ── input ─────────────────────────────────────────────
-    def _get_input(self, prompt: str = "\n🔍 指令: ",
-                   menu_keys: str = "01234",
-                   auto_four: bool = True) -> str:
+    def _get_input(
+        self, prompt: str = "\n🔍 指令: ", menu_keys: str = "01234", auto_four: bool = True
+    ) -> str:
         """互動式鍵盤輸入（msvcrt on Windows, fallback to input()）。"""
         if not HAS_MSVCRT:
             return input(prompt).strip()
@@ -120,12 +122,14 @@ class TUIApp:
                         if result is not None:
                             return result
             import time
+
             time.sleep(0.05)  # ponytail: 50ms 仍足夠回應，降低 CPU 空轉
 
     @staticmethod
     def _wait_for_key(timeout: float) -> bool:
         """等待 timeout 秒內有無新鍵。有則回傳 True。"""
         import time
+
         start = time.time()
         while time.time() - start < timeout:
             if msvcrt.kbhit():
@@ -140,6 +144,7 @@ class TUIApp:
     def _wait_for_stock_suffix(timeout: float, buf: str) -> str | None:
         """等待 4 碼後的按鍵。若無新鍵回傳 buf，有則回傳 None（表示繼續輸入）。"""
         import time
+
         start = time.time()
         has_interrupted = False
         while time.time() - start < timeout:

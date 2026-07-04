@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Unit tests for twstock/utils.py — pure functions, no network/DB."""
+
 from __future__ import annotations
 
 import sys
@@ -157,6 +158,7 @@ class TestGetMarketMode:
         from unittest.mock import patch
 
         from twstock import utils
+
         lunch = datetime(2025, 1, 6, 10, 0)  # Monday 10:00
         with patch.object(utils, "datetime") as mock_dt:
             mock_dt.now.return_value = lunch
@@ -168,6 +170,7 @@ class TestGetMarketMode:
         from unittest.mock import patch
 
         from twstock import utils
+
         evening = datetime(2025, 1, 6, 18, 0)  # Monday 18:00
         with patch.object(utils, "datetime") as mock_dt:
             mock_dt.now.return_value = evening
@@ -179,6 +182,7 @@ class TestGetMarketMode:
         from unittest.mock import patch
 
         from twstock import utils
+
         saturday = datetime(2025, 1, 4, 10, 0)  # Saturday 10:00
         with patch.object(utils, "datetime") as mock_dt:
             mock_dt.now.return_value = saturday
@@ -193,6 +197,7 @@ class TestGetSysInfo:
     @patch("twstock.utils.os.path.exists", return_value=False)
     def test_offline_when_no_db(self, mock_exists, mock_path):
         from twstock.utils import get_sys_info
+
         info = get_sys_info()
         assert info["status"] == "Offline"
 
@@ -202,9 +207,10 @@ class TestGetSysInfo:
     @patch("twstock.utils.file_size_mb", return_value=1.5)
     def test_ready_when_db_exists(self, mock_size, mock_exists, mock_path, mock_conn):
         from twstock.utils import get_sys_info
+
         mock_db = MagicMock()
         mock_db.execute.return_value.fetchone.side_effect = [
-            (42,),        # stock_meta count
+            (42,),  # stock_meta count
             ("2025-01-03",),  # MAX(date)
             ("2020-01-01",),  # MIN(date)
         ]
@@ -215,12 +221,12 @@ class TestGetSysInfo:
         assert info["stocks"] == 42
 
 
-
 class TestGetHttpSession:
     @patch("twstock.utils.default_http_headers", return_value={"User-Agent": "test"})
     def test_returns_session(self, mock_headers):
         try:
             import requests
+
             session = get_http_session()
             assert session is not None
         except ImportError:

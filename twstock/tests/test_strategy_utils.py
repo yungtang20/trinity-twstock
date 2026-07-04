@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_strategy_utils.py — strategy._utils 單元測試。"""
+
 from __future__ import annotations
 
 import os
@@ -34,13 +35,17 @@ class TestGetStockName:
 class TestRenderHeader:
     def test_default_header_with_console(self):
         console = MagicMock()
-        with patch("twstock.strategy._utils.os.get_terminal_size", return_value=os.terminal_size((80, 24))):
+        with patch(
+            "twstock.strategy._utils.os.get_terminal_size", return_value=os.terminal_size((80, 24))
+        ):
             _utils.render_header("My Title", console=console)
         console.print.assert_called()
 
     def test_detail_header_with_console(self):
         console = MagicMock()
-        with patch("twstock.strategy._utils.os.get_terminal_size", return_value=os.terminal_size((80, 24))):
+        with patch(
+            "twstock.strategy._utils.os.get_terminal_size", return_value=os.terminal_size((80, 24))
+        ):
             _utils.render_header("Detail", is_detail=True, console=console)
         console.print.assert_called()
 

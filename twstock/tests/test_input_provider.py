@@ -4,6 +4,7 @@
 測試 MockInputProvider（主要使用者）。
 Windows/Unix 實作為 thin wrapper，僅驗證接口契約。
 """
+
 from __future__ import annotations
 
 import sys
@@ -94,6 +95,7 @@ class TestCreateDefaultProvider:
 
     def test_non_windows_returns_unix_provider(self):
         from twstock.tui.input_provider import create_default_provider
+
         with patch("twstock.tui.input_provider.sys") as mock_sys:
             mock_sys.platform = "linux"
             provider = create_default_provider()
@@ -102,5 +104,6 @@ class TestCreateDefaultProvider:
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only test")
     def test_windows_returns_windows_provider(self):
         from twstock.tui.input_provider import create_default_provider
+
         provider = create_default_provider()
         assert isinstance(provider, _WindowsInputProvider)

@@ -39,27 +39,25 @@ def _ensure_loaded():
 
 # ── FinMind ────────────────────────────────────────────────
 
+
 def get_finmind_token() -> str:
     """取得 FinMind API token。"""
     _ensure_loaded()
     token = os.environ.get("FINMIND_TOKEN", "").strip()
     if not token:
-        raise ValueError(
-            "FINMIND_TOKEN 未設定。請在 twstock/api.env 或系統環境變數中設定。"
-        )
+        raise ValueError("FINMIND_TOKEN 未設定。請在 twstock/api.env 或系統環境變數中設定。")
     return token
 
 
 # ── LongCat AI ─────────────────────────────────────────────
+
 
 def get_longcat_api_key() -> str:
     """取得 LongCat API key。"""
     _ensure_loaded()
     key = os.environ.get("LONGCAT_API_KEY", "").strip()
     if not key:
-        raise ValueError(
-            "LONGCAT_API_KEY 未設定。請在 twstock/api.env 或系統環境變數中設定。"
-        )
+        raise ValueError("LONGCAT_API_KEY 未設定。請在 twstock/api.env 或系統環境變數中設定。")
     return key
 
 

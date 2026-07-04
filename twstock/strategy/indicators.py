@@ -40,19 +40,19 @@ def refresh_indicators(stock_id, db=None):
 
     results = {}
     try:
-        results['ma'] = MACalculator(db=db).calculate(stock_id)
+        results["ma"] = MACalculator(db=db).calculate(stock_id)
     except Exception as e:
-        results['ma'] = f"error: {e}"
+        results["ma"] = f"error: {e}"
 
     try:
-        results['atr'] = ATRCalculator(db=db).calculate(stock_id)
+        results["atr"] = ATRCalculator(db=db).calculate(stock_id)
     except Exception as e:
-        results['atr'] = f"error: {e}"
+        results["atr"] = f"error: {e}"
 
     try:
-        results['vwap'] = VWAPCalculator(db=db).calculate(stock_id)
+        results["vwap"] = VWAPCalculator(db=db).calculate(stock_id)
     except Exception as e:
-        results['vwap'] = f"error: {e}"
+        results["vwap"] = f"error: {e}"
 
     db.commit()
     return results
@@ -68,9 +68,8 @@ def ensure_indicators(stock_id, db=None):
 
     # 檢查最新日的 ma200 是否存在
     row = db.execute(
-        "SELECT ma200 FROM stock_indicators WHERE stock_id = ? "
-        "ORDER BY date DESC LIMIT 1",
-        (stock_id,)
+        "SELECT ma200 FROM stock_indicators WHERE stock_id = ? " "ORDER BY date DESC LIMIT 1",
+        (stock_id,),
     ).fetchone()
 
     if row is not None and row[0] is not None:
@@ -130,7 +129,7 @@ def refresh_indicators_all(db=None):
         try:
             results[stock_id] = refresh_indicators(stock_id, db)
         except Exception as e:
-            results[stock_id] = {'error': str(e)}
+            results[stock_id] = {"error": str(e)}
 
     db.commit()
     return results

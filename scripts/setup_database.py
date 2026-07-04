@@ -4,6 +4,7 @@ TRINITY TWStock - 資料庫初始化腳本
 
 用於建立資料庫結構和初始資料。
 """
+
 import os
 import sys
 from pathlib import Path
@@ -22,10 +23,7 @@ def get_database_url():
         load_dotenv(env_path)
 
     # 優先使用 DATABASE_URL，否則使用 SQLite
-    db_url = os.getenv(
-        "DATABASE_URL",
-        "sqlite:///data/raw/taiwan_stock_unified.db"
-    )
+    db_url = os.getenv("DATABASE_URL", "sqlite:///data/raw/taiwan_stock_unified.db")
     return db_url
 
 
@@ -51,6 +49,7 @@ def verify_database():
     db_url = get_database_url()
     try:
         from sqlalchemy import create_engine, text
+
         engine = create_engine(db_url)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

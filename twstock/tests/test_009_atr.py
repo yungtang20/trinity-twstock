@@ -4,6 +4,7 @@ Unit Test — DoD 必跑
 
 執行（DoD）：python -m pytest tests/test_009_atr.py -v
 """
+
 import sqlite3
 
 import pytest
@@ -60,15 +61,15 @@ def calc(db):
 
 # 20 天測試資料
 DATES_20 = [f"2024-01-{i:02d}" for i in range(2, 22)]  # 2024-01-02 ~ 2024-01-21
-CLOSES_20 = [10 + i for i in range(20)]                 # 10, 11, ..., 29
-HIGHS_20  = [c + 5 for c in CLOSES_20]                  # 15, 16, ..., 34
-LOWS_20   = [c - 5 for c in CLOSES_20]                  # 5,  6,  ..., 24
+CLOSES_20 = [10 + i for i in range(20)]  # 10, 11, ..., 29
+HIGHS_20 = [c + 5 for c in CLOSES_20]  # 15, 16, ..., 34
+LOWS_20 = [c - 5 for c in CLOSES_20]  # 5,  6,  ..., 24
 
 # TR 每天 = 10（high-low=10 > price gap=1）
 # ATR14 first value on index 13 (2024-01-15) = 10.0
-ATR14_FIRST_DATE = "2024-01-15"   # index 13（第 14 天）
+ATR14_FIRST_DATE = "2024-01-15"  # index 13（第 14 天）
 ATR14_SECOND_DATE = "2024-01-16"  # index 14（第 15 天）
-ATR14_NONE_DATE   = "2024-01-14"  # index 12（第 13 天，不足 14 個 TR）
+ATR14_NONE_DATE = "2024-01-14"  # index 12（第 13 天，不足 14 個 TR）
 
 
 def insert_history(db, stock_id, dates, closes, highs, lows):
@@ -76,15 +77,14 @@ def insert_history(db, stock_id, dates, closes, highs, lows):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, close, high, low) VALUES (?, ?, ?, ?, ?)",
-            (stock_id, d, float(c), float(h), float(l))
+            (stock_id, d, float(c), float(h), float(l)),
         )
     db.commit()
 
 
 def get_indicator(db, stock_id, date, column):
     cur = db.execute(
-        f"SELECT {column} FROM stock_indicators WHERE stock_id=? AND date=?",
-        (stock_id, date)
+        f"SELECT {column} FROM stock_indicators WHERE stock_id=? AND date=?", (stock_id, date)
     )
     row = cur.fetchone()
     return row[0] if row else None
@@ -103,9 +103,7 @@ class TestTC1Basic:
     def test_atr14_column_exists(self, calc, db):
         insert_history(db, "2330", DATES_20, CLOSES_20, HIGHS_20, LOWS_20)
         calc.calculate("2330")
-        cur = db.execute(
-            "SELECT atr14 FROM stock_indicators WHERE stock_id='2330' LIMIT 1"
-        )
+        cur = db.execute("SELECT atr14 FROM stock_indicators WHERE stock_id='2330' LIMIT 1")
         assert cur.fetchone() is not None, "atr14 欄位應存在"
 
 
@@ -128,9 +126,7 @@ class TestTC3ATR14FirstValue:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", ATR14_FIRST_DATE, "atr14")
         assert actual is not None, f"{ATR14_FIRST_DATE} atr14 不應為 None"
-        assert abs(actual - 10.0) < 1e-6, (
-            f"atr14 應為 10.0，實際 {actual}"
-        )
+        assert abs(actual - 10.0) < 1e-6, f"atr14 應為 10.0，實際 {actual}"
 
 
 class TestTC4ATR14Smoothing:
@@ -142,9 +138,7 @@ class TestTC4ATR14Smoothing:
         calc.calculate("2330")
         actual = get_indicator(db, "2330", ATR14_SECOND_DATE, "atr14")
         assert actual is not None, f"{ATR14_SECOND_DATE} atr14 不應為 None"
-        assert abs(actual - 10.0) < 1e-6, (
-            f"第 15 天 atr14 應為 10.0（Wilder 平滑），實際 {actual}"
-        )
+        assert abs(actual - 10.0) < 1e-6, f"第 15 天 atr14 應為 10.0（Wilder 平滑），實際 {actual}"
 
 
 class TestTC5UpsertPreservesOtherColumns:
@@ -156,15 +150,14 @@ class TestTC5UpsertPreservesOtherColumns:
         # 先插入一筆帶 ma5 的資料
         db.execute(
             "INSERT INTO stock_indicators (stock_id, date, ma5) VALUES (?, ?, ?)",
-            ("2330", DATES_20[13], 999.0)
+            ("2330", DATES_20[13], 999.0),
         )
         db.commit()
         # 執行 ATR 計算（UPSERT 只更新 atr14）
         calc.calculate("2330")
         # 驗證 ma5 仍是 999
         cur = db.execute(
-            "SELECT ma5 FROM stock_indicators WHERE stock_id='2330' AND date=?",
-            (DATES_20[13],)
+            "SELECT ma5 FROM stock_indicators WHERE stock_id='2330' AND date=?", (DATES_20[13],)
         )
         ma5 = cur.fetchone()[0]
         assert ma5 == 999.0, f"ma5 應保持 999.0（UPSERT 不覆蓋），實際 {ma5}"

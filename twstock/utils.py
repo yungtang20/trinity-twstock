@@ -12,6 +12,7 @@ utils.py — 跨模組共用工具函式
 使用方式：
   from utils import safe_float, safe_int, get_http_session, ...
 """
+
 from __future__ import annotations
 
 import os
@@ -57,6 +58,7 @@ def get_ssl_verify() -> bool | str:
     # 2. certifi
     try:
         import certifi
+
         _SSL_VERIFY_VALUE = certifi.where()
         return _SSL_VERIFY_VALUE
     except ImportError:
@@ -124,9 +126,7 @@ def safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, head
     if session is None:
         return None
     try:
-        response = session.get(
-            url, timeout=timeout, verify=verify, params=params, headers=headers
-        )
+        response = session.get(url, timeout=timeout, verify=verify, params=params, headers=headers)
         response.raise_for_status()
         return response
     except Exception:
@@ -137,12 +137,14 @@ def safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, head
 def get_token():
     """從 api_config 取得 FinMind token。"""
     from twstock.api_config import get_finmind_token
+
     return get_finmind_token()
 
 
 def get_stock_name(stock_id: str) -> str:
     """從 stock_meta 取得股票名稱，失敗回傳 '未知'。"""
     from twstock.strategy._utils import _lookup_stock_name
+
     try:
         with get_connection(readonly=True) as conn:
             return _lookup_stock_name(conn, stock_id) or "未知"
@@ -171,8 +173,12 @@ def to_roc_date(date_str):
 def get_sys_info() -> dict:
     """取得資料庫狀態資訊。"""
     info = {
-        "size": "0.0 MB", "stocks": 0, "last": "N/A",
-        "first": "N/A", "status": "Offline", "path": "N/A",
+        "size": "0.0 MB",
+        "stocks": 0,
+        "last": "N/A",
+        "first": "N/A",
+        "status": "Offline",
+        "path": "N/A",
     }
     try:
         if os.path.exists(get_path()):
@@ -183,12 +189,8 @@ def get_sys_info() -> dict:
                     "SELECT COUNT(*) FROM stock_meta "
                     "WHERE LENGTH(stock_id) = 4 AND stock_id GLOB '[1-9][0-9][0-9][0-9]'"
                 ).fetchone()[0]
-                last_date = conn.execute(
-                    "SELECT MAX(date) FROM stock_history"
-                ).fetchone()[0]
-                first_date = conn.execute(
-                    "SELECT MIN(date) FROM stock_history"
-                ).fetchone()[0]
+                last_date = conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+                first_date = conn.execute("SELECT MIN(date) FROM stock_history").fetchone()[0]
                 info["last"] = last_date if last_date else "N/A"
                 info["first"] = first_date if first_date else "N/A"
                 info["status"] = "Ready"

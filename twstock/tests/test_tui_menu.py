@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_tui_menu.py — tui/menu.py 覆蓋率測試。"""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -70,7 +71,9 @@ class TestCheckZeroVolumeAnomalies:
         """有異常時應顯示。"""
         mock_ctx = MagicMock()
         mock_ctx.execute.return_value.fetchall.return_value = [
-            ("2330", 0.0), ("2331", 0.0), ("2332", 0.0)
+            ("2330", 0.0),
+            ("2331", 0.0),
+            ("2332", 0.0),
         ]
         mock_conn.return_value.__enter__ = MagicMock(return_value=mock_ctx)
         mock_conn.return_value.__exit__ = MagicMock(return_value=False)
@@ -121,8 +124,10 @@ class TestHistoricalMenuBranches:
     @patch("twstock.tui.menu.get_nth_trading_day_back")
     def test_dividend_range_with_data(self, mock_day, mock_fetch, mock_upsert):
         import datetime as _dt
+
         mock_day.return_value = _dt.datetime(2024, 1, 1)
         import pandas as pd
+
         mock_fetch.return_value = pd.DataFrame({"stock_id": ["2330"]})
         with self._ch("3"), patch("twstock.tui.menu.input", return_value="60"):
             menu.run_historical_update_menu()
@@ -132,6 +137,7 @@ class TestHistoricalMenuBranches:
     @patch("twstock.tui.menu.get_nth_trading_day_back")
     def test_dividend_range_empty(self, mock_day, mock_fetch):
         import pandas as pd
+
         mock_fetch.return_value = pd.DataFrame()
         with self._ch("3"), patch("twstock.tui.menu.input", return_value="60"):
             menu.run_historical_update_menu()

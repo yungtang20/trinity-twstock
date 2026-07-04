@@ -5,11 +5,13 @@ test_docs_contract.py — 文件規格契約測試
 驗證 DB_SCHEMA.md 與 ARCHITECTURE.md 的關鍵規格一致，
 避免文件間互相矛盾導致規格漂移。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
 # ── DB_SCHEMA.md 規格測試 ──
+
 
 def test_db_schema_declares_volume_in_shares():
     """DB_SCHEMA.md 應宣告 volume 存股（非張）。"""
@@ -51,6 +53,7 @@ def test_db_schema_declares_views():
 
 # ── ARCHITECTURE.md 規格測試 ──
 
+
 def test_architecture_does_not_claim_db_stores_lots():
     """ARCHITECTURE.md 不應宣稱 DB 存張（與 DB_SCHEMA.md 衝突）。"""
     content = Path("twstock/ARCHITECTURE.md").read_text(encoding="utf-8")
@@ -61,8 +64,7 @@ def test_architecture_does_not_claim_db_stores_lots():
     ]
     for phrase in forbidden_phrases:
         assert phrase not in content, (
-            f"ARCHITECTURE.md 有過時規格: '{phrase}'。"
-            f"DB 存股/元，顯示層才轉換。"
+            f"ARCHITECTURE.md 有過時規格: '{phrase}'。" f"DB 存股/元，顯示層才轉換。"
         )
 
 
@@ -70,9 +72,7 @@ def test_architecture_does_not_list_shareholding_data():
     """ARCHITECTURE.md 不應列出 shareholding_data 表（已淘汰）。"""
     content = Path("twstock/ARCHITECTURE.md").read_text(encoding="utf-8")
     # shareholding_data 已被 shareholding_unified 取代
-    assert "shareholding_data" not in content, (
-        "ARCHITECTURE.md 仍列出已淘汰的 shareholding_data 表"
-    )
+    assert "shareholding_data" not in content, "ARCHITECTURE.md 仍列出已淘汰的 shareholding_data 表"
 
 
 def test_architecture_tdcc_shareholding_is_view():
@@ -81,9 +81,9 @@ def test_architecture_tdcc_shareholding_is_view():
     # 找到 tdcc_shareholding 段落，確認標記為 VIEW
     if "tdcc_shareholding" in content:
         # 檢查是否標記為 VIEW
-        assert "VIEW" in content.split("tdcc_shareholding")[1][:500], (
-            "ARCHITECTURE.md 中 tdcc_shareholding 應標記為 VIEW"
-        )
+        assert (
+            "VIEW" in content.split("tdcc_shareholding")[1][:500]
+        ), "ARCHITECTURE.md 中 tdcc_shareholding 應標記為 VIEW"
 
 
 def test_architecture_adj_close_is_derived():
@@ -104,6 +104,6 @@ def test_architecture_adj_close_is_derived():
                 if "索引" in line or "PRIMARY KEY" in line:
                     break
         block = "\n".join(stock_history_block)
-        assert "adj_close" not in block, (
-            "ARCHITECTURE.md 的 stock_history 表格不應有 adj_close 欄位"
-        )
+        assert (
+            "adj_close" not in block
+        ), "ARCHITECTURE.md 的 stock_history 表格不應有 adj_close 欄位"

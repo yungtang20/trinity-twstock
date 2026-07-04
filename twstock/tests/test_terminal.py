@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_terminal.py — terminal.py 初始化覆蓋。"""
+
 from __future__ import annotations
 
 import sys
@@ -13,6 +14,7 @@ if _DIR not in sys.path:
 class TestTerminalInit:
     def test_console_exported(self):
         from twstock.terminal import console, rconsole
+
         assert console is not None
         assert rconsole is not None
 
@@ -30,6 +32,7 @@ class TestTerminalInit:
             with patch("twstock.terminal.Console") as MockConsole:
                 MockConsole.return_value = MagicMock()
                 from twstock.terminal import _make_utf8_console
+
                 _make_utf8_console()
                 MockConsole.assert_called_once()
                 call_kwargs = MockConsole.call_args[1]
@@ -45,6 +48,7 @@ class TestTerminalInit:
             with patch("twstock.terminal.Console") as MockConsole:
                 MockConsole.return_value = MagicMock()
                 from twstock.terminal import _make_utf8_console, _make_utf8_stderr_console
+
                 _make_utf8_console()
                 _make_utf8_stderr_console()
                 assert MockConsole.call_count == 2

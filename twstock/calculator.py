@@ -93,8 +93,8 @@ class IndicatorEngine:
             delta = self.df["close"].diff()
             gain = delta.where(delta > 0, 0.0)
             loss = -delta.where(delta < 0, 0.0)
-            avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-            avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+            avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+            avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
             rs = avg_gain / avg_loss
             self.df[f"rsi_{period}"] = 100 - (100 / (1 + rs))
 
@@ -107,8 +107,12 @@ class IndicatorEngine:
         std = self.df["close"].rolling(window=period).std()
         self.df["bb_upper"] = self.df["bb_middle"] + 2 * std
         self.df["bb_lower"] = self.df["bb_middle"] - 2 * std
-        self.df["bb_bandwidth"] = (self.df["bb_upper"] - self.df["bb_lower"]) / self.df["bb_middle"] * 100
-        self.df["bb_pct_b"] = (self.df["close"] - self.df["bb_lower"]) / (self.df["bb_upper"] - self.df["bb_lower"])
+        self.df["bb_bandwidth"] = (
+            (self.df["bb_upper"] - self.df["bb_lower"]) / self.df["bb_middle"] * 100
+        )
+        self.df["bb_pct_b"] = (self.df["close"] - self.df["bb_lower"]) / (
+            self.df["bb_upper"] - self.df["bb_lower"]
+        )
 
     def _add_log_return(self):
         """日報酬率 (log return)"""
@@ -138,7 +142,9 @@ class IndicatorEngine:
             ]
             for table, cols in tables_to_join:
                 try:
-                    query = f"SELECT stock_id, date, {', '.join(cols)} FROM {table} WHERE stock_id = ?"
+                    query = (
+                        f"SELECT stock_id, date, {', '.join(cols)} FROM {table} WHERE stock_id = ?"
+                    )
                     df_join = pd.read_sql_query(query, conn, params=(self.stock_id,))
                     if not df_join.empty:
                         df_join["date"] = pd.to_datetime(df_join["date"])
@@ -185,6 +191,7 @@ class IndicatorEngine:
 # ATRCalculator — Issue 009 (ATR14，Wilder's EMA)
 # ============================================================================
 
+
 class ATRCalculator:
     """ATR14 計算器，使用 Wilder's EMA 平滑法"""
 
@@ -204,7 +211,7 @@ class ATRCalculator:
         cur = self.db.execute(
             "SELECT date, high, low, close FROM stock_history "
             "WHERE stock_id=? ORDER BY date ASC",
-            (stock_id,)
+            (stock_id,),
         )
         rows = cur.fetchall()
         if not rows:
@@ -223,11 +230,7 @@ class ATRCalculator:
         tr[0] = highs[0] - lows[0]  # 第一天無 prev_close
         for i in range(1, n):
             prev_close = closes[i - 1]
-            tr[i] = max(
-                highs[i] - lows[i],
-                abs(highs[i] - prev_close),
-                abs(lows[i] - prev_close)
-            )
+            tr[i] = max(highs[i] - lows[i], abs(highs[i] - prev_close), abs(lows[i] - prev_close))
 
         # 計算 ATR14（ Wilder's EMA）
         atr14 = [None] * n
@@ -248,7 +251,7 @@ class ATRCalculator:
                 """INSERT INTO stock_indicators (stock_id, date, atr14)
                 VALUES (?, ?, ?)
                 ON CONFLICT(stock_id, date) DO UPDATE SET atr14=excluded.atr14""",
-                (stock_id, dates[i], val)
+                (stock_id, dates[i], val),
             )
 
         self.db.commit()
@@ -272,6 +275,7 @@ class ATRCalculator:
 # VWAPCalculator — Issue 010 (日 VWAP = amount / volume)
 # ============================================================================
 
+
 class VWAPCalculator:
     """日 VWAP 計算器，vwap = amount / volume"""
 
@@ -286,9 +290,8 @@ class VWAPCalculator:
         volume = 0 → vwap = NULL
         """
         cur = self.db.execute(
-            "SELECT date, volume, amount FROM stock_history "
-            "WHERE stock_id=? ORDER BY date ASC",
-            (stock_id,)
+            "SELECT date, volume, amount FROM stock_history " "WHERE stock_id=? ORDER BY date ASC",
+            (stock_id,),
         )
         rows = cur.fetchall()
         if not rows:
@@ -308,7 +311,7 @@ class VWAPCalculator:
                 """INSERT INTO stock_indicators (stock_id, date, vwap)
                 VALUES (?, ?, ?)
                 ON CONFLICT(stock_id, date) DO UPDATE SET vwap=excluded.vwap""",
-                (stock_id, date, vwap)
+                (stock_id, date, vwap),
             )
             updates += 1
 
@@ -329,7 +332,6 @@ class VWAPCalculator:
         return result
 
 
-
 class MACalculator:
     """
     MA 計算器 — 供 test_008_ma.py 使用
@@ -348,7 +350,8 @@ class MACalculator:
         df = pd.read_sql(
             "SELECT date, open, high, low, close, volume FROM stock_history "
             "WHERE stock_id = ? ORDER BY date ASC",
-            self.db, params=(stock_id,)
+            self.db,
+            params=(stock_id,),
         )
         if df.empty:
             return 0
@@ -378,7 +381,7 @@ class MACalculator:
         written = 0
         for _, row in df.iterrows():
             date_str = str(row["date"])[:10]
-            ma5  = float(row["sma_5"])  if pd.notna(row.get("sma_5"))  else None
+            ma5 = float(row["sma_5"]) if pd.notna(row.get("sma_5")) else None
             ma20 = float(row["sma_20"]) if pd.notna(row.get("sma_20")) else None
             ma25 = float(row["sma_25"]) if pd.notna(row.get("sma_25")) else None
             ma60 = float(row["sma_60"]) if pd.notna(row.get("sma_60")) else None
@@ -397,7 +400,8 @@ class MACalculator:
             bias_ma60 = _bias(close_val, ma60)
             bias_ma200 = _bias(close_val, ma200)
 
-            self.db.execute("""
+            self.db.execute(
+                """
                 INSERT INTO stock_indicators
                 (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20, vol_ma60,
                  bias_ma25, bias_ma60, bias_ma200, updated_at)
@@ -409,8 +413,23 @@ class MACalculator:
                     bias_ma25=excluded.bias_ma25, bias_ma60=excluded.bias_ma60,
                     bias_ma200=excluded.bias_ma200,
                     updated_at=CURRENT_TIMESTAMP
-            """, (stock_id, date_str, ma5, ma20, ma25, ma60, ma200,
-                  vol_ma5, vol_ma20, vol_ma60, bias_ma25, bias_ma60, bias_ma200))
+            """,
+                (
+                    stock_id,
+                    date_str,
+                    ma5,
+                    ma20,
+                    ma25,
+                    ma60,
+                    ma200,
+                    vol_ma5,
+                    vol_ma20,
+                    vol_ma60,
+                    bias_ma25,
+                    bias_ma60,
+                    bias_ma200,
+                ),
+            )
             written += 1
 
         self.db.commit()
@@ -421,7 +440,8 @@ class MACalculator:
         對 stock_history 所有 stock_id 執行 calculate()。
         回傳 dict：{stock_id: count}
         """
-        from db_admin import create_tables
+        from twstock.db_admin import create_tables
+
         create_tables(self.db)  # 只呼叫一次，避免每支股票重複 catalog 檢查
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
         stock_ids = [row[0] for row in cur.fetchall()]

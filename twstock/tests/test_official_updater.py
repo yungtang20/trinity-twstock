@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """test_official_updater.py - official/updater.py coverage tests."""
+
 from __future__ import annotations
 
 from datetime import datetime as _dt
@@ -16,63 +17,95 @@ class TestUpsertDataframe:
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_basic(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
         mock_proc.return_value.upsert_history.assert_called_once()
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_with_turnover(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "high": [105], "low": [95],
-            "close": [102], "volume": [1000], "turnover": [1000000],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "volume": [1000],
+                "turnover": [1000000],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
         mock_proc.return_value.upsert_history.assert_called_once()
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_code_rename(self, mock_proc):
-        df = pd.DataFrame({
-            "code": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "close": [102],
-        })
+        df = pd.DataFrame(
+            {
+                "code": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "close": [102],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_date_int(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date_int": [20260702],
-            "open": [100], "close": [102],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date_int": [20260702],
+                "open": [100],
+                "close": [102],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_institutional_data(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_buy": [8000], "foreign_sell": [5000],
-            "trust_buy": [2000], "trust_sell": [1000],
-            "dealer_buy": [1500], "dealer_sell": [1200],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_buy": [8000],
+                "foreign_sell": [5000],
+                "trust_buy": [2000],
+                "trust_sell": [1000],
+                "dealer_buy": [1500],
+                "dealer_sell": [1200],
+            }
+        )
         updater.upsert_dataframe("institutional_data", df)
         mock_proc.return_value.upsert_institutional.assert_called_once()
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_shareholding_unified(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "total_shares": [1000000], "whale_ratio": [0.8],
-            "total_people": [50000], "whale_shares": [800000],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "total_shares": [1000000],
+                "whale_ratio": [0.8],
+                "total_people": [50000],
+                "whale_shares": [800000],
+            }
+        )
         updater.upsert_dataframe("shareholding_unified", df)
         mock_proc.return_value.upsert_shareholding.assert_called_once()
 
@@ -85,10 +118,14 @@ class TestUpsertDataframe:
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", False)
     def test_processor_unavailable(self):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "close": [102],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "close": [102],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
 
 
@@ -107,7 +144,9 @@ class TestUpsertDataframeEdgeCases:
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_date_int_becomes_date(self, mock_proc):
-        df = pd.DataFrame({"stock_id": ["2330"], "date_int": [20260702], "open": [100], "close": [102]})
+        df = pd.DataFrame(
+            {"stock_id": ["2330"], "date_int": [20260702], "open": [100], "close": [102]}
+        )
         updater.upsert_dataframe("stock_history", df)
         called_df = mock_proc.return_value.upsert_history.call_args[0][0]
         assert "date" in called_df.columns
@@ -116,10 +155,15 @@ class TestUpsertDataframeEdgeCases:
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_turnover_to_amount(self, mock_proc):
-        df = pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "open": [100], "close": [102], "turnover": [999],
-        })
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "open": [100],
+                "close": [102],
+                "turnover": [999],
+            }
+        )
         updater.upsert_dataframe("stock_history", df)
         called_df = mock_proc.return_value.upsert_history.call_args[0][0]
         assert "amount" in called_df.columns
@@ -133,7 +177,9 @@ class TestUpsertDataframeEdgeCases:
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", False)
     def test_unavailable_returns_none(self):
-        df = pd.DataFrame({"stock_id": ["2330"], "date": ["2026-07-02"], "open": [100], "close": [102]})
+        df = pd.DataFrame(
+            {"stock_id": ["2330"], "date": ["2026-07-02"], "open": [100], "close": [102]}
+        )
         assert updater.upsert_dataframe("stock_history", df) is None
 
 
@@ -155,10 +201,12 @@ class TestUpdateDividendEvents:
     @patch("twstock.official.updater.upsert_dividend_events")
     @patch("twstock.official.updater.fetch_dividend_events")
     def test_returns_ids(self, mock_fetch, mock_upsert):
-        mock_fetch.return_value = pd.DataFrame({
-            "stock_id": ["2330", "2330", "2317"],
-            "date": ["2026-07-02", "2026-07-02", "2026-08-01"],
-        })
+        mock_fetch.return_value = pd.DataFrame(
+            {
+                "stock_id": ["2330", "2330", "2317"],
+                "date": ["2026-07-02", "2026-07-02", "2026-08-01"],
+            }
+        )
         result = updater.update_dividend_events_for_date_range("2026-01-01", "2026-12-31")
         assert result == ["2330", "2317"]
 
@@ -253,20 +301,35 @@ class TestUpdateOfficialDaily:
 
     @staticmethod
     def _quote():
-        return pd.DataFrame({
-            "stock_id": ["2330"], "name": ["TSMC"], "volume": [1000],
-            "amount": [50000], "open": [100], "high": [105], "low": [95],
-            "close": [102], "date": ["2026-07-02"], "market": ["TSE"],
-        })
+        return pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "name": ["TSMC"],
+                "volume": [1000],
+                "amount": [50000],
+                "open": [100],
+                "high": [105],
+                "low": [95],
+                "close": [102],
+                "date": ["2026-07-02"],
+                "market": ["TSE"],
+            }
+        )
 
     @staticmethod
     def _inst():
-        return pd.DataFrame({
-            "stock_id": ["2330"], "date": ["2026-07-02"],
-            "foreign_buy": [10], "foreign_sell": [5],
-            "trust_buy": [3], "trust_sell": [1],
-            "dealer_buy": [2], "dealer_sell": [1],
-        })
+        return pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "date": ["2026-07-02"],
+                "foreign_buy": [10],
+                "foreign_sell": [5],
+                "trust_buy": [3],
+                "trust_sell": [1],
+                "dealer_buy": [2],
+                "dealer_sell": [1],
+            }
+        )
 
     @staticmethod
     def _conn():
@@ -290,10 +353,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=True)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_date_int_none(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                           mock_last_td, mock_init, mock_conn, mock_inst,
-                           mock_twse, mock_tpex, mock_meta, mock_upsert,
-                           mock_div, mock_tdcc):
+    def test_date_int_none(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.return_value = self._quote()
@@ -316,10 +392,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=True)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_invalid_date_int(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                             mock_last_td, mock_init, mock_conn, mock_inst,
-                             mock_twse, mock_tpex, mock_meta, mock_upsert,
-                             mock_div, mock_tdcc):
+    def test_invalid_date_int(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = None
         mock_conn.return_value = self._conn()
         updater.update_official_daily(date_int=99999999, days=1, force=False, auto_tdcc=False)
@@ -339,10 +428,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day")
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=True)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_non_trading_day(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                             mock_last_td, mock_init, mock_conn, mock_inst,
-                             mock_twse, mock_tpex, mock_meta, mock_upsert,
-                             mock_div, mock_tdcc):
+    def test_non_trading_day(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_is_td.side_effect = [False, False, False, True] + [True] * 20
         mock_conn.return_value = self._conn()
@@ -366,10 +468,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=False)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_normal_path(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                         mock_last_td, mock_init, mock_conn, mock_inst,
-                         mock_twse, mock_tpex, mock_meta, mock_upsert,
-                         mock_div, mock_tdcc):
+    def test_normal_path(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.return_value = self._quote()
@@ -396,11 +511,25 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=False)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_both_empty(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                        mock_last_td, mock_init, mock_conn, mock_inst,
-                        mock_twse, mock_tpex, mock_meta, mock_upsert,
-                        mock_div, mock_tdcc):
+    def test_both_empty(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         from datetime import datetime as _dt2
+
         mock_i2d.return_value = _dt2(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.return_value = pd.DataFrame()
@@ -424,10 +553,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=True)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_fetch_dates_empty(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                               mock_last_td, mock_init, mock_conn, mock_inst,
-                               mock_twse, mock_tpex, mock_meta, mock_upsert,
-                               mock_div, mock_tdcc):
+    def test_fetch_dates_empty(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         updater.update_official_daily(date_int=20260702, days=1, force=False, auto_tdcc=False)
@@ -447,10 +589,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=False)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_per_date_exception(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                                mock_last_td, mock_init, mock_conn, mock_inst,
-                                mock_twse, mock_tpex, mock_meta, mock_upsert,
-                                mock_div, mock_tdcc):
+    def test_per_date_exception(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.side_effect = RuntimeError("api boom")
@@ -473,10 +628,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=False)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_auto_tdcc_flag(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                            mock_last_td, mock_init, mock_conn, mock_inst,
-                            mock_twse, mock_tpex, mock_meta, mock_upsert,
-                            mock_div, mock_tdcc):
+    def test_auto_tdcc_flag(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.return_value = self._quote()
@@ -499,10 +667,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=False)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_force_flag(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                        mock_last_td, mock_init, mock_conn, mock_inst,
-                        mock_twse, mock_tpex, mock_meta, mock_upsert,
-                        mock_div, mock_tdcc):
+    def test_force_flag(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         mock_conn.return_value = self._conn()
         mock_twse.return_value = self._quote()
@@ -526,10 +707,23 @@ class TestUpdateOfficialDaily:
     @patch("twstock.official.updater.cal.is_trading_day", return_value=True)
     @patch("twstock.official.updater.cal.date_exists_in_history", return_value=True)
     @patch("twstock.official.updater.cal._date_to_int", return_value=20260702)
-    def test_empty_calendar_init(self, mock_d2i, mock_exists, mock_is_td, mock_i2d,
-                                 mock_last_td, mock_init, mock_conn, mock_inst,
-                                 mock_twse, mock_tpex, mock_meta, mock_upsert,
-                                 mock_div, mock_tdcc):
+    def test_empty_calendar_init(
+        self,
+        mock_d2i,
+        mock_exists,
+        mock_is_td,
+        mock_i2d,
+        mock_last_td,
+        mock_init,
+        mock_conn,
+        mock_inst,
+        mock_twse,
+        mock_tpex,
+        mock_meta,
+        mock_upsert,
+        mock_div,
+        mock_tdcc,
+    ):
         mock_i2d.return_value = _dt(2026, 7, 2)
         c = MagicMock()
         c.fetchone.return_value = [0]
