@@ -16,10 +16,18 @@ from twstock.terminal import console
 def update_single_stock(stock_id: str, token: str | None = None) -> bool:
     """更新單一股票所有資料。成功回傳 True。"""
     console.print(f"[cyan]開始更新 {stock_id} 歷史資料...[/cyan]")
-    fetcher = DataFetcher()
+    try:
+        fetcher = DataFetcher(token)
+    except ValueError as e:
+        console.print(f"[red]❌ 無法更新 {stock_id} ：{e}[/red]")
+        return False
     processor = DataProcessor()
 
-    df_price = fetcher.fetch_history_price(stock_id, start_date="2020-01-01")
+    try:
+        df_price = fetcher.fetch_history_price(stock_id, start_date="2020-01-01")
+    except ValueError as e:
+        console.print(f"[red]❌ 無法更新 {stock_id} ：{e}[/red]")
+        return False
     if df_price.empty:
         console.print(f"[red]❌ 無法取得 {stock_id} 價格資料[/red]")
         return False

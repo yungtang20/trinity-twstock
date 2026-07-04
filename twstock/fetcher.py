@@ -104,15 +104,17 @@ _client = None
 _client_lock = threading.Lock()
 
 
-def _get_client():
+def _get_client(token=None):
     """Lazy singleton，避免 import 時強制要求 token"""
     global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                token = get_finmind_token()
-                _client = FinMindClient(token)
-    return _client
+    if token is None:
+        if _client is None:
+            with _client_lock:
+                if _client is None:
+                    token = get_finmind_token()
+                    _client = FinMindClient(token)
+        return _client
+    return FinMindClient(str(token))
 
 
 # ============================================================================
@@ -122,9 +124,18 @@ def _get_client():
 class DataFetcher:
     """台股資料抓取器，封裝所有資料源呼叫"""
 
+    def __init__(self, token=None):
+        self._token = token
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            self._client = _get_client(self._token)
+        return self._client
+
     def fetch_history_price(self, stock_id, start_date="", end_date=""):
         """抓取歷史價格，回傳欄位: stock_id, date, open, high, low, close, volume(張), amount(千萬元)"""
-        client = _get_client()
+        client = self._get_client()
         df = client.get("TaiwanStockPrice", stock_id, start_date, end_date)
         if df.empty:
             return df
@@ -156,7 +167,7 @@ class DataFetcher:
 
     def fetch_institutional(self, stock_id, start_date="", end_date=""):
         """抓取三大法人買賣超，回傳欄位: stock_id, date, foreign_buy, foreign_sell, trust_buy, trust_sell, dealer_buy=0, dealer_sell=0"""
-        client = _get_client()
+        client = self._get_client()
         df = client.get("TaiwanStockInstitutionalInvestorsBuySell", stock_id, start_date, end_date)
         if df.empty:
             return df
@@ -186,7 +197,7 @@ class DataFetcher:
 
     def fetch_shareholding(self, stock_id, start_date="", end_date=""):
         """抓取外資持股，回傳欄位: stock_id, date, foreign_shares, foreign_ratio"""
-        client = _get_client()
+        client = self._get_client()
         df = client.get("TaiwanStockShareholding", stock_id, start_date, end_date)
         if df.empty:
             return df
@@ -212,7 +223,7 @@ class DataFetcher:
 
     def fetch_stock_meta(self):
         """抓取全部股票基本資料，回傳欄位: stock_id, stock_name, industry_category, market, type"""
-        client = _get_client()
+        client = self._get_client()
         df = client.get("TaiwanStockInfo")
         if df.empty:
             return df

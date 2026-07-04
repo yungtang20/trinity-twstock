@@ -26,7 +26,7 @@ def execute(args) -> None:
     stock_id = args.stock_id
     token = getattr(args, "token", None)
 
-    fetcher = DataFetcher()
+    fetcher = DataFetcher(token)
     engine = IndicatorEngine(stock_id, limit=300)
     if engine.df.empty:
         console.print("[yellow]⚠️ 無歷史資料，自動執行更新...[/yellow]")

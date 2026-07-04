@@ -77,6 +77,24 @@ class TestIntradayExecute:
     @patch("twstock.commands.intraday.DataFetcher")
     @patch("twstock.commands.intraday.IndicatorEngine")
     @patch("twstock.commands.intraday.console")
+    def test_passes_token_to_datafetcher(self, mock_console, MockEngine, MockFetcher):
+        mock_fetcher = MagicMock()
+        mock_fetcher.fetch_intraday_snapshot.return_value = {"z": "105", "o": "100", "h": "110", "l": "95", "v": "1000"}
+        MockFetcher.return_value = mock_fetcher
+        engine = MagicMock()
+        engine.df = pd.DataFrame({"date": ["2025-01-01"], "close": [100.0]})
+        engine.build.return_value = pd.DataFrame(
+            {"close": [105.0], "volume": [1000], "sma_20": [102.0], "macd": [0.5], "institutional_net": [500]}
+        )
+        MockEngine.return_value = engine
+
+        intraday_mod.execute(Namespace(stock_id="2330", token="mytoken"))
+
+        MockFetcher.assert_called_once_with("mytoken")
+
+    @patch("twstock.commands.intraday.DataFetcher")
+    @patch("twstock.commands.intraday.IndicatorEngine")
+    @patch("twstock.commands.intraday.console")
     def test_no_intraday_data_returns(
         self, mock_console, MockEngine, MockFetcher, populated_engine
     ):

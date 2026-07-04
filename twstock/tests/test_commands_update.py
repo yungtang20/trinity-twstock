@@ -72,6 +72,31 @@ class TestUpdateSingleStock:
     @patch("twstock.commands.update.DataProcessor")
     @patch("twstock.commands.update.DataFetcher")
     @patch("twstock.commands.update.console")
+    def test_passes_token_to_datafetcher(
+        self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc
+    ):
+        fetcher = MagicMock()
+        fetcher.fetch_history_price.return_value = pd.DataFrame(
+            {"date": ["2025-01-01"], "close": [100.0]}
+        )
+        fetcher.fetch_institutional.return_value = pd.DataFrame()
+        fetcher.fetch_shareholding.return_value = pd.DataFrame()
+        fetcher.fetch_stock_meta.return_value = pd.DataFrame()
+        MockFetcher.return_value = fetcher
+        MockProcessor.return_value = MagicMock()
+        mock_div.return_value = pd.DataFrame()
+        mock_tdcc.return_value = pd.DataFrame()
+
+        result = update_mod.update_single_stock("2330", token="mytoken")
+
+        assert result is True
+        MockFetcher.assert_called_once_with("mytoken")
+
+    @patch("twstock.commands.update.fetch_tdcc_historical")
+    @patch("twstock.commands.update.fetch_dividend_events")
+    @patch("twstock.commands.update.DataProcessor")
+    @patch("twstock.commands.update.DataFetcher")
+    @patch("twstock.commands.update.console")
     def test_with_all_data_sources(
         self, mock_console, MockFetcher, MockProcessor, mock_div, mock_tdcc,
         mock_processor

@@ -23,7 +23,7 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from strategy._utils import clear_screen, get_stock_name, render_header
+from twstock.strategy._utils import clear_screen, get_stock_name, render_header
 
 from twstock.db import get_connection  # [AI MOD]
 from twstock.display import price_color, vol_color

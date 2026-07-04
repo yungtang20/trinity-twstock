@@ -55,7 +55,7 @@ try:
     from twstock.input_helper import get_blocking_key
 except ImportError:
     from input_helper import get_blocking_key
-from strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
 
 # fetch_klines already imported from strategy._utils above
 from twstock.display import price_color, vol_color  # [AI MOD]
@@ -1328,7 +1328,7 @@ class PatternStrategy:
     def analyze(self, stock_id: str) -> dict:
         """分析型態信號。回傳 strategy/stock_id/signal。"""
         from db import get_connection
-        from strategy._utils import fetch_klines
+        from twstock.strategy._utils import fetch_klines
 
         conn = get_connection()
         try:

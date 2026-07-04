@@ -39,7 +39,7 @@ _SCAN_CACHE = {
     'results': None,
     'ts': 0,
 }
-from strategy._utils import fetch_klines
+from twstock.strategy._utils import fetch_klines
 
 from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]
 
@@ -296,9 +296,11 @@ def scan_market_stocks(conn: sqlite3.Connection, min_volume: int = 500, strat_ch
                         SELECT date, open, high, low, close, volume
                         FROM klines
                         WHERE stock_id = ?
-                        ORDER BY date ASC
+                        ORDER BY date DESC
                         LIMIT 250
                     """, conn, params=(code,))
+                    # DESC LIMIT 取最新 N 筆，之後倒序回 ASC 以讓 iloc[-1] 對應到最新日
+                    df = df.sort_values('date').reset_index(drop=True)
                     fetch_count += 1
 
                     if df.empty or len(df) < period:

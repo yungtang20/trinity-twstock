@@ -366,7 +366,7 @@ class TestFetchMarketIndicesBranches:
             if "MI_INDEX" in url:
                 return SimpleNamespace(json=lambda: {
                     "tables": [
-                        {"title": "漲跌證券數合計", "data": [
+                        {"title": "漲跌證券數合 計", "data": [
                             ["a", "b", "100(5)"],
                             ["a", "b", "200(10)"],
                             ["a", "b", "50(0)"],

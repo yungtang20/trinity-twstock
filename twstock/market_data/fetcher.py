@@ -268,7 +268,12 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
         )
         r_tse_data = None
         for _ in range(1):
-            r_tse = safe_http_get(url_tse, session=session, timeout=1.5, verify=True)
+            r_tse = safe_http_get(
+                url_tse,
+                session=session,
+                timeout=1.5,
+                verify=get_ssl_verify(),
+            )
             if r_tse:
                 try:
                     r_tse_data = r_tse.json()
@@ -287,9 +292,12 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                     return int(m.group(1)), int(m.group(2))
                 return int(s) if s.isdigit() else 0, 0
 
+            def _normalize_title(title: str) -> str:
+                return "".join(str(title or "").split())
+
             t_breadth = next(
                 (t for t in r_tse_data["tables"]
-                 if "漲跌證券數合計" in t.get("title", "")),
+                 if "漲跌證券數合計" in _normalize_title(t.get("title", ""))),
                 None,
             )
             if t_breadth:
