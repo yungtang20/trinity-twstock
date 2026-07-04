@@ -42,6 +42,11 @@ class TUIApp:
         state = TUIState.MAIN_MENU
         while state != TUIState.EXIT:
             render_dashboard()
+            # 每次 render 後檢查 cache，確保 background fetch 完成時立即顯示
+            cache_data = self._cache.get()
+            if cache_data and cache_data.get("TAIEX", {}).get("price", 0) > 0:
+                # 已有資料，直接顯示
+                pass
             ch = self._get_input(
                 "\n🔍 輸入股號或按 Enter 回到上一頁: ",
                 menu_keys="01234",
