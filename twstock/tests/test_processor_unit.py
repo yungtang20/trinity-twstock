@@ -709,10 +709,13 @@ class TestMainGuard:
         under the ``__main__`` entry-point.
         """
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # 專案根目錄（twstock 的父目錄）— 讓 from twstock.xxx 能解析
+        repo_root = os.path.dirname(project_root)
         processor_src = os.path.join(project_root, "processor.py")
         runner = tmp_path / "_main_runner.py"
         runner.write_text(
             "import runpy, sys\n"
+            f"sys.path.insert(0, {repo_root!r})\n"
             f"sys.path.insert(0, {project_root!r})\n"
             f"runpy.run_path({processor_src!r}, run_name='__main__')\n",
             encoding="utf-8",

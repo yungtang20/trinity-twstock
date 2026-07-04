@@ -25,7 +25,7 @@ from rich.progress import (
 from rich import box
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from terminal import rconsole
+from twstock.terminal import rconsole
 
 # [AI MOD] Import from sibling modules
 from twstock.strategy._utils import fetch_klines
@@ -73,9 +73,9 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from db import get_connection  # [AI MOD]
+from twstock.db import get_connection  # [AI MOD]
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
+from twstock.display import price_color, chg_color, vol_fmt, price_rich, vol_color  # [AI MOD]
 try:
     from twstock.input_helper import get_blocking_key
 except ImportError:

@@ -3,7 +3,7 @@ import requests
 import logging
 from datetime import datetime
 from .utils import safe_int
-from retry import retry_get
+from twstock.retry import retry_get
 
 def _get_session():
     session = requests.Session()

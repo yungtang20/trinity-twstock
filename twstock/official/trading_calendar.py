@@ -16,8 +16,8 @@ from pathlib import Path
 _PARENT = Path(__file__).resolve().parent.parent
 if str(_PARENT) not in sys.path:
     sys.path.append(str(_PARENT))
-from db import DB_PATH
-from retry import retry_get
+from twstock.db import DB_PATH
+from twstock.retry import retry_get
 from twstock.utils import get_ssl_verify
 
 def _date_to_int(dt: datetime) -> int:

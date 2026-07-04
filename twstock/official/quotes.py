@@ -6,7 +6,7 @@ import requests
 import logging
 from datetime import datetime
 from .utils import safe_int, safe_float
-from retry import retry_get
+from twstock.retry import retry_get
 from twstock.utils import get_ssl_verify
 
 def _get_session():

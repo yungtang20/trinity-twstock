@@ -9,8 +9,8 @@ calculator.py — 技術指標計算引擎
 import pandas as pd
 import numpy as np
 import os
-from db import get_connection, DB_PATH
-from db_admin import create_tables  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
+from twstock.db import get_connection, DB_PATH
+from twstock.db_admin import create_tables  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
 
 
 class IndicatorEngine:

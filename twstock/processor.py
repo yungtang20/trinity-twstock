@@ -8,7 +8,7 @@ when a new write doesn't provide them (prevents NULL/empty overwrite bugs).
 import sqlite3
 import pandas as pd
 import logging
-from db import get_connection
+from twstock.db import get_connection
 
 logger = logging.getLogger(__name__)
 

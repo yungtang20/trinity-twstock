@@ -19,7 +19,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeEl
 warnings.filterwarnings('ignore')
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from terminal import rconsole
+from twstock.terminal import rconsole
 
 # ── Module path ───────────────────────────────────────────
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,10 +27,10 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from db import get_connection, DB_PATH  # [AI MOD]
+from twstock.db import get_connection, DB_PATH  # [AI MOD]
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from display import price_rich, vol_fmt, chg_color, vol_color, price_color
-from retry import retry_get  # [AI MOD]
+from twstock.display import price_rich, vol_fmt, chg_color, vol_color, price_color
+from twstock.retry import retry_get  # [AI MOD]
 
 try:
     from twstock.input_helper import get_interactive_input

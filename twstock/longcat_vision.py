@@ -12,7 +12,7 @@ from typing import Optional
 
 import pandas as pd
 
-from api_config import (
+from twstock.api_config import (
     _ensure_loaded,
     get_longcat_api_key,
     get_longcat_api_url,

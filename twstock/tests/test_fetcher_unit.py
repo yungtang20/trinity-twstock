@@ -162,14 +162,14 @@ class TestGetYahooMarketVolumesBranches:
         assert twse == "無資料"
         assert tpex == "無資料"
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_safe_http_get_returns_none(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
         mock_get.return_value = None
         assert fetcher.get_yahoo_market_volumes() == ("無資料", "無資料")
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_twse_volume_matched(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
@@ -179,7 +179,7 @@ class TestGetYahooMarketVolumesBranches:
         twse, _ = fetcher.get_yahoo_market_volumes()
         assert twse == "12,345.67"
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_tpex_volume_matched(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
@@ -189,7 +189,7 @@ class TestGetYahooMarketVolumesBranches:
         _, tpex = fetcher.get_yahoo_market_volumes()
         assert tpex == "999.9"
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_both_volumes_matched(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
@@ -200,14 +200,14 @@ class TestGetYahooMarketVolumesBranches:
         assert twse == "10,197.42"
         assert tpex == "2,345.6"
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_safe_http_get_raises_returns_defaults(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
         mock_get.side_effect = RuntimeError("network boom")
         assert fetcher.get_yahoo_market_volumes() == ("無資料", "無資料")
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_response_text_none_returns_defaults(self, mock_sess, mock_get):
         """response.text is None → regex on None raises → except → defaults."""
@@ -217,7 +217,7 @@ class TestGetYahooMarketVolumesBranches:
         assert twse == "無資料"
         assert tpex == "無資料"
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_html_without_target_text(self, mock_sess, mock_get):
         mock_sess.return_value = MagicMock()
@@ -238,7 +238,7 @@ class TestGetRealtimeMisDataBranches:
         mock_sess.return_value = None
         assert fetcher.get_realtime_mis_data() == {}
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_warmup_raises_swallowed(self, mock_sess, mock_get):
         """Warmup safe_http_get is allowed to raise; main call returns None."""
@@ -250,7 +250,7 @@ class TestGetRealtimeMisDataBranches:
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_main_returns_none(self, mock_sess, mock_get):
         def side(url, *a, **k):
@@ -261,7 +261,7 @@ class TestGetRealtimeMisDataBranches:
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_json_value_error_returns_empty(self, mock_sess, mock_get):
         def side(url, *a, **k):
@@ -274,7 +274,7 @@ class TestGetRealtimeMisDataBranches:
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == {}
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_success_returns_dict(self, mock_sess, mock_get):
         payload = {"msgArray": [{"c": "t00", "z": "22000"}]}
@@ -286,7 +286,7 @@ class TestGetRealtimeMisDataBranches:
         mock_get.side_effect = side
         assert fetcher.get_realtime_mis_data() == payload
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_with_symbols_appends_ex_ch(self, mock_sess, mock_get):
         """symbols passed → extra ex_ch args added to URL."""
@@ -345,7 +345,7 @@ class TestFetchMarketIndicesBranches:
         }
         assert fetcher.fetch_market_indices() is None
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -408,7 +408,7 @@ class TestFetchMarketIndicesBranches:
         assert r["OTC"]["price"] == 230
         assert r["OTC"]["change"] == 2
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -441,7 +441,7 @@ class TestFetchMarketIndicesBranches:
         assert isinstance(r, dict)
         assert r["OTC"]["amount"] == 50.0
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -532,7 +532,7 @@ class TestFetchMarketIndicesBranches:
             r = fetcher.fetch_market_indices()
             assert r is None or isinstance(r, dict)
 
-    @patch("utils.safe_http_get")
+    @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")

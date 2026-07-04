@@ -23,8 +23,8 @@ from typing import Optional, Dict, Any, List
 import requests
 import pandas as pd
 
-from api_config import get_finmind_token
-from utils import safe_float as _safe_float
+from twstock.api_config import get_finmind_token
+from twstock.utils import safe_float as _safe_float
 
 logger = logging.getLogger(__name__)
 

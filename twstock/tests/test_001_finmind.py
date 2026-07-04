@@ -9,7 +9,7 @@ import sqlite3
 
 import pytest
 
-from fetcher import FinMindFetcher
+from twstock.fetcher import FinMindFetcher
 
 
 @pytest.fixture

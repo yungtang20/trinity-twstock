@@ -36,7 +36,7 @@ def db_conn(temp_db_path: Path) -> sqlite3.Connection:
 @pytest.fixture
 def patch_db_path(monkeypatch, temp_db_path: Path) -> Path:
     """Monkeypatch db.py 的 DB_PATH，讓它指向臨時 DB。"""
-    import db as db_module
+    import twstock.db as db_module
     monkeypatch.setattr(db_module, "DB_PATH", str(temp_db_path))
     os.environ["TWSTOCK_DB_PATH"] = str(temp_db_path)
     return temp_db_path

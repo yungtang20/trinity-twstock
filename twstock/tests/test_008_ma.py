@@ -6,7 +6,7 @@ Unit Test — DoD 必跑
 """
 import sqlite3
 import pytest
-from calculator import MACalculator
+from twstock.calculator import MACalculator
 
 
 @pytest.fixture

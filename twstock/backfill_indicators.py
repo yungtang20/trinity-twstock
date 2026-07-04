@@ -9,7 +9,7 @@ import os
 
 # 使用 db.py 的唯一入口取得路徑（避免寫死 Windows 路徑）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from db import get_path, get_connection
+from twstock.db import get_path, get_connection
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     print(f"stock_history 共 {total_stocks} 支股票")
 
     # ====== Step 1: MACalculator ======
-    from calculator import MACalculator
+    from twstock.calculator import MACalculator
     print("\n[1/3] MACalculator (stock_history → stock_indicators MA/vol_ma/bias)")
     t0 = time.time()
     calc2 = MACalculator(db=conn)
@@ -31,7 +31,7 @@ def main():
     print(f"  完成：{len(result2)} 支股票，{elapsed2:.1f}s")
 
     # ====== Step 2: ATRCalculator ======
-    from calculator import ATRCalculator
+    from twstock.calculator import ATRCalculator
     print("\n[2/3] ATRCalculator (stock_history → stock_indicators atr14)")
     t0 = time.time()
     calc3 = ATRCalculator(db=conn)
@@ -40,7 +40,7 @@ def main():
     print(f"  完成：{len(result3)} 支股票，{elapsed3:.1f}s")
 
     # ====== Step 3: VWAPCalculator ======
-    from calculator import VWAPCalculator
+    from twstock.calculator import VWAPCalculator
     print("\n[3/3] VWAPCalculator (stock_history → stock_indicators vwap)")
     t0 = time.time()
     calc4 = VWAPCalculator(db=conn)

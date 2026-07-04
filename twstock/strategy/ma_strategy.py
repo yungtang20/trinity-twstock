@@ -24,10 +24,10 @@ if sys.platform == "win32":
         pass
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from terminal import console
+from twstock.terminal import console
 
 # Import unified connection factory
-from db import get_connection
+from twstock.db import get_connection
 
 # [AI MOD] Unified session scan cache to make switching strategy lightning-fast
 import time as _time_mod
@@ -41,7 +41,7 @@ _SCAN_CACHE = {
     'ts': 0,
 }
 from strategy._utils import clear_screen, get_stock_name, render_header, fetch_klines
-from display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
+from twstock.display import price_rich, price_color, vol_color, ma_color  # [AI MOD]
 try:
     from twstock.input_helper import _kbhit_windows, _getch_windows
 except ImportError:

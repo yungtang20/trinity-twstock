@@ -14,7 +14,7 @@ import sys
 import os
 import json
 
-from output_writer import ConsoleWriter, JsonWriter
+from twstock.output_writer import ConsoleWriter, JsonWriter
 
 # Windows encoding fix — 只在直接執行時才替換 stdout/stderr
 if sys.platform == "win32" and __name__ == "__main__":
@@ -40,7 +40,7 @@ class _PredictionAdapter:
 
     def analyze(self, stock_id: str, ma: dict = None) -> dict:
         from strategy._utils import fetch_klines
-        from db import get_connection
+        from twstock.db import get_connection
 
         conn = get_connection()
         try:

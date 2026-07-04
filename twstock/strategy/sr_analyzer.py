@@ -50,7 +50,7 @@ _CACHE_TTL = 300  # 5 分鐘
 _SR_CACHE = {'date': None, 'min_volume': None, 'results': None, 'ts': 0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from terminal import console
+from twstock.terminal import console
 
 try:
     from twstock.input_helper import get_blocking_key

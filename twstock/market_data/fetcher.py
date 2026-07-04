@@ -16,7 +16,7 @@ _PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PKG_DIR not in sys.path:
     sys.path.insert(0, _PKG_DIR)
 
-from utils import get_http_session, safe_float, safe_int  # noqa: E402
+from twstock.utils import get_http_session, safe_float, safe_int  # noqa: E402
 from twstock.utils import get_ssl_verify
 
 
@@ -45,7 +45,7 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
         res = get_http_session()
         if res is None:
             return twse_vol, tpex_vol
-        from utils import safe_http_get
+        from twstock.utils import safe_http_get
 
         response = safe_http_get(url, timeout=5, headers=headers)
         if not response:
@@ -70,7 +70,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
     if session is None:
         return {}
     try:
-        from utils import safe_http_get
+        from twstock.utils import safe_http_get
 
         safe_http_get(
             "https://mis.twstock.com.tw/stock/index.jsp",
@@ -89,7 +89,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
         "https://mis.twstock.com.tw/stock/api/getStockInfo.jsp"
         f"?ex_ch={'|'.join(ex_ch_list)}&json=1&delay=0&_={int(time.time() * 1000)}"
     )
-    from utils import safe_http_get
+    from twstock.utils import safe_http_get
 
     r = safe_http_get(api_url, session=session, timeout=1.5, verify=True)
     if not r:
@@ -144,7 +144,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
         session = get_http_session()
         if session is None:
             return None
-        from utils import safe_http_get
+        from twstock.utils import safe_http_get
 
         url_tse = (
             "https://www.twstock.com.tw/rwd/zh/afterTrading/"

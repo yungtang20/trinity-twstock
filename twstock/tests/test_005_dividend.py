@@ -7,7 +7,7 @@ Unit Test (mock HTTP) — DoD 必跑
 """
 import sqlite3
 import pytest
-from fetcher import DividendFetcher
+from twstock.fetcher import DividendFetcher
 
 
 @pytest.fixture
