@@ -31,7 +31,9 @@ class TUIApp:
     """
 
     def __init__(self):
-        self._cache = MarketCache()
+        # 使用 render 模組的共享快取實例（與 render_dashboard 使用同一個）
+        from twstock.tui.render import _market_cache
+        self._cache = _market_cache
 
     # ── public ─────────────────────────────────────────────
     def run(self) -> None:
