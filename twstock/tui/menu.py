@@ -49,12 +49,34 @@ def run_daily_update() -> None:
 
     update_official_daily(days=1, auto_tdcc=True)
     console.print("[green]✅ 每日資料更新完成！[/green]")
+
+    # 顯示最新資料進度摘要
+    _show_data_progress_summary()
+
     input("\n按 Enter 鍵返回主選單...")
 
 
-# ══════════════════════════════════════════════════════════════
-# 2. 歷史資料更新（完整子選單）
-# ══════════════════════════════════════════════════════════════
+def _show_data_progress_summary() -> None:
+    """顯示三大類資料的最新進度摘要。"""
+    from twstock.db import get_connection
+    try:
+        with get_connection(readonly=True) as conn:
+            row_t = conn.execute("SELECT MAX(date), COUNT(*) FROM stock_history").fetchone()
+            row_i = conn.execute("SELECT MAX(date), COUNT(*) FROM institutional_data").fetchone()
+            # TDCC 可能尚未建立（若無自動補爬），用 shareholding_unified
+            try:
+                row_d = conn.execute("SELECT MAX(date), COUNT(*) FROM shareholding_unified").fetchone()
+            except Exception:
+                row_d = (None, 0)
+        console.print(f"\n[cyan]📊 最新資料進度:[/cyan]")
+        console.print(f"  [white]價量行情: {row_t[0]} ({row_t[1]:,} 筆)[/white]")
+        console.print(f"  [white]三大法人: {row_i[0]} ({row_i[1]:,} 筆)[/white]")
+        console.print(f"  [white]集保數據: {row_d[0]} ({row_d[1]:,} 筆)[/white]")
+    except Exception as e:
+        console.print(f"[dim]  (無法取得進度: {e})[/dim]")
+
+
+
 def run_historical_update_menu() -> None:
     """歷史資料更新子選單。"""
     while True:
