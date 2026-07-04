@@ -81,7 +81,7 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
         r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
         if r:
             data = r.json()
-            if data.get("stat") == "OK" and data.get("tables"):
+            if data.get("tables"):
                 return _parse_twse_mi_index(data)
     except Exception:
         pass
@@ -292,7 +292,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             return None
         from twstock.utils import safe_http_get
 
-        url_tse = "https://www.twstock.com.tw/rwd/zh/afterTrading/" "MI_INDEX?type=MS&response=json"
+        url_tse = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
         r_tse_data = None
         for _ in range(1):
             r_tse = safe_http_get(
@@ -333,14 +333,19 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             )
             if t_breadth:
                 data_rows = t_breadth.get("data", [])
+                fields = t_breadth.get("fields", [])
+                field_idx = {name: i for i, name in enumerate(fields)}
+                market_col = field_idx.get("整體市場", 1)
                 if len(data_rows) >= 3:
                     results["TAIEX"]["up"], results["TAIEX"]["l_up"] = _parse_breadth(
-                        data_rows[0][2]
+                        data_rows[0][market_col] if market_col < len(data_rows[0]) else ""
                     )
                     results["TAIEX"]["down"], results["TAIEX"]["l_down"] = _parse_breadth(
-                        data_rows[1][2]
+                        data_rows[1][market_col] if market_col < len(data_rows[1]) else ""
                     )
-                    results["TAIEX"]["flat"] = _parse_breadth(data_rows[2][2])[0]
+                    results["TAIEX"]["flat"] = _parse_breadth(
+                        data_rows[2][market_col] if market_col < len(data_rows[2]) else ""
+                    )[0]
 
             t_total = next(
                 (t for t in r_tse_data["tables"] if "大盤統計資訊" in t.get("title", "")),
