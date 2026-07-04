@@ -72,3 +72,9 @@ skills-lock.json
 .env.example
 api.env
 TODO.md
+_*.txt
+_*.bin
+_test*.txt
+_cov*.txt
+_coll.txt
+_f.txt
