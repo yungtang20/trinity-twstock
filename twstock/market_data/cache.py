@@ -32,12 +32,19 @@ class MarketCache:
 
     # ── public ─────────────────────────────────────────────
     def get(self) -> Optional[Dict[str, Any]]:
-        """回傳目前快取；若過期則在背景觸發更新。"""
+        """回傳快取；首次或過期時在背景觸發更新。
+
+        關鍵：失敗後 _last_fetch 會被更新，不會在每次 TUI render 都重試，
+        而是等到 refresh_interval（盤中 15s / 盤後 3600s）後才重試。
+        """
         now = time.time()
         is_market_open = self._is_market_open()
         refresh_interval = 15 if is_market_open else 3600
 
-        if (self._data is None or now - self._last_fetch > refresh_interval) and not self._is_fetching:
+        never_attempted = self._last_fetch == 0.0
+        data_expired = now - self._last_fetch > refresh_interval
+
+        if (never_attempted or data_expired) and not self._is_fetching:
             self._is_fetching = True
             self._last_error = None
             threading.Thread(target=self._async_fetch_worker, daemon=True).start()
@@ -90,11 +97,13 @@ class MarketCache:
             logger.warning("MarketCache: %s", self._last_error)
         elif result:
             self._data = result
-            self._last_fetch = time.time()
             self._last_error = None
         else:
             # 抓取失敗但非逾時
             self._last_error = error_holder[0] if error_holder else "無法取得即時數據"
-            logger.warning("MarketCache: fetch failed: %s", self._last_error)
+            logger.warning("MarketCache: %s", self._last_error)
 
+        # 無論成功失敗，都更新 _last_fetch 以防止 TUI 每次 render 都重試
+        # 盤中 15 秒後允许重試，盤後 1 小時後允許重試
+        self._last_fetch = time.time()
         self._is_fetching = False
