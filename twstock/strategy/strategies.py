@@ -122,7 +122,7 @@ def _input_sort_ma() -> str:
     """均線趨勢排序選擇"""
     console.print("\n📊 請選擇掃描結果排序方式 (單鍵輸入):")
     console.print("  [1] 距目標均線由近到遠")
-    console.print("  [2] 成交金額由大到小")
+    console.print("  [2] 成交量(%)由大到小")
     console.print("  [Enter] 回到上一頁")
     sort_input = get_single_key_input("👉 ", "12")
     return sort_input if sort_input in ("1", "2") else ""
@@ -263,7 +263,7 @@ def interactive_menu():
                     n_days = int(n_days_str) if n_days_str.isdigit() else 2
                     console.print("\n📊 排序基準:")
                     console.print("  [1] 連買天數(由小到大) (預設)")
-                    console.print("  [2] 法人成交金額(由大到小)")
+                    console.print("  [2] 法人成交量(%)(由大到小)")
                     console.print("  [3] VSBC 加速帶上10%")
                     console.print("  [Enter] 回到上一頁")
                     _flush_msvcrt()

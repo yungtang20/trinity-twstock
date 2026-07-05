@@ -1290,7 +1290,7 @@ class PatternBreakoutScanner:
             sort_choice = "1"
             rconsole.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
             rconsole.print("  [1] 距頸線由近到遠 (預設)")
-            rconsole.print("  [2] 成交金額由大到小")
+            rconsole.print("  [2] 成交量(%)由大到小")
             ch = get_blocking_key()
             if ch in ("1", "2"):
                 sort_choice = ch
@@ -1298,7 +1298,10 @@ class PatternBreakoutScanner:
             if sort_choice == "1":
                 cands.sort(key=lambda c: abs(c.distance_pct))
             elif sort_choice == "2":
-                cands.sort(key=lambda c: (c.current_price * c.volume), reverse=True)
+                cands.sort(
+                    key=lambda c: (c.volume - c.prev_volume) / c.prev_volume if c.prev_volume > 0 else 0.0,
+                    reverse=True,
+                )
 
             self._display(cands, ld, sort_choice)
             return cands_with_data
@@ -1365,11 +1368,12 @@ class PatternBreakoutScanner:
             points=best.points,
             prev_close=prev_close,
             prev_volume=prev_volume,
+            amount=current_price * volume / 1e8,
         )
         return cand, df
 
     def _display(self, cands, ld, sort_choice="1"):
-        sort_names = {"1": "距頸線由近到遠", "2": "成交金額由大到小"}
+        sort_names = {"1": "距頸線由近到遠", "2": "成交量(%)由大到小"}
         sort_name = sort_names.get(sort_choice, "距頸線由近到遠")
 
         bulls = [c for c in cands if c.direction == "bullish"]

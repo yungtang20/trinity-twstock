@@ -206,7 +206,7 @@ class MarketScanner:
             if preds:
                 rconsole.print("\n[bold yellow]📊 請選擇掃描結果排序方式 (單鍵輸入):[/bold yellow]")
                 rconsole.print("  [1] 距潛力估值由大到小 (預設)")  # [AI MOD]
-                rconsole.print("  [2] 成交金額由大到小")
+                rconsole.print("  [2] 成交量(%)由大到小")
                 ch = get_blocking_key()
                 if ch in ("1", "2"):
                     sort_choice = ch
@@ -296,7 +296,7 @@ class MarketScanner:
             rconsole.print("[yellow]📭 無符合分析條件標的[/]")
             return
 
-        sort_names = {"1": "距潛力估值由大到小", "2": "成交金額由大到小"}  # [AI MOD]
+        sort_names = {"1": "距潛力估值由大到小", "2": "成交量(%)由大到小"}  # [AI MOD]
         sort_name = sort_names.get(sort_choice, "距潛力估值由大到小")
 
         engine_label = "Kronos" if self.uses_kronos else "MonteCarlo"

@@ -694,7 +694,7 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
         console.print("  [3] 長期支撐上10%")
         console.print("  [4] 短期支撐上10%")
         console.print("  [5] 前低支撐上10%")
-        console.print("  [Enter] 結束篩選")
+        console.print("  [Enter] 結束篩選回到上一頁")
         console.print("👉 ", end="")
 
         ch = get_blocking_key()
@@ -849,7 +849,7 @@ def _display_results(
     if not results:
         console.print("[yellow]📭 未發現符合條件的標的[/yellow]")
         return
-    sort_names = {"1": "距支撐由近到遠", "2": "成交金額由大到小"}
+    sort_names = {"1": "距支撐由近到遠", "2": "成交量(%)由大到小"}
     ds = str(latest_date)
     if len(ds) == 8:
         ds = f"{ds[:4]}-{ds[4:6]}-{ds[6:]}"

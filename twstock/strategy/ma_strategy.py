@@ -518,7 +518,7 @@ def scan_market_stocks(
         "2": "收盤突破 MA60，今日量 > 昨日量",
         "3": "股價突破 MA25 後回落 MA25 上 10% 內，VolMA5 上穿 VolMA60",
     }
-    sort_names = {"1": "距目標均線由近到遠", "2": "成交金額由大到小"}
+    sort_names = {"1": "距目標均線由近到遠", "2": "成交量(%)由大到小"}
     if cache_hit:
         console.print(f"👉 已載入戰法：[cyan]{strat_names[strat_choice]}[/cyan]")
     else:
@@ -537,7 +537,7 @@ def scan_market_stocks(
     if sort_choice == "1":
         results.sort(key=lambda x: abs(x["bias"]))
     elif sort_choice == "2":
-        results.sort(key=lambda x: x["amount"], reverse=True)
+        results.sort(key=lambda x: x.get("vol_ratio", 0.0), reverse=True)
 
     _display_scan_results(results, latest_date, sort_choice, strat_choice)
 
@@ -752,7 +752,7 @@ def _display_scan_results(
     strat_names = {"1": "突破年線戰法", "2": "突破季線戰法", "3": "2560戰法"}
     strat_name = strat_names.get(strat_choice, "均線戰法")
 
-    sort_names = {"1": "距目標均線由近到遠", "2": "成交金額由大到小"}
+    sort_names = {"1": "距目標均線由近到遠", "2": "成交量(%)由大到小"}
     sort_name = sort_names.get(sort_choice, "距目標均線由近到遠")
 
     ds = str(latest_date)
