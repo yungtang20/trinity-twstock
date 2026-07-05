@@ -1624,7 +1624,7 @@ class PredictionAnalysisApp:
                     prompt_str = "\n  🔍 輸入股號或按 Enter 回到上一頁: "
                     ans = _get_single_key_input(prompt_str, "1234", default="", auto_four=True)
                     if not ans:
-                        break  # back to volume prompt
+                        return
 
                     if ans in ("1", "2", "3", "4"):
                         direction_filter = filter_map.get(ans)
