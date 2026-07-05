@@ -73,11 +73,11 @@ ATR14_NONE_DATE = "2024-01-14"  # index 12（第 13 天，不足 14 個 TR）
 
 
 def insert_history(db, stock_id, dates, closes, highs, lows):
-    for d, c, h, l in zip(dates, closes, highs, lows, strict=True):
+    for d, c, h, low_val in zip(dates, closes, highs, lows, strict=True):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, close, high, low) VALUES (?, ?, ?, ?, ?)",
-            (stock_id, d, float(c), float(h), float(l)),
+            (stock_id, d, float(c), float(h), float(low_val)),
         )
     db.commit()
 

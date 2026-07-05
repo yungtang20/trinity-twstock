@@ -1,8 +1,13 @@
 # TRINITY 台股分析平台
 
-**報告日期**：2026-06-21
+> **⚠️ 2026-07 狀態備註**
+> > 本專案目前開發主力為 **Python Rich CLI / TUI**（位於 `twstock/`）,主軸為**策略掃描(FinMind 即時行情 + 五大策略主力)** 加上 **Kronos 5 日價格預測**。
+> > 下方舊有 `src/` React + Supabase 前端描述**已不再積極維護**（該前端已搬至 `twse-app/` 子資料夾獨立留存）。
+> 若要用現行 CLI 介面,請見 `twstock/tui/app.py` 與 `twstock/main.py`。
+
+**報告日期**：2026-07-05
 **版本**：v2.0
-**狀態**：開發中
+**狀態**：開發中,主軸已遷移至 Python Rich CLI / TUI
 
 ---
 
@@ -306,7 +311,14 @@ TRINITY 台股分析平台是一個全方位的股票分析工具，提供即時
 
 ## 6. 技術棧
 
-### 6.1 前端
+### 6.0 實作主體（持續維護）
+- **語言**：Python 3.10+
+- **UI 框架**：Rich（終端機 UI）+ 自建 TUI（`twstock/tui/app.py`）
+- **資料處理**：pandas / numpy
+- **AI 預測**：torch（選用，跑 Kronos 5 日價格預測才需要）
+- **資料庫**：SQLite（`twstock/taiwan_stock_unified.db`）+ FinMind API
+
+### 6.1 前端（未維護，位於 `twse-app/` 子資料夾）
 - **框架**：React 18 + TypeScript
 - **構建工具**：Vite
 - **樣式**：Tailwind CSS
@@ -314,7 +326,7 @@ TRINITY 台股分析平台是一個全方位的股票分析工具，提供即時
 - **動畫**：Framer Motion
 - **圖標**：Lucide React
 
-### 6.2 後端
+### 6.2 後端（未維護，屬舊 `twse-app/` 架構）
 - **運行時**：Node.js + tsx
 - **框架**：Express
 - **資料庫**：SQLite（better-sqlite3）+ Supabase
@@ -322,37 +334,51 @@ TRINITY 台股分析平台是一個全方位的股票分析工具，提供即時
 ### 6.3 外部 API
 - **FinMind**：台股數據
 - **LongCat**：AI 分析
-- **Supabase**：雲端資料庫
+- **Supabase**：雲端資料庫（未維護段落使用）
 
 ---
 
 ## 7. 檔案結構
 
+> **備註**：
+> - `twse-app/` 為舊 React + Vite 前端子資料夾（未維護），其內容主要對應上方第 6.1 / 6.2 節描述。
+> - `TWSEMCPServer-main/` 為外部第三方 MCP 伺服器存放區，與本專案主要建置無關，不列入主構建範圍。
+> - 目前專案開發主力資料夾為 `twstock/`（Python CLI + TUI + 策略模組），詳細結構請參考 `twstock/README.md` 或 `twstock/ARCHITECTURE.md`。
+
 ```
-D:\twse\twse-app\
-├── src\
-│   ├── components\
-│   │   ├── views\
-│   │   │   ├── DashboardView.tsx    # 儀表板
-│   │   │   ├── MarketsView.tsx      # 市場分析
-│   │   │   ├── StrategiesView.tsx   # 策略模組
-│   │   │   ├── AIAnalysisView.tsx   # AI 分析
-│   │   │   └── SettingsView.tsx     # 設定
-│   │   ├── KlineChart.tsx           # K 線圖組件
-│   │   ├── ChipChart.tsx            # 法人/集保柱狀圖
-│   │   ├── Sidebar.tsx              # 側邊欄
-│   │   ├── Header.tsx               # 標頭
-│   │   └── Layout.tsx               # 佈局
-│   ├── api\
-│   │   └── ai.ts                    # AI API 點
-│   ├── lib\
-│   │   ├── api.ts                   # API 函數
-│   │   ├── indicators.ts            # 技術指標計算
-│   │   └── utils.ts                 # 工具函數
-│   ├── App.tsx                      # 主應用程式
-│   └── main.tsx                     # 入口點
-├── server.ts                        # 後端伺服器
-└── .env                             # 環境變數
+D:\twse\
+├── twstock/                          # Python CLI / TUI / 策略（活躍開發中）
+│   ├── main.py                       # CLI 入口
+│   ├── tui/app.py                    # Rich TUI 入口
+│   ├── strategy/                     # 五大策略 + Kronos 預測
+│   ├── tests/                        # pytest 測試
+│   └── ...
+├── twse-app/                         # React + Vite 前端（未維護，留存存參考）
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── views/
+│   │   │   │   ├── DashboardView.tsx    # 儀表板
+│   │   │   │   ├── MarketsView.tsx      # 市場分析
+│   │   │   │   ├── StrategiesView.tsx   # 策略模組
+│   │   │   │   ├── AIAnalysisView.tsx   # AI 分析
+│   │   │   │   └── SettingsView.tsx     # 設定
+│   │   │   ├── KlineChart.tsx           # K 線圖組件
+│   │   │   ├── ChipChart.tsx            # 法人/集保柱狀圖
+│   │   │   ├── Sidebar.tsx              # 側邊欄
+│   │   │   ├── Header.tsx               # 標頭
+│   │   │   └── Layout.tsx               # 佈局
+│   │   ├── api/
+│   │   │   └── ai.ts                    # AI API 點
+│   │   ├── lib/
+│   │   │   ├── api.ts                   # API 函數
+│   │   │   ├── indicators.ts            # 技術指標計算
+│   │   │   └── utils.ts                 # 工具函數
+│   │   ├── App.tsx                      # 主應用程式
+│   │   └── main.tsx                     # 入口點
+│   ├── server.ts                        # 後端伺服器
+│   └── .env                             # 環境變數
+├── TWSEMCPServer-main/               # 外部第三方 MCP 伺服器（非主構建）
+└── ...其餘根目錄腳本與文檔
 ```
 
 ---

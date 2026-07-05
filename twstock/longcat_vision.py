@@ -42,11 +42,11 @@ def _build_kline_summary(df: pd.DataFrame, stock_id: str, stock_name: str) -> st
         date_str = str(row.date)[:10]
         o = row.open
         h = row.high
-        l = row.low
+        low_price = row.low
         c = row.close
         v = row.volume
         sheets = int(v) // 1000
-        lines.append(f"{date_str}  {o:.2f}  {h:.2f}  {l:.2f}  {c:.2f}  {sheets}張")
+        lines.append(f"{date_str}  {o:.2f}  {h:.2f}  {low_price:.2f}  {c:.2f}  {sheets}張")
 
     # 簡易統計
     closes = work["close"].dropna().values

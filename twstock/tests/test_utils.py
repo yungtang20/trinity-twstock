@@ -244,7 +244,7 @@ class TestGetHttpSessionWithRequests:
 
 class TestSafeHttpGet:
     def test_returns_none_when_no_session(self):
-        result = safe_http_get("http://example.com", session=None)
+        safe_http_get("http://example.com", session=None)
         # Could be None or a real response depending on env
         # Just verify it doesn't raise
 

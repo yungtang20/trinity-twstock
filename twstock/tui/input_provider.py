@@ -57,25 +57,35 @@ class _WindowsInputProvider:
 
 
 class _UnixInputProvider:
-    """Unix/Linux/Termux 實作（使用 termios + tty）。"""
+    """Unix/Linux/Termux 實作（使用 termios + tty）。
+
+    Windows 上建構子不會被 `create_default_provider()` 回傳，但其他 path
+    （手動建構 / 第三方套件 import）仍有可能在 Win 上被建出來。
+    我們讓 Win 上的方法退化成安全 no-op，**不改動例外合約**。
+    """
 
     def get_key(self, prompt: str = "") -> str:
         if prompt:
             sys.stdout.write(prompt)
             sys.stdout.flush()
+        if sys.platform == "win32":
+            # Win + 非預期使用此 provider：模擬 EOF（與 MockInputProvider 一致）
+            return ""
         fd = sys.stdin.fileno()
         try:
-            import termios
+            import termios  # Unix-only POSIX module — guarded
             import tty
 
             old = termios.tcgetattr(fd)
             tty.setraw(fd)
             ch = sys.stdin.read(1)
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)  # type: ignore[attr-defined]
         return ch
 
     def kbhit(self) -> bool:
+        if sys.platform == "win32":
+            return False
         if not sys.stdin.isatty():
             return False
         import select
@@ -84,11 +94,13 @@ class _UnixInputProvider:
         return bool(r)
 
     def flush(self) -> None:
+        if sys.platform == "win32":
+            return
         if sys.stdin.isatty():
             try:
-                import termios
+                import termios  # type: ignore[import-untyped,unused-ignore]
 
-                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)  # type: ignore[attr-defined]
             except Exception:
                 pass
 

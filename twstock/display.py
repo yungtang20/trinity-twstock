@@ -222,7 +222,7 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
         for i in range(len(df)):
             o = float(df["open"].iloc[i])
             h = float(df["high"].iloc[i])
-            l = float(df["low"].iloc[i])
+            low_price = float(df["low"].iloc[i])
             c = float(df["close"].iloc[i])
             is_up = c >= o
             body_top = max(o, c)
@@ -232,7 +232,7 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
                 return int((price_high - p) / price_range * (chart_height - 1))
 
             r_h = price_to_row(h)
-            r_l = price_to_row(l)
+            r_l = price_to_row(low_price)
             r_body_top = price_to_row(body_top)
             r_body_bot = price_to_row(body_bot)
             if r_h <= row <= r_l:

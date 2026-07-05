@@ -250,7 +250,7 @@ def update_official_daily(
 
                 cur.execute(
                     """
-                    SELECT 
+                    SELECT
                         SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
                         SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
                     FROM stock_history h

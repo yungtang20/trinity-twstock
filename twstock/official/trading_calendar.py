@@ -161,7 +161,7 @@ def date_exists_in_history(date_int: int) -> bool:
     # 精確計算兩市場的數量，避免單一市場歷史資料過多造成總數誤判。
     cur.execute(
         """
-        SELECT 
+        SELECT
             SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
             SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
         FROM stock_history h

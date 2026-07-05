@@ -80,11 +80,9 @@ try:
         load_kronos,
     )
 except ImportError:
-    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = (
-        PlotBar
-    ) = PredictionChartRenderer = PredictionEngine = PredictionResult = StockPrediction = (
-        calculate_price_change
-    ) = None
+    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = PlotBar = (
+        PredictionChartRenderer
+    ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None
     load_kronos = None
 
 # [FIX] 移除循環依賴：patterns_strategy 自帶 MarketScanner (L822)，不需要從 prediction_strategy 匯入
@@ -227,15 +225,15 @@ class PivotBasedScanner:
     @staticmethod
     def find_pivots(df: _BarView, window: int = PIVOT_WINDOW) -> List[Dict]:
         h = df["high"].values
-        l = df["low"].values
+        lows = df["low"].values
         dates = df.index
         n = len(df)
         pivots = []
         for i in range(window, n - window):
             if h[i] == max(h[i - window : i + window + 1]):
                 pivots.append({"idx": i, "date": dates[i], "price": float(h[i]), "type": "H"})
-            if l[i] == min(l[i - window : i + window + 1]):
-                pivots.append({"idx": i, "date": dates[i], "price": float(l[i]), "type": "L"})
+            if lows[i] == min(lows[i - window : i + window + 1]):
+                pivots.append({"idx": i, "date": dates[i], "price": float(lows[i]), "type": "L"})
         return pivots
 
     def find_patterns(self, df: pd.DataFrame) -> List[PatternInfo]:
@@ -342,7 +340,7 @@ class PivotBasedScanner:
                 p1, p2 = hi_pivots[i], hi_pivots[j]
                 if p2["idx"] - p1["idx"] < 10:
                     continue
-                mid_lows = [l for l in lo_pivots if p1["idx"] < l["idx"] < p2["idx"]]
+                mid_lows = [pivot for pivot in lo_pivots if p1["idx"] < pivot["idx"] < p2["idx"]]
                 if not mid_lows:
                     continue
                 neckline_pivot = min(mid_lows, key=lambda x: x["price"])
@@ -383,11 +381,11 @@ class PivotBasedScanner:
                 if peak["idx"] <= foot1["idx"] or peak["idx"] - foot1["idx"] < 5:
                     continue
                 foot2s = [
-                    l
-                    for l in lo_pivots
-                    if l["idx"] > peak["idx"]
-                    and l["price"] > foot1["price"]
-                    and l["idx"] - peak["idx"] >= 5
+                    pivot
+                    for pivot in lo_pivots
+                    if pivot["idx"] > peak["idx"]
+                    and pivot["price"] > foot1["price"]
+                    and pivot["idx"] - peak["idx"] >= 5
                 ]
                 for foot2 in foot2s:
                     rebound = peak["price"] - foot1["price"]
@@ -461,10 +459,10 @@ class PivotBasedScanner:
                 continue
             if abs(ls["price"] - rs["price"]) / max(ls["price"], rs["price"]) > 0.10:
                 continue
-            neck_lows = [l for l in lo_pivots if ls["idx"] < l["idx"] < rs["idx"]]
+            neck_lows = [pivot for pivot in lo_pivots if ls["idx"] < pivot["idx"] < rs["idx"]]
             if len(neck_lows) < 1:
                 continue
-            neckline = max(l["price"] for l in neck_lows)
+            neckline = max(pivot["price"] for pivot in neck_lows)
             dist = abs(current - neckline) / neckline
             if dist > NECKLINE_TOL:
                 continue
@@ -531,10 +529,12 @@ class PivotBasedScanner:
                 continue
             if pts[-1]["idx"] - pts[0]["idx"] < 15:
                 continue
-            neck_lows = [l for l in lo_pivots if pts[0]["idx"] < l["idx"] < pts[-1]["idx"]]
+            neck_lows = [
+                pivot for pivot in lo_pivots if pts[0]["idx"] < pivot["idx"] < pts[-1]["idx"]
+            ]
             if not neck_lows:
                 continue
-            neckline = min(l["price"] for l in neck_lows)
+            neckline = min(pivot["price"] for pivot in neck_lows)
             highest = max(prices)
             if neckline >= highest:
                 continue
@@ -1299,7 +1299,9 @@ class PatternBreakoutScanner:
                 cands.sort(key=lambda c: abs(c.distance_pct))
             elif sort_choice == "2":
                 cands.sort(
-                    key=lambda c: (c.volume - c.prev_volume) / c.prev_volume if c.prev_volume > 0 else 0.0,
+                    key=lambda c: (
+                        (c.volume - c.prev_volume) / c.prev_volume if c.prev_volume > 0 else 0.0
+                    ),
                     reverse=True,
                 )
 

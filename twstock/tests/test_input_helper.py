@@ -217,7 +217,7 @@ class TestGetInteractiveInputWindows:
             patch("time.sleep"),
             patch("twstock.input_helper._flush_input_buffer"),
         ):
-            result = _get_interactive_input_windows("prompt:", "01234", True, 0.4)
+            _get_interactive_input_windows("prompt:", "01234", True, 0.4)
 
     def test_backspace_truncates(self):
         fake = _make_smart_msvcrt(["2", "3", "\x08", "\r"])

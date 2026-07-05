@@ -2,6 +2,16 @@
 target-version = "py310"
 line-length = 100
 
+# 第三方／外部關聯專案（保留但不掃描）：twse-app 前端、TWSEMCPServer-main MCP Server、
+# vibecoding-linear-framework-main、superpowers_*。這些皆非 twstock 本體，也不污染 ruff/pyright/pytest。
+extend-exclude = [
+    "TWSEMCPServer-main",
+    "twse-app",
+    "vibecoding-linear-framework-main",
+    "superpowers_zh",
+    "superpowers_repo",
+]
+
 [tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors

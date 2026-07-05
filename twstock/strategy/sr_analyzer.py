@@ -303,7 +303,7 @@ class SupportResistanceEngine:
         }
 
     def _merge_levels(self, levels, atr_ref):
-        valid = sorted(l for l in levels if l is not None and not np.isnan(l))
+        valid = sorted(lv for lv in levels if lv is not None and not np.isnan(lv))
         if not valid:
             return []
         tick = StrategyConfig.get_tick_size(self.last_close)
@@ -474,13 +474,13 @@ class SupportResistanceEngine:
             if valid:
                 return max(valid)
             all_lows = []
-            l = self.df["low"].to_numpy()
+            lows = self.df["low"].to_numpy()
             left, right = StrategyConfig.SWING_LEFT, StrategyConfig.SWING_RIGHT
-            if len(l) >= left + right + 1:
-                for i in range(left, len(l) - right):
-                    win = l[i - left : i + right + 1]
-                    if len(win) > 0 and l[i] == np.min(win):
-                        all_lows.append(float(l[i]))
+            if len(lows) >= left + right + 1:
+                for i in range(left, len(lows) - right):
+                    win = lows[i - left : i + right + 1]
+                    if len(win) > 0 and lows[i] == np.min(win):
+                        all_lows.append(float(lows[i]))
             valid_lows = [lv for lv in all_lows if lv < self.last_close * (1 - margin)]
             if valid_lows:
                 return max(valid_lows)
@@ -579,8 +579,8 @@ def _show_indicators(data):
         x["level"]
         for x in data.get("merged_resistance_levels", []) + data.get("merged_support_levels", [])
     ]
-    res_lvls = sorted([l for l in all_levels if l > lc])
-    sup_lvls = sorted([l for l in all_levels if l < lc])
+    res_lvls = sorted([level for level in all_levels if level > lc])
+    sup_lvls = sorted([level for level in all_levels if level < lc])
     nr_val, short_res_val, long_res_val = _calc_levels(res_lvls, True, lc)
     ns_val, short_sup_val, long_sup_val = _calc_levels(sup_lvls, False, lc)
     console.print("\n[bold]📊 綜合撐壓標[/bold]")

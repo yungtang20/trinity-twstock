@@ -16,7 +16,7 @@ def test_no_undefined_elapsed1():
         lines = f.readlines()
     for i, line in enumerate(lines):
         if "total_elapsed" in line and "elapsed1" in line:
-            defined = any("elapsed1 =" in l for l in lines[:i])
+            defined = any("elapsed1 =" in src_line for src_line in lines[:i])
             assert defined, f"第 {i+1} 行使用 elapsed1 但未定義"
 
 

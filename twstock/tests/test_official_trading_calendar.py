@@ -148,7 +148,7 @@ class TestGetLastTradingDay:
 
         mock_is_open.return_value = True
 
-        result = trading_calendar.get_last_trading_day()
+        trading_calendar.get_last_trading_day()
         mock_init.assert_called_once()
 
     @patch("twstock.official.trading_calendar.is_trading_day")

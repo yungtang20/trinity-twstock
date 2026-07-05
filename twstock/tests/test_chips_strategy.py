@@ -60,7 +60,7 @@ def test_chips_strategy_runs_without_sql_errors(db_conn, patch_db_path):
     from twstock.strategy.chips_strategy import StockAnalyzer
 
     with StockAnalyzer(db_conn) as analyzer:
-        result = analyzer.display_single_stock("2330")
+        analyzer.display_single_stock("2330")
 
     # display_single_stock 是 void，但這裡驗證沒爆炸就過
     assert True  # 能跑到這裡表示 SQL 沒炸

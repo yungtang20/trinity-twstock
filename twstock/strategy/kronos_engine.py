@@ -7,6 +7,7 @@ kronos_engine.py - Kronos 預測引擎
 
 import contextlib
 import io
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # 單例快取：避免重複載入 390MB 模型
 _kronos_engine_singleton: Optional["KronosRealEngine"] = None
@@ -172,12 +175,27 @@ class KronosRealEngine:
             with contextlib.redirect_stdout(io.StringIO()):
                 _, _, self._predictor = load_kronos(self.model_path, self.tokenizer_path)
             _kronos_engine_singleton = self
+            logger.info(
+                "KronosRealEngine loaded: model=%s tokenizer=%s",
+                self.model_path,
+                self.tokenizer_path,
+            )
         except Exception as e:
             self._load_error = e
+            logger.warning(
+                "KronosRealEngine failed to load: %s: %s",
+                type(e).__name__,
+                e,
+            )
 
     @property
     def ready(self) -> bool:
         self._ensure_loaded()
+        if self._predictor is None:
+            logger.info(
+                "KronosRealEngine not ready (will fallback to MonteCarlo): %s",
+                self._load_error,
+            )
         return self._predictor is not None
 
     def predict(self, df: pd.DataFrame, config: dict) -> PredictionResult:
@@ -218,7 +236,7 @@ class KronosRealEngine:
 
         # 產生未來 pred_days 個預測日（用日曆日）
         last_ts = work.index[-1]
-        if hasattr(last_ts, "freq") or isinstance(last_ts, pd.Timestamp):
+        if isinstance(last_ts, pd.Timestamp) or hasattr(last_ts, "freq"):
             future_index = pd.date_range(
                 start=pd.Timestamp(last_ts) + pd.Timedelta(days=1),
                 periods=pred_days,
@@ -227,6 +245,11 @@ class KronosRealEngine:
         else:
             future_index = pd.RangeIndex(len(work), len(work) + pred_days)
         y_timestamp = pd.Series(future_index, name="timestamps")
+
+        if self._predictor is None:
+            raise RuntimeError(
+                f"Kronos model unexpectedly None after ready=True: {self._load_error}"
+            )
 
         pred = self._predictor.predict(
             df=x_df,
@@ -293,11 +316,12 @@ class MonteCarloEngine:
         # Monte Carlo 模擬
         simulations = np.zeros((n_sim, n_days))
         for i in range(n_sim):
-            prices = [current_price]
-            for _ in range(n_days):
-                r = np.random.normal(mu, sigma)
-                prices.append(prices[-1] * (1 + r))
-            simulations[i] = prices[1:]
+            # prices 用 explicit Python list comprehension 產生，不要用 .append() 避免 pyright 推成 NDArray
+            r_seq = np.random.normal(mu, sigma, size=n_days)
+            sim_prices = [current_price]
+            for r in r_seq:
+                sim_prices.append(sim_prices[-1] * (1 + float(r)))
+            simulations[i] = sim_prices[1:]  # type: ignore[assignment]
 
         # 預測基準 = 模擬最終價格的中位數
         final_prices = simulations[:, -1]
@@ -321,29 +345,53 @@ class MonteCarloEngine:
 class PredictionEngine:
     """預測引擎 wrapper：優先 Kronos，fallback Monte Carlo"""
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self.config = DEFAULT_CONFIG.copy()
         if config:
             self.config.update(config)
         self.mc_engine = MonteCarloEngine()
         self.kronos_engine = None
         try:
-            self.kronos_engine = KronosRealEngine(
-                model_path=self.config.get("kronos_model_path", "models/kronos-base"),
-                tokenizer_path=self.config.get(
-                    "kronos_tokenizer_path", "models/kronos-tokenizer-base"
-                ),
+            model_path_raw = self.config.get("kronos_model_path") or "models/kronos-base"
+            tokenizer_path_raw = (
+                self.config.get("kronos_tokenizer_path") or "models/kronos-tokenizer-base"
             )
-        except Exception:
-            pass
+            # `DEFAULT_CONFIG` is typed dict[str, object]; coerce to str with an explicit
+            # check so callers passing non-str (e.g. via CLI) fail with a clear error
+            # instead of silently corrupting the HF from_pretrained path.
+            if not isinstance(model_path_raw, str):
+                raise TypeError(
+                    f"kronos_model_path must be str, got {type(model_path_raw).__name__}"
+                )
+            if not isinstance(tokenizer_path_raw, str):
+                raise TypeError(
+                    f"kronos_tokenizer_path must be str, got {type(tokenizer_path_raw).__name__}"
+                )
+            self.kronos_engine = KronosRealEngine(
+                model_path=model_path_raw,
+                tokenizer_path=tokenizer_path_raw,
+            )
+        except Exception as e:
+            logger.warning(
+                "PredictionEngine: KronosRealEngine init failed: %s: %s", type(e).__name__, e
+            )
 
-    def predict(self, df, config: dict = None) -> PredictionResult:
+    def predict(self, df, config: Optional[dict] = None) -> PredictionResult:
         cfg = config or self.config
         if self.kronos_engine and self.kronos_engine.ready:
             try:
                 return self.kronos_engine.predict(df, cfg)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "PredictionEngine: KronosRealEngine predict failed, fallback MonteCarlo: %s: %s",
+                    type(e).__name__,
+                    e,
+                )
+        elif self.kronos_engine is not None and not self.kronos_engine.ready:
+            logger.info(
+                "PredictionEngine: KronosRealEngine not ready (load_error=%s), using MonteCarlo",
+                self.kronos_engine._load_error,
+            )
         return self.mc_engine.predict(df, cfg)
 
 

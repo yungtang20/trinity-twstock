@@ -164,7 +164,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM stock_history WHERE stock_id = ? AND date >= ?
                 ) WHERE rn <= 512
             """
@@ -172,7 +172,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM stock_history WHERE date >= ?
                 ) WHERE rn <= 512
             """
@@ -181,7 +181,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM stock_history WHERE stock_id = ?
                 ) WHERE rn <= 512
             """
@@ -189,7 +189,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM stock_history
                 ) WHERE rn <= 512
             """
@@ -277,7 +277,7 @@ def sync_institutional(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM institutional_data WHERE stock_id = ? AND date >= ?
                 ) WHERE rn <= 512
             """
@@ -285,7 +285,7 @@ def sync_institutional(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM institutional_data WHERE date >= ?
                 ) WHERE rn <= 512
             """
@@ -294,7 +294,7 @@ def sync_institutional(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM institutional_data WHERE stock_id = ?
                 ) WHERE rn <= 512
             """
@@ -302,7 +302,7 @@ def sync_institutional(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM institutional_data
                 ) WHERE rn <= 512
             """
@@ -398,7 +398,7 @@ def sync_tdcc(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM tdcc_shareholding WHERE stock_id = ? AND date >= ?
                 ) WHERE rn <= 512
             """
@@ -406,7 +406,7 @@ def sync_tdcc(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM tdcc_shareholding WHERE date >= ?
                 ) WHERE rn <= 512
             """
@@ -415,7 +415,7 @@ def sync_tdcc(stock_id: str = None, days: int = None):
         if stock_id:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM tdcc_shareholding WHERE stock_id = ?
                 ) WHERE rn <= 512
             """
@@ -423,7 +423,7 @@ def sync_tdcc(stock_id: str = None, days: int = None):
         else:
             query = """
                 SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn 
+                    SELECT *, ROW_NUMBER() OVER(PARTITION BY stock_id ORDER BY date DESC) as rn
                     FROM tdcc_shareholding
                 ) WHERE rn <= 512
             """

@@ -8,6 +8,7 @@ when a new write doesn't provide them (prevents NULL/empty overwrite bugs).
 
 import logging
 import sqlite3
+from typing import Optional
 
 import pandas as pd
 
@@ -50,7 +51,7 @@ class DataProcessor:
         return count
 
     # ================== Public Upsert Methods ==================
-    def upsert_history(self, df: pd.DataFrame) -> int:
+    def upsert_history(self, df: Optional[pd.DataFrame]) -> int:
         """Upserts daily K-line prices into stock_history."""
         if df is None or df.empty:
             return 0
@@ -107,7 +108,7 @@ class DataProcessor:
         finally:
             conn.close()
 
-    def upsert_institutional(self, df: pd.DataFrame) -> int:
+    def upsert_institutional(self, df: Optional[pd.DataFrame]) -> int:
         """Upserts institutional flow data into institutional_data."""
         if df is None or df.empty:
             return 0
