@@ -208,7 +208,6 @@ def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -
 
     # K 線主體
     for row in range(chart_height):
-        price_at_row = price_high - (row / (chart_height - 1)) * price_range
         if row == 0:
             label = f"{price_high:>8.2f} "
         elif row == chart_height - 1:

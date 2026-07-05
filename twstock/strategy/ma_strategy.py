@@ -833,7 +833,6 @@ def run_strategy(params: dict):
     strat_choice = params.get("strat_choice")
     sort_choice = params.get("sort_choice")
     vol = params.get("vol", 500)
-    compact = params.get("compact", False)
     mobile = params.get("mobile", False)
 
     conn = get_connection(readonly=True)
@@ -891,10 +890,8 @@ def run_strategy(params: dict):
     curr_price = c[-1]
     prev_price = c[-2] if len(c) >= 2 else curr_price
 
-    m25_curr = ma25_data["ma"]  # [AI MOD]
     m60_curr = ma60_data["ma"]
     m200_curr = ma200_data["ma"]
-    m25_prev = sum(c[-26:-1]) / 25 if len(c) >= 26 else 0  # [AI MOD]
     m60_prev = sum(c[-61:-1]) / 60 if len(c) >= 61 else 0
     m200_prev = sum(c[-201:-1]) / 200 if len(c) >= 201 else 0
 

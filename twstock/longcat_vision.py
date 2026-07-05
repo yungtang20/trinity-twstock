@@ -38,13 +38,13 @@ def _build_kline_summary(df: pd.DataFrame, stock_id: str, stock_name: str) -> st
     title = f"{stock_id} {stock_name}".strip() if stock_id or stock_name else "股票"
     lines.append(f"[{title}] 近日 K 線（日期 開 高 低 收 成交量）：")
 
-    for _, row in work.iterrows():
-        date_str = str(row.get("date", ""))[:10]
-        o = row.get("open", 0)
-        h = row.get("high", 0)
-        l = row.get("low", 0)
-        c = row.get("close", 0)
-        v = row.get("volume", 0)
+    for row in work.itertuples(index=False):
+        date_str = str(row.date)[:10]
+        o = row.open
+        h = row.high
+        l = row.low
+        c = row.close
+        v = row.volume
         sheets = int(v) // 1000
         lines.append(f"{date_str}  {o:.2f}  {h:.2f}  {l:.2f}  {c:.2f}  {sheets}張")
 

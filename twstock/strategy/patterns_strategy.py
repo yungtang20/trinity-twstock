@@ -67,12 +67,12 @@ from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, 
 try:
     from twstock.strategy.kronos_engine import (
         DEFAULT_CONFIG,
-        DriftMonitor,  # [AI MOD]
+        DriftMonitor,
         DriftStatus,
-        KronosRealEngine,  # [AI MOD]
+        KronosRealEngine,
         MonteCarloEngine,  # [AI MOD]
-        PlotBar,  # [AI MOD]
-        PredictionChartRenderer,  # [AI MOD]
+        PlotBar,
+        PredictionChartRenderer,
         PredictionEngine,  # [AI MOD]
         PredictionResult,
         StockPrediction,
@@ -80,6 +80,11 @@ try:
         load_kronos,
     )
 except ImportError:
+    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = (
+        PlotBar
+    ) = PredictionChartRenderer = PredictionEngine = PredictionResult = StockPrediction = (
+        calculate_price_change
+    ) = None
     load_kronos = None
 
 # [FIX] 移除循環依賴：patterns_strategy 自帶 MarketScanner (L822)，不需要從 prediction_strategy 匯入
@@ -155,6 +160,19 @@ class BreakoutCandidate:
     target: float = 0.0
     stop_loss: float = 0.0
     confidence: float = 0.0
+    symbol: str = ""
+    neckline: float = 0.0
+    extreme: float = 0.0
+    quality: float = 0.0
+    current_price: float = 0.0
+    distance_pct: float = 0.0
+    predicted_break_day: int = 0
+    predicted_break_price: float = 0.0
+    predicted_peak: float = 0.0
+    points: list = field(default_factory=list)
+    prev_close: float = 0.0
+    prev_volume: int = 0
+    amount: float = 0.0
 
 
 # ══════════════════════════════════════════════════════════
@@ -1013,6 +1031,8 @@ class PivotBasedScanner:
 
 class StockPredictionAnalyzer:
     def __init__(self, config=None):
+        if DEFAULT_CONFIG is None:
+            raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.config = DEFAULT_CONFIG.copy()
         if config:
             self.config.update(config)
@@ -1078,6 +1098,8 @@ class StockPredictionAnalyzer:
 
 class MarketScanner:
     def __init__(self, conn, config=None):
+        if DEFAULT_CONFIG is None or MonteCarloEngine is None:
+            raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.conn = conn
         self.config = DEFAULT_CONFIG.copy()
         if config:
@@ -1206,14 +1228,12 @@ class PatternBreakoutScanner:
                 return []
 
             # Check session cache
-            cache_hit = False
             if (
                 _PATTERN_CACHE["date"] == ld
                 and _PATTERN_CACHE["min_volume"] == min_volume
                 and _PATTERN_CACHE["results"] is not None
                 and _time_mod.time() - _PATTERN_CACHE.get("ts", 0) < _CACHE_TTL
             ):
-                cache_hit = True
                 cands_with_data = _PATTERN_CACHE["results"]
                 rconsole.print(
                     f"\n[green]⚡ 已載入今日幾何型態掃描快取數據 (基準日: {ld}) [0.00s][/green]"
@@ -1423,6 +1443,8 @@ class PatternBreakoutScanner:
 
 class PredictionAnalysisApp:
     def __init__(self):
+        if DEFAULT_CONFIG is None:
+            raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.config = DEFAULT_CONFIG.copy()
         self.analyzer = None
         self.market_scanner = None

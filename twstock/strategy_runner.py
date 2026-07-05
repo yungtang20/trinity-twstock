@@ -13,6 +13,7 @@ r"""
 
 import os
 import sys
+from typing import Optional
 
 from twstock.output_writer import ConsoleWriter, JsonWriter
 
@@ -157,7 +158,7 @@ def run_pattern_analysis(stock_id: str) -> dict:
     return PatternStrategy().analyze(stock_id)
 
 
-def run_prediction_analysis(stock_id: str, ma: dict = None) -> dict:
+def run_prediction_analysis(stock_id: str, ma: Optional[dict] = None) -> dict:
     """執行預測分析 - dispatch 到內部適配器"""
     return _PredictionAdapter().analyze(stock_id, ma=ma)
 

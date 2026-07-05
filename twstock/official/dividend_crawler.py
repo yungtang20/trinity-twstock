@@ -128,7 +128,6 @@ def fetch_twse_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         if not event_date:
             continue
         stock_id = str(row[1]).strip()
-        stock_name = row[2]
         before_price = _convert_percent(row[3])
         after_price = _convert_percent(row[4])
         reference_price = after_price
@@ -206,7 +205,6 @@ def fetch_tpex_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         if not event_date:
             continue
         stock_id = str(row[1]).strip()
-        stock_name = row[2]
         before_price = safe_float(row[3])
         after_price = safe_float(row[4])
         reference_price = after_price
@@ -248,8 +246,8 @@ def fetch_dividend_events(
             if not stock_list.empty:
                 all_dividends = []
                 # Fallback sequentially per stock (useful for missing individual tickers)
-                for _, stock in stock_list.iterrows():
-                    stock_id = stock["stock_id"]
+                for stock in stock_list.itertuples(index=False):
+                    stock_id = stock.stock_id
                     df = fetcher.fetch_dividend_events(stock_id, start_date, end_date)
                     if not df.empty:
                         all_dividends.append(df)

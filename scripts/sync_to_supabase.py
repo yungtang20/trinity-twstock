@@ -140,7 +140,7 @@ def sync_stock_meta(stock_id: str = None):
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         try:
-            result = supabase.table("stock_meta").upsert(batch).execute()
+            supabase.table("stock_meta").upsert(batch).execute()
             total += len(batch)
             print(f"   ✅ 已寫入 {total}/{len(records)}")
         except Exception as e:
@@ -241,7 +241,6 @@ def sync_stock_history(stock_id: str = None, days: int = None):
                 "amount": _safe_float(row_dict.get("amount")),
                 "trade_count": _safe_int(row_dict.get("trade_count")),
                 "spread": _safe_float(row_dict.get("spread")),
-                "adj_factor": _safe_float(row_dict.get("adj_factor")),
                 "source": row_dict.get("source"),
                 "updated_at": row_dict.get("updated_at"),
             }
@@ -254,7 +253,7 @@ def sync_stock_history(stock_id: str = None, days: int = None):
         batch = records[i : i + batch_size]
         try:
             # 使用 upsert 避免重複 (unique constraint: stock_id + date)
-            result = supabase.table("stock_price").upsert(batch).execute()
+            supabase.table("stock_price").upsert(batch).execute()
             total += len(batch)
             print(f"   ✅ 已寫入 {total}/{len(records)}")
         except Exception as e:
@@ -375,7 +374,7 @@ def sync_institutional(stock_id: str = None, days: int = None):
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         try:
-            result = supabase.table("stock_institutional").upsert(batch).execute()
+            supabase.table("stock_institutional").upsert(batch).execute()
             total += len(batch)
             print(f"   ✅ 已寫入 {total}/{len(records)}")
         except Exception as e:
@@ -475,7 +474,7 @@ def sync_tdcc(stock_id: str = None, days: int = None):
     for i in range(0, len(records), batch_size):
         batch = records[i : i + batch_size]
         try:
-            result = supabase.table("stock_features").upsert(batch).execute()
+            supabase.table("stock_features").upsert(batch).execute()
             total += len(batch)
             print(f"   ✅ 已寫入 {total}/{len(records)}")
         except Exception as e:

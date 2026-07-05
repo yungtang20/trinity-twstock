@@ -260,19 +260,21 @@ class TestGetInput:
         assert result == "1"
 
     @patch("twstock.tui.app.HAS_MSVCRT", True)
+    @patch("twstock.tui.app.render_dashboard")
     @patch("twstock.tui.app.msvcrt")
     @patch("twstock.tui.app.sys")
-    @patch("twstock.tui.app.MarketCache")
-    def test_get_input_cache_refresh_triggers_rerender(self, mock_cache_cls, mock_sys, mock_msvcrt):
+    def test_get_input_cache_refresh_triggers_rerender(self, mock_sys, mock_msvcrt, _mock_render):
         """Cache refresh (None→value) triggers re-render during input."""
         from twstock.tui.app import TUIApp
 
         mock_msvcrt.kbhit.side_effect = [False, False, True]
         mock_msvcrt.getwch.return_value = "\r"
         mock_sys.stdout = MagicMock()
-        # First cache.get() returns None (no data yet), then "value" (data arrived)
-        mock_cache_cls.return_value.get.side_effect = [None, "value", "value"]
         app = TUIApp()
+        # First cache.get() returns None (no data yet), then "value" (data arrived)
+        mock_cache = MagicMock()
+        mock_cache.get.side_effect = [None, "value", "value"]
+        app._cache = mock_cache
         result = app._get_input()
         assert result == ""
 

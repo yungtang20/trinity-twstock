@@ -29,6 +29,6 @@ def execute(args) -> None:
     console.print(f"\n{stock_id} {stock_name} 最近5日交易資料")
     console.print("日期        股號   股名   股價(收盤)")
     console.print("-" * 50)
-    for _, row in df.iterrows():
-        console.print(f"{row['date']}  {stock_id}  {stock_name}  {row['close']:8.2f}")
+    for row in df.itertuples(index=False):
+        console.print(f"{row.date}  {stock_id}  {stock_name}  {row.close:8.2f}")
     console.print("")

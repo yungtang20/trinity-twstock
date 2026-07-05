@@ -7,7 +7,17 @@ from huggingface_hub import PyTorchModelHubMixin
 from tqdm import trange
 
 sys.path.append("../")
-from model.module import *
+from model.module import (
+    BSQuantizer,
+    DependencyAwareLayer,
+    DualHead,
+    F,
+    HierarchicalEmbedding,
+    RMSNorm,
+    TemporalEmbedding,
+    TransformerBlock,
+    nn,
+)
 
 
 class KronosTokenizer(nn.Module, PyTorchModelHubMixin):

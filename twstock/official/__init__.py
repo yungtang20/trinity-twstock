@@ -13,8 +13,6 @@ if _PARENT not in sys.path:
 # SSL 驗證設定：優先使用 certifi CA bundle
 import urllib3
 
-from twstock.utils import get_ssl_verify  # noqa: E402
-
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from .dividend_crawler import fetch_dividend_events, upsert_dividend_events

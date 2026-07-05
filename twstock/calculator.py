@@ -379,23 +379,24 @@ class MACalculator:
 
         # 寫入指標
         written = 0
-        for _, row in df.iterrows():
-            date_str = str(row["date"])[:10]
-            ma5 = float(row["sma_5"]) if pd.notna(row.get("sma_5")) else None
-            ma20 = float(row["sma_20"]) if pd.notna(row.get("sma_20")) else None
-            ma25 = float(row["sma_25"]) if pd.notna(row.get("sma_25")) else None
-            ma60 = float(row["sma_60"]) if pd.notna(row.get("sma_60")) else None
-            ma200 = float(row["sma_200"]) if pd.notna(row.get("sma_200")) else None
-            vol_ma5 = float(row["volume_sma_5"]) if pd.notna(row.get("volume_sma_5")) else None
-            vol_ma20 = float(row["volume_sma_20"]) if pd.notna(row.get("volume_sma_20")) else None
-            vol_ma60 = float(row["volume_sma_60"]) if pd.notna(row.get("volume_sma_60")) else None
+        for row in df.itertuples(index=False):
+            date_str = str(row.date)[:10]
+            cols = row._asdict()
+            ma5 = float(cols["sma_5"]) if pd.notna(cols.get("sma_5")) else None
+            ma20 = float(cols["sma_20"]) if pd.notna(cols.get("sma_20")) else None
+            ma25 = float(cols["sma_25"]) if pd.notna(cols.get("sma_25")) else None
+            ma60 = float(cols["sma_60"]) if pd.notna(cols.get("sma_60")) else None
+            ma200 = float(cols["sma_200"]) if pd.notna(cols.get("sma_200")) else None
+            vol_ma5 = float(cols["volume_sma_5"]) if pd.notna(cols.get("volume_sma_5")) else None
+            vol_ma20 = float(cols["volume_sma_20"]) if pd.notna(cols.get("volume_sma_20")) else None
+            vol_ma60 = float(cols["volume_sma_60"]) if pd.notna(cols.get("volume_sma_60")) else None
 
             def _bias(c, m):
                 if m is None or m == 0:
                     return None
                 return (c - m) / m * 100
 
-            close_val = float(row["close"]) if pd.notna(row.get("close")) else None
+            close_val = float(cols["close"]) if pd.notna(cols.get("close")) else None
             bias_ma25 = _bias(close_val, ma25)
             bias_ma60 = _bias(close_val, ma60)
             bias_ma200 = _bias(close_val, ma200)

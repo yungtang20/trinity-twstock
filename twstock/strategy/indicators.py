@@ -104,7 +104,7 @@ def ensure_indicators_all(db=None):
     refreshed = 0
     for (stock_id,) in rows:
         try:
-            result = refresh_indicators(stock_id, db)
+            refresh_indicators(stock_id, db)
             refreshed += 1
         except Exception:
             pass

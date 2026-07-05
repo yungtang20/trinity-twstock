@@ -62,11 +62,11 @@ try:
     )
 except ImportError as e:
     # kronos_engine requires torch - not available in test env
-    import warnings
-
     warnings.warn(f"kronos_engine import failed: {e}")
+    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = (
+        PredictionChartRenderer
+    ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None
     load_kronos = None
-    KronosRealEngine = None
 
 warnings.filterwarnings("ignore")
 
@@ -155,6 +155,8 @@ def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine
 class MarketScanner:
 
     def __init__(self, conn: sqlite3.Connection, config: Dict = None):
+        if DEFAULT_CONFIG is None or MonteCarloEngine is None or PredictionEngine is None:
+            raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.conn = conn
         self.config = DEFAULT_CONFIG.copy()
         if config:
@@ -172,14 +174,12 @@ class MarketScanner:
                 return
 
             # Check cache hit
-            cache_hit = False
             if (
                 _PRED_CACHE["date"] == latest_date
                 and _PRED_CACHE["min_volume"] == min_volume
                 and _PRED_CACHE["results"] is not None
                 and time.time() - _PRED_CACHE.get("ts", 0) < _CACHE_TTL
             ):
-                cache_hit = True
                 preds = _PRED_CACHE["results"]
                 rconsole.print(
                     f"\n[green]⚡ 已載入今日AI預測掃描快取數據 (基準日: {latest_date}) [0.00s][/green]"
@@ -359,6 +359,8 @@ class MarketScanner:
 class PredictionAnalysisApp:
 
     def __init__(self):
+        if DEFAULT_CONFIG is None:
+            raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.config = DEFAULT_CONFIG.copy()
 
     def run(self) -> None:
@@ -369,6 +371,8 @@ class PredictionAnalysisApp:
             rconsole.print(f"[red]❌ 資料庫連線失敗: {e}[/]")
             return
 
+        if StockPredictionAnalyzer is None:
+            raise RuntimeError("patterns_strategy 匯入失敗，無法執行預測分析")
         analyzer = StockPredictionAnalyzer(self.config)
         scanner = MarketScanner(conn, self.config)
 
@@ -452,6 +456,8 @@ def run_strategy(params: dict):
                     analyzer = StockPredictionAnalyzer(app.config)
                     analyzer.analyze_single_stock(code, name, df, compact=compact, mobile=mobile)
                 # Kronos 預測（5 日價格）
+                if PredictionEngine is None or MonteCarloEngine is None:
+                    raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
                 engine = PredictionEngine(app.config)
                 if engine.kronos_engine and engine.kronos_engine.ready:
                     _render_kronos_prediction(df, code, name, engine)

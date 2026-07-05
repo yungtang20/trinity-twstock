@@ -8,7 +8,6 @@ import sys
 from twstock.input_helper import HAS_MSVCRT, msvcrt
 from twstock.strategy.composites import run_composite
 from twstock.strategy.strategies import interactive_menu as strategies_menu
-from twstock.market_data import MarketCache
 from twstock.tui.menu import (
     run_daily_update,
     run_db_maintenance,

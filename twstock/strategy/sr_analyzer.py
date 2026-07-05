@@ -7,6 +7,7 @@
 # [AI MOD] Converted from polars to pandas for mobile compatibility
 """
 
+import logging
 import os
 import signal
 import sys
@@ -353,7 +354,11 @@ class SupportResistanceEngine:
                     temp = float(self.df["atr"].iloc[-1])
                     if not math.isnan(temp):
                         atr_val = temp
-                except:
+                except Exception as exc:
+                    logging.debug(
+                        "atr_val 計算失敗 (stock=%s, err=%s)",
+                        getattr(exc, "__cause__", None) or str(exc),
+                    )
                     pass
             if atr_val is None:
                 atr_val = c_val * 0.02
@@ -635,7 +640,8 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
         try:
             meta_rows = conn.execute("SELECT stock_id, stock_name FROM stock_meta").fetchall()
             name_map = {r[0]: r[1] for r in meta_rows}
-        except:
+        except Exception as exc:
+            logging.debug("name_map 載入失敗: %s", exc)
             name_map = {}
         all_scored = _scan_with_progress_basic(conn, stocks, name_map, min_volume)
         _SR_CACHE["date"], _SR_CACHE["min_volume"], _SR_CACHE["results"], _SR_CACHE["ts"] = (
@@ -863,7 +869,7 @@ def _display_results(
         "front_low": "前低數值",
     }
     if current_filters:
-        filter_label = " + ".join(labels.get(k, k) for k in current_filters)
+        filter_label = " + ".join(labels.get(k) or k for k in current_filters)
         dist_col = dist_labels.get(current_filters[0], "距支撐")
     else:
         filter_label = f"距支撐≤{StrategyConfig.MAX_DISTANCE_PERCENT:.0f}%"
@@ -1016,7 +1022,8 @@ def get_sr_levels(code):
             "short_resistance": result.get("nearest_resistance"),
             "short_support": result.get("nearest_support"),
         }
-    except:
+    except Exception as exc:
+        logging.debug("get_sr_levels 失敗 (code=%s): %s", code, exc)
         return {}
 
 

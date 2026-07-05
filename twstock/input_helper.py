@@ -157,7 +157,6 @@ def _get_interactive_input_windows(
     prompt: str, menu_keys: str, auto_four: bool, timeout: float
 ) -> str:
     """Windows 版本：msvcrt（與原版 main.py 行為完全一致）。"""
-    global msvcrt
 
     _flush_input_buffer()
     sys.stdout.write(prompt)
@@ -241,12 +240,10 @@ def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed
     sys.stdout.write(prompt)
     sys.stdout.flush()
     buf = ""
-    last_key_time = 0.0
     while True:
         r, _, _ = select.select([sys.stdin], [], [], 0.05)
         if r:
             ch = sys.stdin.read(1)
-            now = _t.monotonic()
             if ch in ("\r", "\n"):
                 return buf.strip()
             elif ch == "\x7f":  # Backspace
