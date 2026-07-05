@@ -132,8 +132,10 @@ class TestDefaultHeaders:
 
 
 # ── get_http_session ───────────────────────────────────────
-class TestGetHttpSession:
-    def test_returns_none_when_no_requests(self):
+class TestGetHttpSessionWithoutRequests:
+    """get_http_session 測試：requests 無法匯入時不崩潰，視環境傳回 None 或 Session。"""
+
+    def test_no_requests_does_not_crash(self):
         with patch.dict("sys.modules", {"requests": None}):
             result = get_http_session()
             # requests may be installed; if so, result is a Session
@@ -221,19 +223,20 @@ class TestGetSysInfo:
         assert info["stocks"] == 42
 
 
-class TestGetHttpSession:
+class TestGetHttpSessionWithRequests:
+    """get_http_session 測試：有 requests 套件時，session 存在並掛上預設 headers。"""
+
     @patch("twstock.utils.default_http_headers", return_value={"User-Agent": "test"})
     def test_returns_session(self, mock_headers):
         try:
-            import requests
-
-            session = get_http_session()
-            assert session is not None
+            import requests  # noqa: F401 — 顯式依賴，確保 get_http_session 內部读到 requests 可用
         except ImportError:
             pytest.skip("requests not installed")
 
+        session = get_http_session()
+        assert session is not None
+
     def test_session_has_headers(self):
-        # If requests is installed the session has the default headers
         session = get_http_session()
         if session is not None:
             assert "User-Agent" in session.headers

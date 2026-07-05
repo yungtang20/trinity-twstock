@@ -94,7 +94,7 @@ def check_local_db():
                 count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 tables[table] = count
                 print(f"   {table}: {count:,} 筆")
-            except Exception:
+            except Exception:  # noqa: PERF203 — 刻意保留：單表查詢失敗標記不存在後繼續
                 print(f"   {table}: 不存在")
 
         conn.close()
@@ -496,7 +496,7 @@ def verify_sync():
             result = supabase.table(table).select("count", count="exact").execute()
             count = result.count if hasattr(result, "count") else "未知"
             print(f"   {table}: {count} 筆")
-        except Exception as e:
+        except Exception as e:  # noqa: PERF203 — 刻意保留：單表查詢失敗標記後繼續
             print(f"   {table}: 查詢失敗 - {e}")
 
 

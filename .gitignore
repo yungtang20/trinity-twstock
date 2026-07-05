@@ -15,6 +15,10 @@ snapshot/
 # Temporary scripts
 _run_*.py
 _test_*.py
+patch.py
+
+# Lint/audit task reports
+task_*.txt
 
 # Virtual environment
 .venv/

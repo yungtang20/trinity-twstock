@@ -33,6 +33,6 @@ def test_intraday_dividend_check_sql_executable():
             ("2330", "2026-06-26"),
         ).fetchone()
     except Exception as e:
-        assert False, f"SQL 執行失敗: {e}"
+        raise AssertionError(f"SQL 執行失敗: {e}") from e
     finally:
         conn.close()

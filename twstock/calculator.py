@@ -150,7 +150,7 @@ class IndicatorEngine:
                         df_join["date"] = pd.to_datetime(df_join["date"])
                         self.df["date"] = pd.to_datetime(self.df["date"])
                         self.df = self.df.merge(df_join, on=["stock_id", "date"], how="left")
-                except Exception:
+                except Exception:  # noqa: PERF203 — 刻意保留：單表 join 失敗不可中斷批次處理
                     pass  # 表格不存在就跳過
             conn.close()
         except Exception:

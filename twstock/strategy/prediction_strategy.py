@@ -62,7 +62,7 @@ try:
     )
 except ImportError as e:
     # kronos_engine requires torch - not available in test env
-    warnings.warn(f"kronos_engine import failed: {e}")
+    warnings.warn(f"kronos_engine import failed: {e}", stacklevel=2)
     DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = (
         PredictionChartRenderer
     ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None

@@ -53,7 +53,7 @@ def test_scan_excludes_below_min_volume():
     # make price series so that the latest day is a clear breakout above MA
     closes = [1.0] * 203 + [1.0, 200.0]
     vols_a = [600000] * 204 + [4000]  # last day low (4 張)
-    for d, c, v in zip(dates, closes, vols_a):
+    for d, c, v in zip(dates, closes, vols_a, strict=True):
         conn.execute(
             "INSERT INTO stock_history (stock_id, date, open, high, low, close, volume, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (a, d, c, c, c, c, v, int(c * v)),
@@ -66,7 +66,7 @@ def test_scan_excludes_below_min_volume():
     # stock B: valid high volume
     b = "9002"
     vols_b = [600000] * 204 + [700000]  # ensure curr_vol > prev_vol
-    for d, c, v in zip(dates, closes, vols_b):
+    for d, c, v in zip(dates, closes, vols_b, strict=True):
         conn.execute(
             "INSERT INTO stock_history (stock_id, date, open, high, low, close, volume, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (b, d, c, c, c, c, v, int(c * v)),

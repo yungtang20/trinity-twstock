@@ -66,7 +66,7 @@ AMOUNTS_5 = [10000, 22000, 33000, 44000, 0]
 
 
 def insert_history(db, stock_id, dates, volumes, amounts):
-    for d, v, a in zip(dates, volumes, amounts):
+    for d, v, a in zip(dates, volumes, amounts, strict=True):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, volume, amount) VALUES (?, ?, ?, ?)",
@@ -172,7 +172,7 @@ class TestTC7DBVerification:
         insert_history(db, "2330", DATES_5, VOLUMES_5, AMOUNTS_5)
         calc.calculate("2330")
         expected = [10.0, 11.0, 11.0, 11.0, None]
-        for date, exp in zip(DATES_5, expected):
+        for date, exp in zip(DATES_5, expected, strict=True):
             actual = get_vwap(db, "2330", date)
             if exp is None:
                 assert actual is None, f"{date} vwap 應為 None，實際 {actual}"

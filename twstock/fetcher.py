@@ -96,7 +96,7 @@ class FinMindClient:
                 else:
                     logging.warning(f"FinMind API return non-success: {resp.get('msg')}")
                     return pd.DataFrame()
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 — 刻意保留：單次 retry 失敗不可中斷重試迴圈
                 logging.warning(f"FinMind get attempt {attempt+1}/{retries} failed: {e}")
                 if attempt < retries - 1:
                     time.sleep(1)
@@ -806,20 +806,19 @@ class DividendFetcher:
         if not raw.get("data"):
             raise Exception("Cannot transform empty data")
 
-        rows = []
-        for row in raw["data"]:
-            rows.append(
-                {
-                    "stock_id": row["stock_id"],
-                    "date": row["date"],
-                    "before_price": float(row.get("beforeDividend", 0)),
-                    "after_price": float(row.get("afterDividend", 0)),
-                    "reference_price": float(row.get("reference", 0)),
-                    "cash_dividend": float(row.get("CashDividend", 0)),
-                    "stock_dividend": float(row.get("StockDividend", 0)),
-                    "source": "finmind",
-                }
-            )
+        rows = [
+            {
+                "stock_id": row["stock_id"],
+                "date": row["date"],
+                "before_price": float(row.get("beforeDividend", 0)),
+                "after_price": float(row.get("afterDividend", 0)),
+                "reference_price": float(row.get("reference", 0)),
+                "cash_dividend": float(row.get("CashDividend", 0)),
+                "stock_dividend": float(row.get("StockDividend", 0)),
+                "source": "finmind",
+            }
+            for row in raw["data"]
+        ]
         return rows
 
     def save(self, rows):

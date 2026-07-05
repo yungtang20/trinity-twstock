@@ -125,21 +125,20 @@ class StockAnalyzer:
             LIMIT 50
         """
         rows = self.conn.execute(sql, (min_consecutive_days,)).fetchall()
-        results = []
-        for r in rows:
-            results.append(
-                {
-                    "stock_id": r[0],
-                    "name": r[8] or "---",
-                    "buy_days": r[1],
-                    "total_net": r[2],
-                    "date": r[3],
-                    "close": r[4] or 0.0,
-                    "volume": r[5] or 0,
-                    "prev_close": r[6] or r[4] or 0.0,
-                    "prev_volume": r[7] or r[5] or 0,
-                }
-            )
+        results = [
+            {
+                "stock_id": r[0],
+                "name": r[8] or "---",
+                "buy_days": r[1],
+                "total_net": r[2],
+                "date": r[3],
+                "close": r[4] or 0.0,
+                "volume": r[5] or 0,
+                "prev_close": r[6] or r[4] or 0.0,
+                "prev_volume": r[7] or r[5] or 0,
+            }
+            for r in rows
+        ]
         return results
 
     @staticmethod

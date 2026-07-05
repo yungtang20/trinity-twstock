@@ -13,6 +13,7 @@ _IS_UNIX = sys.platform != "win32"
 
 from twstock.input_helper import (
     _flush_input_buffer,
+    _get_interactive_input_unix,
     _get_interactive_input_windows,
     _getch_unix,
     _getch_windows,
@@ -617,10 +618,16 @@ class TestGetInteractiveInputUnix:
 
     def test_printable_buffering(self):
         mock_stdout, mock_stdin, mock_termios, mock_tty, mock_select = self._mock_unix_env()
+        # select.call count = 4:
+        #   iter1 (printable '1' → buf='1' → len==1 & ch in menu_keys → r2 select )
+        #   iter2 (printable '2' → buf='12' → len==2, skip menu_keys)
+        #   iter3 (printable '\r' → return buf.strip()='12')
+        # r2 需要 truthy 才能让 iter1 buf='1' 不直接被提交
         mock_select.select.side_effect = [
-            ([mock_stdin], [], []),
-            ([mock_stdin], [], []),
-            ([], [], []),
+            ([mock_stdin], [], []),  # iter1 select: '1' 進入
+            ([mock_stdin], [], []),  # iter1 menu_keys wait r2: truthy → 繼續
+            ([mock_stdin], [], []),  # iter2 select: '\n' 進入（不被 printable 到達 return）
+            ([mock_stdin], [], []),  # iter3 select: '\r' 被 printable 處理後 return buf
         ]
         mock_stdin.read.side_effect = ["1", "2", "\r"]
 
@@ -667,13 +674,15 @@ class TestGetInteractiveInputUnix:
 
     def test_four_digit_auto_commit(self):
         mock_stdout, mock_stdin, mock_termios, mock_tty, mock_select = self._mock_unix_env()
-        # Four keys arrive, then empty selects for auto-commit waits
+        # 4 次 read 各觸發 1 次 select；auto_four 中斷等待 1 次 select；
+        # 最後一次 read 後迴圈會再呼叫 1 次 select 才退出（共 6 次）
         mock_select.select.side_effect = [
             ([mock_stdin], [], []),  # 1st digit
             ([mock_stdin], [], []),  # 2nd digit
             ([mock_stdin], [], []),  # 3rd digit
             ([mock_stdin], [], []),  # 4th digit
             ([], [], []),  # sleep 0.2 + select for 1.0 (no interrupt)
+            ([], [], []),  # 迴圈繼續後退出
         ]
         mock_stdin.read.side_effect = ["1", "2", "3", "4"]
 
@@ -696,13 +705,16 @@ class TestGetInteractiveInputUnix:
 
     def test_four_digit_backspace_interrupt(self):
         mock_stdout, mock_stdin, mock_termios, mock_tty, mock_select = self._mock_unix_env()
+        # 5 次 read 各觸發 1 次 select；auto_four 中斷等待 1 次 select；
+        # 最後一次 read 後迴圈會再呼叫 1 次 select 才退出（共 7 次）
         mock_select.select.side_effect = [
             ([mock_stdin], [], []),  # 1st digit
             ([mock_stdin], [], []),  # 2nd
             ([mock_stdin], [], []),  # 3rd
             ([mock_stdin], [], []),  # 4th
             ([mock_stdin], [], []),  # backspace interrupt
-            ([], [], []),  # final select
+            ([], [], []),  # auto_four 中斷等待
+            ([], [], []),  # 迴圈繼續後退出
         ]
         mock_stdin.read.side_effect = ["1", "2", "3", "4", "\x7f"]
 

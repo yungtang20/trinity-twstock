@@ -60,7 +60,7 @@ def calc(db):
 
 
 def insert_history(db, stock_id, dates, closes, volumes):
-    for d, c, v in zip(dates, closes, volumes):
+    for d, c, v in zip(dates, closes, volumes, strict=True):
         db.execute(
             "INSERT OR REPLACE INTO stock_history "
             "(stock_id, date, close, volume, amount) VALUES (?, ?, ?, ?, ?)",

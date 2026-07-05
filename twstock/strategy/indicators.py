@@ -102,7 +102,7 @@ def ensure_indicators_all(db=None):
     """).fetchall()
 
     refreshed = 0
-    for (stock_id,) in rows:
+    for (stock_id,) in rows:  # noqa: PERF203 — 刻意保留：單股刷新失敗不可中斷迴圈
         try:
             refresh_indicators(stock_id, db)
             refreshed += 1
@@ -125,7 +125,7 @@ def refresh_indicators_all(db=None):
     stock_ids = [row[0] for row in cur.fetchall()]
 
     results = {}
-    for stock_id in stock_ids:
+    for stock_id in stock_ids:  # noqa: PERF203 — 刻意保留：單股刷新失败要記 error 而非中斷
         try:
             results[stock_id] = refresh_indicators(stock_id, db)
         except Exception as e:

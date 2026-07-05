@@ -23,13 +23,18 @@ import os
 import sys
 from typing import Optional
 
-# termios/tty only on Unix (Termux/Linux/macOS); Windows uses msvcrt
+# termios/tty/select only on Unix (Termux/Linux/macOS); Windows uses msvcrt.
+# `select` is a stdlib module but select.select() on stdin is only meaningful on Unix,
+# so keep it in the same conditional block — patch("twstock.input_helper.select", ...)
+# in tests requires it to be importable at module scope when HAS_TERMIOS is True.
 try:
+    import select
     import termios
     import tty
 
     HAS_TERMIOS = True
 except ImportError:
+    select = None  # type: ignore[assignment]
     termios = None  # type: ignore[assignment]
     tty = None  # type: ignore[assignment]
     HAS_TERMIOS = False
@@ -101,9 +106,8 @@ def _kbhit_windows() -> bool:
 
 def _kbhit_unix() -> bool:  # pragma: no cover — Unix-only, not executed on Windows CI
     """non-blocking check via select。"""
-    if not _IS_TTY:
+    if not _IS_TTY or select is None:
         return False
-    import select
 
     r, _, _ = select.select([sys.stdin], [], [], 0)
     return bool(r)
@@ -233,7 +237,6 @@ def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed
     prompt: str, menu_keys: str, auto_four: bool, timeout: float
 ) -> str:
     """Termux/Linux/macOS 版本：termios raw mode 模擬。"""
-    import select
     import time as _t
 
     _flush_input_buffer()

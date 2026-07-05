@@ -37,10 +37,8 @@ print(f"  kronos_repo/ 存在: {os.path.exists('kronos_repo')}")
 print(f"  model/kronos.py 存在: {os.path.exists('model/kronos.py')}")
 print(f"  strategy/kronos_engine.py 存在: {os.path.exists('twstock/strategy/kronos_engine.py')}")
 bak_files = []
-for root, dirs, files in os.walk("."):
-    for fn in files:
-        if fn.endswith(".bak"):
-            bak_files.append(os.path.join(root, fn))
+for root, _dirs, files in os.walk("."):
+    bak_files.extend(os.path.join(root, fn) for fn in files if fn.endswith(".bak"))
 print(
     f"  *.bak 殘留: {len(bak_files)} 個 → {'✅ 乾淨' if len(bak_files) == 0 else '❌ ' + str(bak_files)}"
 )

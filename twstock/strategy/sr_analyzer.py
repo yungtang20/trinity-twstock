@@ -372,12 +372,14 @@ class SupportResistanceEngine:
             raw.extend(
                 [c_val + atr_val, c_val + 2.0 * atr_val, c_val - atr_val, c_val - 2.0 * atr_val]
             )
+        # ponytail: 4 個條件 append 合併成 2 組推導會濾掉 None 但混淆 guarded 語意。
+        # 維持顯式 if 迴圈，可讀性優先於 PERF401 優化。noqa: PERF401
         for ext in (recent_hi, recent_lo):
             if ext:
-                raw.append(ext["price"])
+                raw.append(ext["price"])  # noqa: PERF401
         for sw in (swing_hi, swing_lo):
             if sw:
-                raw.append(sw["price"])
+                raw.append(sw["price"])  # noqa: PERF401
         if not key_closes.empty:
             raw.extend(key_closes["close"].tolist())
         if density["status"] == "OK" and density["boxes"]:
@@ -939,7 +941,7 @@ def main():
                 _handle_input(conn)
             except KeyboardInterrupt:
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 — 刻意保留：CLI 單次要異常但不中斷主迴圈
                 console.print(f"[red]❌ 執行錯誤: {e}[/red]")
                 time.sleep(2)
     except Exception as e:

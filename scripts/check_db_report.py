@@ -30,7 +30,7 @@ for attempt, (mode, uri) in enumerate(
         conn.execute("SELECT 1")
         conn.close()
         print(f"[{attempt+1}] {mode}: 可連線")
-    except Exception as e:
+    except Exception as e:  # noqa: PERF203 — 刻意保留：單次連線失敗不可中斷批次檢測
         err = str(e).split("\n")[0]
         print(f"[{attempt+1}] {mode}: 連線失敗 - {err}")
 

@@ -87,10 +87,10 @@ class TestCreateDefaultProvider:
         assert hasattr(provider, "flush")
 
 
-class TestCreateDefaultProvider:
+class TestCreateDefaultProviderPlatformBranch:
     """
-    create_default_provider 聽測平台分支（這裡只驗證非 Windows 路徑；
-    Windows 路徑因 msvcrt 已存在，不易 mock import）。
+    create_default_provider 平台分支測試：驗證非 Windows 路徑；
+    Windows 路徑因 msvcrt 已存在，不易 mock import，以 skipif 處理。
     """
 
     def test_non_windows_returns_unix_provider(self):
