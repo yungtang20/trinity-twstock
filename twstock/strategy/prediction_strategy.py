@@ -11,7 +11,7 @@ import sqlite3
 import sys
 import time
 import warnings
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import pandas as pd
 from rich import box
@@ -46,7 +46,7 @@ _PRED_CACHE = {
 }
 
 # Import shared engine components to eliminate duplication
-try:
+if TYPE_CHECKING:
     from twstock.strategy.kronos_engine import (
         DEFAULT_CONFIG,
         DriftMonitor,
@@ -60,20 +60,35 @@ try:
         calculate_price_change,
         load_kronos,
     )
-except ImportError as e:
-    # kronos_engine requires torch - not available in test env
-    warnings.warn(f"kronos_engine import failed: {e}", stacklevel=2)
-    DEFAULT_CONFIG: Optional[Dict[str, Any]] = None
-    DriftMonitor: Optional[type] = None
-    DriftStatus: Optional[Any] = None
-    KronosRealEngine: Optional[type] = None
-    MonteCarloEngine: Optional[type] = None
-    PredictionChartRenderer: Optional[type] = None
-    PredictionEngine: Optional[type] = None
-    PredictionResult: Optional[type] = None
-    StockPrediction: Optional[type] = None
-    calculate_price_change: Optional[Callable] = None
-    load_kronos: Optional[Callable] = None
+else:
+    try:
+        from twstock.strategy.kronos_engine import (
+            DEFAULT_CONFIG,
+            DriftMonitor,
+            DriftStatus,
+            KronosRealEngine,
+            MonteCarloEngine,
+            PredictionChartRenderer,
+            PredictionEngine,
+            PredictionResult,
+            StockPrediction,
+            calculate_price_change,
+            load_kronos,
+        )
+    except ImportError as e:
+        # kronos_engine requires torch - not available in test env
+        warnings.warn(f"kronos_engine import failed: {e}", stacklevel=2)
+        DEFAULT_CONFIG = None
+        DriftMonitor = None
+        DriftStatus = None
+        KronosRealEngine = None
+        MonteCarloEngine = None
+        PredictionChartRenderer = None
+        PredictionEngine = None
+        PredictionResult = None
+        StockPrediction = None
+        calculate_price_change = None
+        load_kronos = None
 
 warnings.filterwarnings("ignore")
 

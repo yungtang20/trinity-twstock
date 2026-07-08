@@ -13,7 +13,7 @@ import time
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -61,26 +61,50 @@ from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, 
 #  Imports & Config from shared engine [AI MOD]
 # ══════════════════════════════════════════════════════════
 
-try:
+if TYPE_CHECKING:
     from twstock.strategy.kronos_engine import (
         DEFAULT_CONFIG,
         DriftMonitor,
         DriftStatus,
         KronosRealEngine,
-        MonteCarloEngine,  # [AI MOD]
+        MonteCarloEngine,
         PlotBar,
         PredictionChartRenderer,
-        PredictionEngine,  # [AI MOD]
+        PredictionEngine,
         PredictionResult,
         StockPrediction,
         calculate_price_change,
         load_kronos,
     )
-except ImportError:
-    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = PlotBar = (
-        PredictionChartRenderer
-    ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None
-    load_kronos = None
+else:
+    try:
+        from twstock.strategy.kronos_engine import (
+            DEFAULT_CONFIG,
+            DriftMonitor,
+            DriftStatus,
+            KronosRealEngine,
+            MonteCarloEngine,
+            PlotBar,
+            PredictionChartRenderer,
+            PredictionEngine,
+            PredictionResult,
+            StockPrediction,
+            calculate_price_change,
+            load_kronos,
+        )
+    except ImportError:
+        DEFAULT_CONFIG = None
+        DriftMonitor = None
+        DriftStatus = None
+        KronosRealEngine = None
+        MonteCarloEngine = None
+        PlotBar = None
+        PredictionChartRenderer = None
+        PredictionEngine = None
+        PredictionResult = None
+        StockPrediction = None
+        calculate_price_change = None
+        load_kronos = None
 
 CONTEXT_LEN = 512
 PATTERN_WINDOW = 90
