@@ -11,7 +11,7 @@ import sqlite3
 import sys
 import time
 import warnings
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import pandas as pd
 from rich import box
@@ -31,14 +31,20 @@ from twstock.strategy._utils import fetch_klines
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import rconsole
 
-try:
+_StockPredictionAnalyzer: Optional[type] = None
+if TYPE_CHECKING:
     from twstock.strategy.patterns_strategy import StockPredictionAnalyzer
-except ImportError:
-    StockPredictionAnalyzer = None
+else:
+    try:
+        from twstock.strategy.patterns_strategy import (
+            StockPredictionAnalyzer as _StockPredictionAnalyzer
+        )
+    except ImportError:
+        _StockPredictionAnalyzer = None
 
 # [AI MOD] AI Prediction session scan cache to make switching sorting instantly fast
 _CACHE_TTL = 300  # 5 分鐘
-_PRED_CACHE = {
+_PRED_CACHE: dict[str, Any] = {
     "date": None,
     "min_volume": None,
     "results": None,
@@ -198,7 +204,7 @@ def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine
 
 class MarketScanner:
 
-    def __init__(self, conn: sqlite3.Connection, config: Dict = None):
+    def __init__(self, conn: sqlite3.Connection, config: Optional[Dict] = None):
         if DEFAULT_CONFIG is None or MonteCarloEngine is None or PredictionEngine is None:
             raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.conn = conn
@@ -378,7 +384,7 @@ class MarketScanner:
             try:
                 # Compare raw volume to prev_volume
                 raw_vol = p.volume  # 股
-                vc = vol_color(raw_vol, p.prev_volume if p.prev_volume else raw_vol)
+                vc = vol_color(raw_vol, int(p.prev_volume) if p.prev_volume else raw_vol)
                 disp_vol_colored = f"[{vc}]{raw_vol // 1000:,}[/]"  # 換算成張顯示
             except Exception:
                 disp_vol_colored = f"{p.volume:,}"
@@ -415,9 +421,9 @@ class PredictionAnalysisApp:
             rconsole.print(f"[red]❌ 資料庫連線失敗: {e}[/]")
             return
 
-        if StockPredictionAnalyzer is None:
+        if _StockPredictionAnalyzer is None:
             raise RuntimeError("patterns_strategy 匯入失敗，無法執行預測分析")
-        analyzer = StockPredictionAnalyzer(self.config)
+        analyzer = _StockPredictionAnalyzer(self.config)
         scanner = MarketScanner(conn, self.config)
 
         while True:
@@ -496,8 +502,8 @@ def run_strategy(params: dict):
             if not df.empty:
                 name = _get_stock_name(conn, code)
                 # 幾何型態分析
-                if StockPredictionAnalyzer:
-                    analyzer = StockPredictionAnalyzer(app.config)
+                if _StockPredictionAnalyzer:
+                    analyzer = _StockPredictionAnalyzer(app.config)
                     analyzer.analyze_single_stock(code, name, df, compact=compact, mobile=mobile)
                 # Kronos 預測（5 日價格）
                 if PredictionEngine is None or MonteCarloEngine is None:
