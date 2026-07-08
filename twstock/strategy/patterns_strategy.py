@@ -10,9 +10,6 @@ import os
 import signal
 import sys
 import time
-
-# [AI MOD] Pattern session scan cache to make switching sorting instantly fast
-import time as _time_mod
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -85,8 +82,6 @@ except ImportError:
     ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None
     load_kronos = None
 
-# [FIX] 移除循環依賴：patterns_strategy 自帶 MarketScanner (L822)，不需要從 prediction_strategy 匯入
-
 CONTEXT_LEN = 512
 PATTERN_WINDOW = 90
 PRED_DAYS = 5
@@ -94,8 +89,6 @@ MIN_BARS = 30
 NECKLINE_TOL = 0.08
 PIVOT_WINDOW = 5
 QUALITY_FLOOR = 0.45
-
-# Removed duplicate local variable _kronos_pipeline # [AI MOD]
 
 _DIR_STYLE = {"bullish": "bright_red", "bearish": "bright_green", "neutral": "bright_yellow"}
 _DIR_ICON = {"bullish": "🔴", "bearish": "🟢", "neutral": "🟡"}
@@ -182,6 +175,12 @@ def _clear_screen():
     clear_screen()
 
 
+
+
+def _render_header(title, is_detail=False):
+    render_header(title, is_detail=is_detail, console=rconsole)
+
+
 def _get_single_key_input(
     prompt: str, keys: str, default: str = "4", auto_four: bool = False, back_on_enter: bool = False
 ) -> str:
@@ -192,14 +191,12 @@ def _get_single_key_input(
     sys.stdout.write(prompt)
     sys.stdout.flush()
 
-    # 阻塞等待第一鍵（跨平台：msvcrt / termios / input fallback）
     ch = get_blocking_key()
 
-    if not ch:  # Enter pressed
+    if not ch:
         return "" if back_on_enter else default
     if ch in keys:
         return ch
-    # auto_four 模式：接受 4 碼股號
     if auto_four and ch.isdigit():
         buf = ch
         while len(buf) < 4:
@@ -210,10 +207,6 @@ def _get_single_key_input(
                 buf += next_ch
         return buf if buf else default
     return default
-
-
-def _render_header(title, is_detail=False):
-    render_header(title, is_detail=is_detail, console=rconsole)
 
 
 def _get_stock_name(conn, stock_id):
@@ -1133,7 +1126,7 @@ class MarketScanner:
             "SELECT stock_id FROM stock_history "
             "WHERE date = ? AND volume >= ? AND stock_id GLOB '[1-9][0-9][0-9][0-9]'",
             self.conn,
-            params=[ld, mv],
+            params=[ld, mv * 1000],
         )["stock_id"].tolist()
 
     def _analyze(self, sl, nm):
@@ -1232,7 +1225,7 @@ class PatternBreakoutScanner:
                 _PATTERN_CACHE["date"] == ld
                 and _PATTERN_CACHE["min_volume"] == min_volume
                 and _PATTERN_CACHE["results"] is not None
-                and _time_mod.time() - _PATTERN_CACHE.get("ts", 0) < _CACHE_TTL
+                and time.time() - _PATTERN_CACHE.get("ts", 0) < _CACHE_TTL
             ):
                 cands_with_data = _PATTERN_CACHE["results"]
                 rconsole.print(
@@ -1268,7 +1261,7 @@ class PatternBreakoutScanner:
                 _PATTERN_CACHE["date"] = ld
                 _PATTERN_CACHE["min_volume"] = min_volume
                 _PATTERN_CACHE["results"] = cands_with_data
-                _PATTERN_CACHE["ts"] = _time_mod.time()
+                _PATTERN_CACHE["ts"] = time.time()
                 rconsole.print(
                     f"\n  [dim]✨ 完成 {time.time() - t0:.1f}s · {len(cands_with_data)} 檔命中[/]"
                 )
@@ -1340,7 +1333,9 @@ class PatternBreakoutScanner:
         patterns = self.scanner.find_patterns(df)
         if not patterns:
             return None
-        best = max(patterns, key=lambda p: p.quality)
+        best = max(patterns, key=lambda p: p.quality) if patterns else None
+        if best is None:
+            return None
 
         current_price = float(df["close"].iloc[-1])
         prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else current_price

@@ -11,7 +11,7 @@ import sqlite3
 import sys
 import time
 import warnings
-from typing import Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 from rich import box
@@ -63,10 +63,17 @@ try:
 except ImportError as e:
     # kronos_engine requires torch - not available in test env
     warnings.warn(f"kronos_engine import failed: {e}", stacklevel=2)
-    DEFAULT_CONFIG = DriftMonitor = DriftStatus = KronosRealEngine = MonteCarloEngine = (
-        PredictionChartRenderer
-    ) = PredictionEngine = PredictionResult = StockPrediction = calculate_price_change = None
-    load_kronos = None
+    DEFAULT_CONFIG: Optional[Dict[str, Any]] = None
+    DriftMonitor: Optional[type] = None
+    DriftStatus: Optional[Any] = None
+    KronosRealEngine: Optional[type] = None
+    MonteCarloEngine: Optional[type] = None
+    PredictionChartRenderer: Optional[type] = None
+    PredictionEngine: Optional[type] = None
+    PredictionResult: Optional[type] = None
+    StockPrediction: Optional[type] = None
+    calculate_price_change: Optional[Callable] = None
+    load_kronos: Optional[Callable] = None
 
 warnings.filterwarnings("ignore")
 
@@ -105,7 +112,7 @@ def _get_stock_name(conn, stock_id):
     return get_stock_name(conn, stock_id)
 
 
-def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine):
+def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine, skipped_list: List[str] | None = None):
     """繪製 Kronos 5 日價格預測結果"""
     try:
         # Kronos 需要 DatetimeIndex；若 df 的 date 欄位是字串，先轉換
@@ -118,36 +125,58 @@ def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine
                 work.index = pd.to_datetime(work.index)
         # 確保 index 是 monotonic increasing
         work = work.sort_index()
-        pred = engine.kronos_engine.predict(work, engine.config)
-        current = float(work["close"].iloc[-1])
-        rconsole.print()
-        rconsole.print(
-            Panel(
-                f"[bold bright_white]{code} {name} Kronos 5 日價格預測[/]",
-                border_style="bright_magenta",
-                box=box.DOUBLE,
+
+        # 衛兵：如果 Kronos 不可用，使用 Monte Carlo fallback
+        if engine.kronos_engine is None or not engine.kronos_engine.ready:
+            if MonteCarloEngine is None:
+                if skipped_list is not None:
+                    skipped_list.append(code)
+                rconsole.print("[yellow]⚠️ Kronos 和 Monte Carlo 引擎皆不可用，跳過預測[/]")
+                return
+            mc = MonteCarloEngine()
+            pred = mc.predict(work, engine.config)
+            rconsole.print()
+            rconsole.print(
+                Panel(
+                    f"[bold bright_white]{code} {name} Monte Carlo 5 日價格預測 (Kronos fallback)[/]",
+                    border_style="bright_cyan",
+                    box=box.DOUBLE,
+                )
             )
-        )
+            rconsole.print(
+                f"[dim]  Kronos 未就緒，使用 Monte Carlo fallback: {pred.benchmark:.2f} (信心 {pred.confidence:.1%})[/]"
+            )
+        else:
+            pred = engine.kronos_engine.predict(work, engine.config)
+            current = float(work["close"].iloc[-1])
+            rconsole.print()
+            rconsole.print(
+                Panel(
+                    f"[bold bright_white]{code} {name} Kronos 5 日價格預測[/]",
+                    border_style="bright_magenta",
+                    box=box.DOUBLE,
+                )
+            )
 
-        # 绘制預測表格
-        table = Table(box=box.SIMPLE, border_style="magenta")
-        table.add_column("日次", justify="center")
-        table.add_column("預測收盤", justify="right")
-        table.add_column("變化", justify="right")
-        series = pred.pred_series or [pred.benchmark]
-        for i, p in enumerate(series, 1):
-            chg = (p - current) / current if current > 0 else 0.0
-            color = "bright_red" if chg > 0 else "bright_green" if chg < 0 else "white"
-            table.add_row(f"T+{i}", f"{p:.2f}", f"[{color}]{chg:+.2%}[/]")
-        rconsole.print(table)
+            # 绘制預測表格
+            table = Table(box=box.SIMPLE, border_style="magenta")
+            table.add_column("日次", justify="center")
+            table.add_column("預測收盤", justify="right")
+            table.add_column("變化", justify="right")
+            series = pred.pred_series or [pred.benchmark]
+            for i, p in enumerate(series, 1):
+                chg = (p - current) / current if current > 0 else 0.0
+                color = "bright_red" if chg > 0 else "bright_green" if chg < 0 else "white"
+                table.add_row(f"T+{i}", f"{p:.2f}", f"[{color}]{chg:+.2%}[/]")
+            rconsole.print(table)
 
-        direction = "偏多" if pred.drift > 0 else "偏空" if pred.drift < 0 else "中性"
-        dc = "bright_red" if pred.drift > 0 else "bright_green" if pred.drift < 0 else "white"
-        rconsole.print(
-            f"  當前: {current:.2f}  目標: {pred.benchmark:.2f}  "
-            f"預期: [{dc}]{direction} ({pred.drift:+.2%})[/]  "
-            f"信心: {pred.confidence:.1%}"
-        )
+            direction = "偏多" if pred.drift > 0 else "偏空" if pred.drift < 0 else "中性"
+            dc = "bright_red" if pred.drift > 0 else "bright_green" if pred.drift < 0 else "white"
+            rconsole.print(
+                f"  當前: {current:.2f}  目標: {pred.benchmark:.2f}  "
+                f"預期: [{dc}]{direction} ({pred.drift:+.2%})[/]  "
+                f"信心: {pred.confidence:.1%}"
+            )
     except Exception as e:
         rconsole.print(f"[red]❌ Kronos 預測失敗: {e}[/]")
 
@@ -165,6 +194,7 @@ class MarketScanner:
         # 優先使用 Kronos，失敗則 fallback 到 Monte Carlo
         self.engine = PredictionEngine(self.config)
         self.uses_kronos = self.engine.kronos_engine is not None and self.engine.kronos_engine.ready
+        # 從 PredictionEngine 取用 _skipped_symbols
 
     def scan_market(self, min_volume: int = 500) -> None:
         try:
@@ -217,6 +247,12 @@ class MarketScanner:
                     preds.sort(key=lambda x: x.amount, reverse=True)
 
             self._display_results(preds, latest_date, sort_choice)
+
+            # 印出因預測引擎不可用被跳過的股票統整訊息
+            if self.engine._skipped_symbols:
+                rconsole.print(
+                    f"[yellow]⚠️ {len(self.engine._skipped_symbols)} 檔因預測引擎不可用被跳過: {', '.join(self.engine._skipped_symbols)}[/]"
+                )
 
         except Exception as e:
             rconsole.print(f"[red]❌ 掃描失敗: {e}[/]")
@@ -460,7 +496,7 @@ def run_strategy(params: dict):
                     raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
                 engine = PredictionEngine(app.config)
                 if engine.kronos_engine and engine.kronos_engine.ready:
-                    _render_kronos_prediction(df, code, name, engine)
+                    _render_kronos_prediction(df, code, name, engine, engine._skipped_symbols)
                 else:
                     # Fallback：Kronos 不可用時使用 Monte Carlo
                     mc = MonteCarloEngine()
