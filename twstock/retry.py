@@ -8,6 +8,7 @@ retry.py — 統一的 HTTP GET 重試包裝器
 
 import logging
 import time
+from typing import Optional
 
 import requests
 
@@ -17,12 +18,12 @@ logger = logging.getLogger(__name__)
 def retry_get(
     url: str,
     *,
-    params: dict = None,
+    params: Optional[dict] = None,
     timeout: int = 10,
     retries: int = 3,
     backoff: float = 1.0,
     verify: bool | str = True,
-    headers: dict = None,
+    headers: Optional[dict] = None,
     ssl_fallback: bool = True,
 ) -> requests.Response | None:
     """
@@ -41,7 +42,7 @@ def retry_get(
     Returns:
         requests.Response 或 None（所有重試都失敗）
     """
-    last_err = None
+    last_err: Optional[Exception] = None
     for attempt in range(1 + retries):
         try:
             resp = requests.get(
