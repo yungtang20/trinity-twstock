@@ -40,7 +40,7 @@ from twstock.strategy.sr_analyzer import SupportResistanceStrategy
 class _PredictionAdapter:
     """預測分析適配器 - 不使用 random，移除假邏輯。"""
 
-    def analyze(self, stock_id: str, ma: dict = None) -> dict:
+    def analyze(self, stock_id: str, ma: Optional[dict] = None) -> dict:
         from twstock.db import get_connection
         from twstock.strategy._utils import fetch_klines
 

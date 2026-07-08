@@ -32,7 +32,7 @@ def _lookup_stock_name(conn: sqlite3.Connection, stock_id: str) -> Optional[str]
     return None
 
 
-def get_stock_name(conn: sqlite3.Connection, stock_id: str, fallback: dict = None) -> str:
+def get_stock_name(conn: sqlite3.Connection, stock_id: str, fallback: Optional[dict] = None) -> str:
     """Get stock name from database, with optional fallback dict."""
     name = _lookup_stock_name(conn, stock_id)
     if name:
