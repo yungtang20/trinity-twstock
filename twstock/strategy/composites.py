@@ -326,6 +326,6 @@ def _run_strategies(stock_id: str, mobile: bool) -> None:
                 continue
             mod = entry["module"]
             params = {"code": stock_id, "compact": True, "mobile": mobile}
-            mod.run_strategy(params)
+            mod.run_strategy(params)  # type: ignore[attr-defined]
         except Exception as e:
             console.print(f"[red]❌ 分析失敗: {e}[/red]")
