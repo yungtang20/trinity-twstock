@@ -194,7 +194,6 @@ class MarketScanner:
         # 優先使用 Kronos，失敗則 fallback 到 Monte Carlo
         self.engine = PredictionEngine(self.config)
         self.uses_kronos = self.engine.kronos_engine is not None and self.engine.kronos_engine.ready
-        # 從 PredictionEngine 取用 _skipped_symbols
 
     def scan_market(self, min_volume: int = 500) -> None:
         try:
@@ -247,12 +246,6 @@ class MarketScanner:
                     preds.sort(key=lambda x: x.amount, reverse=True)
 
             self._display_results(preds, latest_date, sort_choice)
-
-            # 印出因預測引擎不可用被跳過的股票統整訊息
-            if self.engine._skipped_symbols:
-                rconsole.print(
-                    f"[yellow]⚠️ {len(self.engine._skipped_symbols)} 檔因預測引擎不可用被跳過: {', '.join(self.engine._skipped_symbols)}[/]"
-                )
 
         except Exception as e:
             rconsole.print(f"[red]❌ 掃描失敗: {e}[/]")
@@ -495,8 +488,9 @@ def run_strategy(params: dict):
                 if PredictionEngine is None or MonteCarloEngine is None:
                     raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
                 engine = PredictionEngine(app.config)
+                skipped: List[str] = []
                 if engine.kronos_engine and engine.kronos_engine.ready:
-                    _render_kronos_prediction(df, code, name, engine, engine._skipped_symbols)
+                    _render_kronos_prediction(df, code, name, engine, skipped)
                 else:
                     # Fallback：Kronos 不可用時使用 Monte Carlo
                     mc = MonteCarloEngine()
