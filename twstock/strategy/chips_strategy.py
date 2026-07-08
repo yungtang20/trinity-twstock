@@ -31,7 +31,7 @@ from twstock.strategy._utils import clear_screen, get_stock_name, render_header
 try:
     from twstock.input_helper import get_interactive_input
 except ImportError:
-    from input_helper import get_interactive_input
+    from input_helper import get_interactive_input  # type: ignore[no-redef]
 
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:

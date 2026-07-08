@@ -45,7 +45,7 @@ from twstock.strategy._utils import fetch_klines
 try:
     from twstock.input_helper import _getch_windows, _kbhit_windows
 except ImportError:
-    from input_helper import _getch_windows, _kbhit_windows
+    from input_helper import _getch_windows, _kbhit_windows  # type: ignore[no-redef]
 
 
 def _compute_ma_with_deduction(closes: list, period: int):

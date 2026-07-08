@@ -56,7 +56,7 @@ from twstock.terminal import console
 try:
     from twstock.input_helper import get_blocking_key
 except ImportError:
-    from input_helper import get_blocking_key
+    from input_helper import get_blocking_key  # type: ignore[no-redef]
 
 FALLBACK_NAMES = {
     "2883": "凱基金",
