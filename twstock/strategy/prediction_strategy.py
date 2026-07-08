@@ -11,7 +11,7 @@ import sqlite3
 import sys
 import time
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List
 
 import pandas as pd
 from rich import box
