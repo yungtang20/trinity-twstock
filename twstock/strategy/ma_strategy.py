@@ -17,8 +17,8 @@ from rich.table import Table
 if sys.platform == "win32":
     os.system("chcp 65001 > nul")
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stdin.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+        sys.stdin.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     except AttributeError:
         pass
 
