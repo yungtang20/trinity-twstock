@@ -159,7 +159,7 @@ class PatternInfo:
     extreme: float = 0.0
     confidence: float = 0.0
     points: list = field(default_factory=list)
-    zone: str = ""
+    zone: tuple[int, int] = (0, 0)
 
 
 @dataclass
@@ -649,7 +649,7 @@ class PivotBasedScanner:
 
     # ── Triangles ──
     def _match_triangles(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         if len(hi_pivots) < 2 or len(lo_pivots) < 2:
             return results
         c = df["close"].values
@@ -709,7 +709,7 @@ class PivotBasedScanner:
 
     # ── Wedges ──
     def _match_wedges(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         if len(hi_pivots) < 2 or len(lo_pivots) < 2:
             return results
         c = df["close"].values
@@ -752,7 +752,7 @@ class PivotBasedScanner:
 
     # ── Channels ──
     def _match_channels(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         if len(hi_pivots) < 2 or len(lo_pivots) < 2:
             return results
         c = df["close"].values
@@ -806,7 +806,7 @@ class PivotBasedScanner:
 
     # ── Flags ──
     def _match_flags(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         c = df["close"].values
         current = float(c[-1])
         n = len(c)
@@ -871,7 +871,7 @@ class PivotBasedScanner:
 
     # ── Range Box ──
     def _match_range_box(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         if len(hi_pivots) < 2 or len(lo_pivots) < 2:
             return results
         c = df["close"].values
@@ -905,7 +905,7 @@ class PivotBasedScanner:
 
     # ── Arc ──
     def _match_arc(self, df, pivots, direction) -> List[PatternInfo]:
-        results = []
+        results: List[PatternInfo] = []
         if len(pivots) < 4:
             return results
         c = df["close"].values
