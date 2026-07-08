@@ -90,11 +90,11 @@ def _getch_unix() -> Optional[str]:  # pragma: no cover — Unix-only, not execu
         return None
     fd = sys.stdin.fileno()
     try:
-        old_settings = termios.tcgetattr(fd)
-        tty.setraw(fd)  # type: ignore[union-attr]
+        old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
+        tty.setraw(fd)  # type: ignore[attr-defined]
         ch = sys.stdin.read(1)
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[union-attr]
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
     return ch
 
 
@@ -152,7 +152,7 @@ def _flush_input_buffer() -> None:
             msvcrt.getwch()  # type: ignore[union-attr]
     elif _IS_TTY and HAS_TERMIOS:  # pragma: no cover — Unix-only branch, not executed on Windows CI
         try:
-            termios.tcflush(sys.stdin, termios.TCIFLUSH)  # type: ignore[union-attr]
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -306,8 +306,8 @@ def get_blocking_key(prompt: str = "") -> str:
     if _is_unix_tty():  # pragma: no cover — Unix-only, not executed on Windows CI
         fd = sys.stdin.fileno()
         try:
-            old_settings = termios.tcgetattr(fd)  # type: ignore[union-attr]
-            tty.setraw(fd)  # type: ignore[union-attr]
+            old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
+            tty.setraw(fd)  # type: ignore[attr-defined]
             ch = sys.stdin.read(1)
             if ch in ("\r", "\n"):
                 sys.stdout.write("\n")
@@ -319,7 +319,7 @@ def get_blocking_key(prompt: str = "") -> str:
                 return ch
             return ch
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[union-attr]
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
 
     return input().strip()
 
