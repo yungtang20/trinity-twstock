@@ -8,6 +8,7 @@ strategies.py - 策略入口與調度中心 [AI MOD]
 import argparse
 import os
 import sys
+from typing import Any, Dict
 
 from rich import box
 from rich.table import Table
@@ -37,7 +38,7 @@ from twstock.strategy import (
 from twstock.terminal import console
 
 # ==================== 策略註冊表 [AI MOD] ====================
-STRATEGY_REGISTRY = {
+STRATEGY_REGISTRY: Dict[str, Dict[str, Any]] = {
     "1": {
         "name": "撐壓分析 (Support/Resistance)",
         "module": sr_analyzer,
