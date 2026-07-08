@@ -53,7 +53,10 @@ _SR_CACHE = {"date": None, "min_volume": None, "results": None, "ts": 0}
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import console
 
-from twstock.input_helper import get_blocking_key
+try:
+    from twstock.input_helper import get_blocking_key
+except ImportError:
+    from input_helper import get_blocking_key
 
 FALLBACK_NAMES = {
     "2883": "凱基金",
