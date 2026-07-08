@@ -8,6 +8,7 @@ ma_strategy.py - 均線趨勢策略模組 [AI MOD]
 import os
 import sqlite3
 import sys
+from typing import Any, Optional
 
 import pandas as pd
 from rich import box
@@ -32,7 +33,7 @@ from twstock.terminal import console
 
 _CACHE_TTL = 300  # 5 分鐘
 
-_SCAN_CACHE = {
+_SCAN_CACHE: dict[str, Any] = {
     "date": None,
     "min_volume": None,
     "strat_choice": None,
@@ -211,8 +212,8 @@ def _render_full_ma(data, code, name):
 def scan_market_stocks(
     conn: sqlite3.Connection,
     min_volume: int = 500,
-    strat_choice: str = None,
-    sort_choice: str = None,
+    strat_choice: Optional[str] = None,
+    sort_choice: Optional[str] = None,
 ) -> None:
     import time as _time
 
@@ -524,7 +525,7 @@ def scan_market_stocks(
     else:
         console.print(f"👉 已選擇策略：[cyan]{strat_names[strat_choice]}[/cyan]")
     console.print(
-        f"   篩選條件：[cyan]{strat_filters[strat_choice]}[/cyan] │ 最小成交量 [cyan]{min_volume:,} 張[/cyan] │ 排序：[cyan]{sort_names.get(sort_choice, '距目標均線由近到遠')}[/cyan]"
+        f"   篩選條件：[cyan]{strat_filters[strat_choice]}[/cyan] │ 最小成交量 [cyan]{min_volume:,} 張[/cyan] │ 排序：[cyan]{sort_names.get(sort_choice or '', '距目標均線由近到遠')}[/cyan]"
     )
 
     # Filter the consolidated results by strat_choice
@@ -612,14 +613,14 @@ def _analyze_one(conn, code, name_map) -> list:
     vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
 
     # 1. 突破年線
-    if (
-        len(df) >= 200
-        and prev_price <= ma200[-2]
-        and curr_price > ma200[-1]
-        and curr_vol > prev_vol
-    ):
-        bias = (curr_price - ma200[-1]) / ma200[-1] * 100 if ma200[-1] > 0 else 0.0
-        triggered.append(
+    if len(df) >= 200 and ma200 is not None:
+        if (
+            prev_price <= ma200[-2]
+            and curr_price > ma200[-1]
+            and curr_vol > prev_vol
+        ):
+            bias = (curr_price - ma200[-1]) / ma200[-1] * 100 if ma200[-1] > 0 else 0.0
+            triggered.append(
             {
                 "code": code,
                 "name": name_map.get(code, "---"),
