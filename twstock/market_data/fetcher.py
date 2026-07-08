@@ -218,7 +218,7 @@ def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
 # ── 整合入口 ─────────────────────────────────────────────
 def fetch_market_indices() -> Optional[Dict[str, Any]]:
     """抓取 TAIEX + OTC 即時指數 + 成交量。失败回傳 None。"""
-    results = {
+    results: Dict[str, Any] = {
         "TAIEX": {
             "price": 0,
             "change": 0,
