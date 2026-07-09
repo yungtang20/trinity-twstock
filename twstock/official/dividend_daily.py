@@ -19,7 +19,7 @@ _twstock_dir = str(Path(__file__).resolve().parent.parent)
 if _twstock_dir not in sys.path:
     sys.path.insert(0, _twstock_dir)
 
-from official.dividend_crawler import fetch_dividend_events, upsert_dividend_events
+from official.dividend_crawler import fetch_dividend_events, upsert_dividend_events  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

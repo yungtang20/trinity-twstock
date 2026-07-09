@@ -29,10 +29,10 @@ if _CURRENT_DIR not in sys.path:
     sys.path.insert(0, _CURRENT_DIR)
 
 # ── 策略匯入（模組層級，可被 monkeypatch 替換）──────────────
-from twstock.strategy.chips_strategy import ChipsStrategy
-from twstock.strategy.ma_strategy import MAStrategy
-from twstock.strategy.patterns_strategy import PatternStrategy
-from twstock.strategy.sr_analyzer import SupportResistanceStrategy
+from twstock.strategy.chips_strategy import ChipsStrategy  # noqa: E402
+from twstock.strategy.ma_strategy import MAStrategy  # noqa: E402
+from twstock.strategy.patterns_strategy import PatternStrategy  # noqa: E402
+from twstock.strategy.sr_analyzer import SupportResistanceStrategy  # noqa: E402
 
 # ── Dispatcher API ──────────────────────────────────────────
 

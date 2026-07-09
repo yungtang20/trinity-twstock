@@ -11,7 +11,7 @@ import pytest
 # Unix-only functions are # pragma: no cover in source — skip tests on Windows
 _IS_UNIX = sys.platform != "win32"
 
-from twstock.input_helper import (
+from twstock.input_helper import (  # noqa: E402
     _flush_input_buffer,
     _get_interactive_input_unix,
     _get_interactive_input_windows,

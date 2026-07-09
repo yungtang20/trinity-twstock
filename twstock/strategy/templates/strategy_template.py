@@ -39,7 +39,7 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.db import get_connection
+from twstock.db import get_connection  # noqa: E402
 
 # ── Strategy Configuration ──
 STRATEGY_ID = "NEW"  # 策略編號（在 STRATEGY_REGISTRY 中的 key）

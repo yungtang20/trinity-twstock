@@ -39,8 +39,8 @@ try:
 except ImportError:
     FINMIND_AVAILABLE = False
 
-from twstock.retry import retry_get
-from twstock.utils import get_ssl_verify
+from twstock.retry import retry_get  # noqa: E402
+from twstock.utils import get_ssl_verify  # noqa: E402
 
 
 def _convert_date(date_str: str, input_format: str) -> str:

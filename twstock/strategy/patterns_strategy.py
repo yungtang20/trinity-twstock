@@ -47,15 +47,15 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.db import get_connection  # [AI MOD]
+from twstock.db import get_connection  # [AI MOD]  # noqa: E402
 
 try:
     from twstock.input_helper import get_blocking_key
 except ImportError:
     from input_helper import get_blocking_key  # type: ignore[no-redef]
 # fetch_klines already imported from strategy._utils above
-from twstock.display import price_color, vol_color  # [AI MOD]
-from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+from twstock.display import price_color, vol_color  # [AI MOD]  # noqa: E402
+from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header  # noqa: E402
 
 # ══════════════════════════════════════════════════════════
 #  Imports & Config from shared engine [AI MOD]

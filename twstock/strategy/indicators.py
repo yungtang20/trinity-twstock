@@ -15,8 +15,8 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.calculator import ATRCalculator, MACalculator, VWAPCalculator
-from twstock.db import get_connection
+from twstock.calculator import ATRCalculator, MACalculator, VWAPCalculator  # noqa: E402
+from twstock.db import get_connection  # noqa: E402
 
 
 def _writable_conn(db):

@@ -85,4 +85,4 @@ class TestMarketCache:
 
 
 # Avoid "MagicMock not imported" warning
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock  # noqa: E402

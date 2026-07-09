@@ -11,7 +11,7 @@ if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
 # Suppress rich console output
-import rich.console
+import rich.console  # noqa: E402
 
 rich.console.Console = lambda **kw: MagicMock()  # type: ignore[misc,assignment]
 
