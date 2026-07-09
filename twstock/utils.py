@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime
+from typing import overload
 
 # 確保 twstock 目錄在 sys.path（讓 from db import 能運作）
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +71,13 @@ def get_ssl_verify() -> bool | str:
 
 
 # ── 安全數值轉換（統一處理千分位逗號）────────────────────
-def safe_float(val, default: float = 0.0) -> float:
+@overload
+def safe_float(val: object, default: float = ...) -> float: ...
+@overload
+def safe_float(val: object, default: None = ...) -> None: ...
+
+
+def safe_float(val: object, default: float | None = 0.0) -> float | None:
     """將值轉為 float，處理 '-' / '' / None / 千分位逗號。"""
     try:
         if val in ("-", "", None):

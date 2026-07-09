@@ -38,7 +38,7 @@ def refresh_indicators(stock_id, db=None):
         db = get_connection()
     db = _writable_conn(db)
 
-    results = {}
+    results: dict[str, object] = {}
     try:
         results["ma"] = MACalculator(db=db).calculate(stock_id)
     except Exception as e:

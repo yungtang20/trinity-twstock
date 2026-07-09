@@ -13,7 +13,7 @@ import time
 import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -32,11 +32,20 @@ from rich.table import Table
 from twstock.terminal import rconsole
 
 _CACHE_TTL = 300  # 5 分鐘
-_PATTERN_CACHE = {
+
+
+class _PatternCache(TypedDict):
+    date: int | None
+    min_volume: int | None
+    results: list[Any] | None
+    ts: float
+
+
+_PATTERN_CACHE: _PatternCache = {
     "date": None,
     "min_volume": None,
     "results": None,
-    "ts": 0,
+    "ts": 0.0,
 }
 
 warnings.filterwarnings("ignore")

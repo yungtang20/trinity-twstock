@@ -13,6 +13,7 @@ import signal
 import sys
 import time
 import warnings
+from typing import Any, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -48,7 +49,22 @@ def _to_date_int(val) -> int:
 warnings.filterwarnings("ignore")
 
 _CACHE_TTL = 300  # 5 分鐘
-_SR_CACHE = {"date": None, "min_volume": None, "results": None, "ts": 0}
+
+
+class _ScanCache(TypedDict):
+    date: int | None
+    min_volume: int | None
+    results: list[dict[str, Any]] | None
+    ts: float
+
+
+class _LevelGroup(TypedDict):
+    level: float
+    count: int
+    members: list[float]
+
+
+_SR_CACHE: _ScanCache = {"date": None, "min_volume": None, "results": None, "ts": 0.0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import console
@@ -318,7 +334,9 @@ class SupportResistanceEngine:
                 groups.append(cur)
                 cur = [lv]
         groups.append(cur)
-        results = [{"level": float(np.mean(g)), "count": len(g), "members": g} for g in groups]
+        results: list[_LevelGroup] = [
+            {"level": float(np.mean(g)), "count": len(g), "members": g} for g in groups
+        ]
         results.sort(key=lambda x: (-x["count"], x["level"]))
         return results
 
@@ -901,7 +919,7 @@ def _display_results(
         (dist_col, "bright_red", True),
     ]:
         table.add_column(
-            col, justify="left", style=style, no_wrap=nw, overflow="fold" if not nw else None
+            col, justify="left", style=style, no_wrap=nw, overflow="fold" if not nw else "ellipsis"
         )
     for r in results[: StrategyConfig.MAX_SCAN_RESULTS]:
         if current_filters:

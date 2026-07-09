@@ -218,12 +218,12 @@ def interactive_menu():
 
                 if ans in ("1", "2", "3"):
                     vol = _input_vol()
-                    sort_choice = _input_sort_ma()
-                    if not sort_choice:
+                    sort_str: str = _input_sort_ma()
+                    if not sort_str:
                         break
                     run_strategy_by_id(
                         choice,
-                        {"scan": True, "vol": vol, "strat_choice": ans, "sort_choice": sort_choice},
+                        {"scan": True, "vol": vol, "strat_choice": ans, "sort_choice": sort_str},
                     )
                     _prompt_kronos_ai()
                     continue
@@ -271,14 +271,14 @@ def interactive_menu():
                     sort_str = input("👉 ").strip()
                     if not sort_str:
                         break  # 回到上一頁
-                    sort_choice = int(sort_str) if sort_str in ("1", "2", "3") else 1
+                    sort_choice_int: int = int(sort_str) if sort_str in ("1", "2", "3") else 1
                     run_strategy_by_id(
                         choice,
                         {
                             "scan": True,
                             "strat_choice": ans,
                             "n_days": n_days,
-                            "sort_choice": sort_choice,
+                            "sort_choice": sort_choice_int,
                         },
                     )
                     _prompt_kronos_ai()
@@ -293,9 +293,9 @@ def interactive_menu():
                     sort_str = input("👉 ").strip()
                     if not sort_str:
                         break  # 回到上一頁
-                    sort_choice = int(sort_str) if sort_str in ("1", "2") else 1
+                    sort_choice_int = int(sort_str) if sort_str in ("1", "2") else 1
                     run_strategy_by_id(
-                        choice, {"scan": True, "strat_choice": "3", "sort_choice": sort_choice}
+                        choice, {"scan": True, "strat_choice": "3", "sort_choice": sort_choice_int}
                     )
                     _prompt_kronos_ai()
                     continue
@@ -328,7 +328,7 @@ def interactive_menu():
                     run_strategy_by_id(choice, {"code": ans})
                     continue
 
-                filter_map = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}
+                filter_map: dict[str, str | None] = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}  # type: ignore[no-redef]
                 if ans in filter_map:
                     vol = _input_vol()
                     run_strategy_by_id(

@@ -158,7 +158,7 @@ class KronosRealEngine:
         self.model_path = model_path
         self.tokenizer_path = tokenizer_path
         self._predictor = None
-        self._load_error = None
+        self._load_error: Exception | None = None
 
     def _ensure_loaded(self):
         """延遲載入，只載入一次（單例）"""

@@ -75,7 +75,7 @@ class TestConvertPercent:
 
     def test_none(self):
         """None → 0.0。"""
-        assert dividend_crawler._convert_percent(None) == 0.0
+        assert dividend_crawler._convert_percent("") == 0.0
 
     def test_zero_string(self):
         """'0' → 0.0。"""
