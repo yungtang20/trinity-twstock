@@ -11,7 +11,7 @@ _DIR = "D:/twse"
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
-from twstock.market_data.cache import MarketCache  # noqa: E402
+from twstock.market_data.cache import MarketCache
 
 
 # ── MarketCache ─────────────────────────────────────────────

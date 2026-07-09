@@ -13,7 +13,7 @@ _DIR = "D:/twse"
 if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
-from twstock.utils import (  # noqa: E402
+from twstock.utils import (
     default_http_headers,
     format_price_change,
     get_http_session,

@@ -28,14 +28,14 @@ if sys.platform == "win32":
         pass
 
 # 子策略模組
-from twstock.strategy import (  # noqa: E402
+from twstock.strategy import (
     chips_strategy,
     ma_strategy,
     patterns_strategy,
     prediction_strategy,
     sr_analyzer,
 )
-from twstock.terminal import console  # noqa: E402
+from twstock.terminal import console
 
 # ==================== 策略註冊表 [AI MOD] ====================
 STRATEGY_REGISTRY: Dict[str, Dict[str, Any]] = {
@@ -99,7 +99,7 @@ def run_strategy_by_id(strategy_id, params):
 
 
 # --- 統一輸入層（input_helper）---
-from twstock.input_helper import _flush_input_buffer, get_interactive_input  # noqa: E402
+from twstock.input_helper import _flush_input_buffer, get_interactive_input
 
 
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:

@@ -30,10 +30,10 @@ for _p in (_PROJECT_ROOT, _CURRENT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from twstock.db import get_path  # noqa: E402
-from twstock.db_admin import init_db, migrate_db  # noqa: E402
-from twstock.terminal import console  # noqa: E402
-from twstock.utils import get_token  # noqa: E402
+from twstock.db import get_path
+from twstock.db_admin import init_db, migrate_db
+from twstock.terminal import console
+from twstock.utils import get_token
 
 # 命令分派表
 _ACTION_MAP = {

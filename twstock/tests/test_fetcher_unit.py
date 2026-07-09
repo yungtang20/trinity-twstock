@@ -178,7 +178,7 @@ class TestFetchMarketIndices:
 #               fetcher's `from utils import` resolves to sys.modules["utils"],
 #               so we patch "utils.safe_http_get" (not twstock.utils).
 # ════════════════════════════════════════════════════════════════
-from types import SimpleNamespace  # noqa: E402
+from types import SimpleNamespace
 
 # ── get_yahoo_market_volumes ─────────────────────────────────
 

@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore")
 
 
 # 清幕：統一使用 input_controller 版本（避免重複實作）
-from twstock.input_helper import clear_screen  # noqa: E402, F401
+from twstock.input_helper import clear_screen  # noqa: F401  (re-export for backwards compat)
 
 
 def _lookup_stock_name(conn: sqlite3.Connection, stock_id: str) -> Optional[str]:

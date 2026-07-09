@@ -15,9 +15,9 @@ from typing import Optional
 _PARENT = Path(__file__).resolve().parent.parent
 if str(_PARENT) not in sys.path:
     sys.path.append(str(_PARENT))
-from twstock.db import DB_PATH  # noqa: E402
-from twstock.retry import retry_get  # noqa: E402
-from twstock.utils import get_ssl_verify  # noqa: E402
+from twstock.db import DB_PATH
+from twstock.retry import retry_get
+from twstock.utils import get_ssl_verify
 
 
 def _date_to_int(dt: datetime) -> int:

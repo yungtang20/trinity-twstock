@@ -40,8 +40,8 @@ _SCAN_CACHE: dict[str, Any] = {
     "results": None,
     "ts": 0,
 }
-from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]  # noqa: E402
-from twstock.strategy._utils import fetch_klines  # noqa: E402
+from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]
+from twstock.strategy._utils import fetch_klines
 
 try:
     from twstock.input_helper import _getch_windows, _kbhit_windows

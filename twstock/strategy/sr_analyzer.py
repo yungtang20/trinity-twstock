@@ -28,9 +28,9 @@ _TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
 if _TWSTOCK_DIR not in sys.path:
     sys.path.insert(0, _TWSTOCK_DIR)
 
-from twstock.db import get_connection  # noqa: E402
-from twstock.display import price_color, price_rich, vol_color, vol_fmt  # noqa: E402
-from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header  # noqa: E402
+from twstock.db import get_connection
+from twstock.display import price_color, price_rich, vol_color, vol_fmt
+from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
 
 
 def _to_date_int(val) -> int:
@@ -51,7 +51,7 @@ _CACHE_TTL = 300  # 5 分鐘
 _SR_CACHE = {"date": None, "min_volume": None, "results": None, "ts": 0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
-from twstock.terminal import console  # noqa: E402
+from twstock.terminal import console
 
 try:
     from twstock.input_helper import get_blocking_key
