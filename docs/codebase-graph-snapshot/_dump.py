@@ -3,8 +3,8 @@
 ponytail: one-shot dump, no framework, overwrites prior output. Ceiling: if
 graph schema changes (column renames), rewrite SELECTs here — not parameterized.
 """
-import sqlite3
 import os
+import sqlite3
 import sys
 
 DB = os.path.expanduser("~/.cache/codebase-memory-mcp/D-twse.db")

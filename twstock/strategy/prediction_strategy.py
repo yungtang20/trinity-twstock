@@ -33,11 +33,13 @@ from twstock.terminal import rconsole
 
 _StockPredictionAnalyzer: Optional[type] = None
 if TYPE_CHECKING:
-    from twstock.strategy.patterns_strategy import StockPredictionAnalyzer
+    from twstock.strategy.patterns_strategy import (
+        StockPredictionAnalyzer,  # noqa: F401  # TYPE_CHECKING import required by mypy
+    )
 else:
     try:
         from twstock.strategy.patterns_strategy import (
-            StockPredictionAnalyzer as _StockPredictionAnalyzer
+            StockPredictionAnalyzer as _StockPredictionAnalyzer,
         )
     except ImportError:
         _StockPredictionAnalyzer = None
