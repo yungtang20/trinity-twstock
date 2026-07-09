@@ -233,16 +233,14 @@ class ATRCalculator:
             tr[i] = max(highs[i] - lows[i], abs(highs[i] - prev_close), abs(lows[i] - prev_close))
 
         # 計算 ATR14（ Wilder's EMA）
-        atr14: list[float | None] = [None] * n
+        atr14 = [None] * n
         period = 14
         if n >= period:
             # 第一個 ATR14 = SMA(TR1..TR14)
             atr14[period - 1] = sum(tr[:period]) / period
             # 後續用 Wilder's EMA
             for i in range(period, n):
-                prev = atr14[i - 1]
-                assert prev is not None
-                atr14[i] = (prev * (period - 1) + tr[i]) / period
+                atr14[i] = (atr14[i - 1] * (period - 1) + tr[i]) / period
 
         # UPSERT stock_indicators（只更新 atr14）
         for i in range(n):

@@ -42,11 +42,12 @@ class TestMarketCache:
         result = cache.get()
         assert result == {"TAIEX": {"price": 22000}}
 
-    @patch("twstock.market_data.cache.MarketCache._is_market_open", return_value=False)
     @patch("twstock.market_data.cache.fetch_market_indices")
-    def test_get_triggers_background_fetch_when_empty(self, mock_fetch, _mock_open):
+    def test_get_triggers_background_fetch_when_empty(self, mock_fetch):
         """空快取時 get() 應觸發背景抓取。"""
         cache = MarketCache()
+        # 模擬 _is_market_open 返回 False（避免 refresh_interval 問題）
+        cache._is_market_open = lambda: False
         cache._last_fetch = 0  # 過期
         mock_fetch.return_value = {"TAIEX": {"price": 22000}}
 

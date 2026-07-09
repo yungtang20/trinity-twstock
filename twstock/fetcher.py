@@ -39,7 +39,7 @@ class _RateLimiter:
     def __init__(self, max_calls=600, window=3600):
         self._max = max_calls
         self._window = window
-        self._q: deque[float] = deque()
+        self._q = deque()
         self._lock = threading.Lock()
 
     def acquire(self):
@@ -253,7 +253,7 @@ class DataFetcher:
     def fetch_intraday_snapshot(self, stock_id):
         """抓取個股即時報價，回傳 dict: {o, h, l, z, v}，v 單位為張"""
         url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
-        params: dict[str, str | int] = {
+        params = {
             "ex_ch": f"tse_{stock_id}.tw",
             "json": 1,
             "delay": 0,
