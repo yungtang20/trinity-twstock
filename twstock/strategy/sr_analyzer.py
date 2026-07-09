@@ -901,7 +901,7 @@ def _display_results(
         (dist_col, "bright_red", True),
     ]:
         table.add_column(
-            col, justify="left", style=style, no_wrap=nw, overflow="fold" if not nw else None
+            col, justify="left", style=style, no_wrap=nw, overflow="fold"
         )
     for r in results[: StrategyConfig.MAX_SCAN_RESULTS]:
         if current_filters:

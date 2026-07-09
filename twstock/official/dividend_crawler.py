@@ -68,7 +68,7 @@ def _convert_roc_to_ad(roc_date_str: str) -> Optional[str]:
         return None
 
 
-def _convert_percent(value_str: str) -> float:
+def _convert_percent(value_str: Optional[str]) -> float:
     """Convert string with commas to float"""
     if value_str is None or value_str == "0" or value_str == "":
         return 0.0
