@@ -112,29 +112,6 @@ def ensure_indicators_all(db=None):
     return refreshed
 
 
-def refresh_indicators_all(db=None):
-    """
-    強制重新計算所有股票的指標 (全量刷新)。
-    回傳 dict：{stock_id: count}
-    """
-    if db is None:
-        db = get_connection()
-    db = _writable_conn(db)
-
-    cur = db.execute("SELECT DISTINCT stock_id FROM stock_history")
-    stock_ids = [row[0] for row in cur.fetchall()]
-
-    results = {}
-    for stock_id in stock_ids:  # noqa: PERF203 — 刻意保留：單股刷新失败要記 error 而非中斷
-        try:
-            results[stock_id] = refresh_indicators(stock_id, db)
-        except Exception as e:
-            results[stock_id] = {"error": str(e)}
-
-    db.commit()
-    return results
-
-
 if __name__ == "__main__":
     conn = get_connection()
     print("🔄 檢查所有股票指標...")

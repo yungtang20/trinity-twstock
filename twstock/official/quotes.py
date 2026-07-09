@@ -156,14 +156,6 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
     return df
 
 
-def fetch_all_quotes(date_int: int) -> pd.DataFrame:
-    twse = fetch_twse_quotes(date_int)
-    tpex = fetch_tpex_quotes(date_int)
-    if twse.empty and tpex.empty:
-        return pd.DataFrame()
-    return pd.concat([twse, tpex], ignore_index=True).drop_duplicates(subset=["stock_id", "date"])
-
-
 def update_stock_meta_from_df(df: pd.DataFrame):
     """從行情 df 擷取 stock_id, name, market → 更新 stock_meta"""
     if df.empty:

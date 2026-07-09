@@ -157,58 +157,6 @@ def fetch_single_stock_tdcc_from_portal(
         return None
 
 
-def update_stocks_tdcc_from_portal(stock_ids: list, dates: list):
-    """
-    [AI MOD] 自動依據給定的 stock_ids 與日期列表，從官網補爬真實集保資料並更新至資料庫。
-    適用於 On-Demand 按需修復或填補歷史資料，以避開全市場批次爬蟲造成的封鎖風險。
-    """
-    # 延遲導入以防循環相依
-    from processor import DataProcessor
-
-    proc = DataProcessor()
-
-    with requests.Session() as session:
-        session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://www.tdcc.com.tw/portal/zh/smWeb/qryStock",
-                "Origin": "https://www.tdcc.com.tw",
-                "Host": "www.tdcc.com.tw",
-                "Content-Type": "application/x-www-form-urlencoded",
-            }
-        )
-
-        results = []
-        total_tasks = len(dates) * len(stock_ids)
-        current_task = 0
-
-        print(
-            f"開始執行按需補爬集保歷史數據 (共 {len(stock_ids)} 檔，{len(dates)} 個日期)...",
-            flush=True,
-        )
-
-        for date_str in dates:
-            for stock_id in stock_ids:
-                current_task += 1
-                print(
-                    f"\r   → 進度: [{current_task}/{total_tasks}] 股號: {stock_id} 日期: {date_str} ... ",
-                    end="",
-                    flush=True,
-                )
-                res = fetch_single_stock_tdcc_from_portal(stock_id, date_str, session)
-                if res:
-                    results.append(res)
-                time.sleep(0.15)
-        print()  # 換行
-
-        if results:
-            df = pd.DataFrame(results)
-            proc.upsert_tdcc(df)
-            print(f"成功補爬並更新 {len(results)} 筆真實集保資料至資料庫！")
-        else:
-            print("未取得任何有效集保資料")
-
-
 def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
     """
     抓取最近 weeks 週的 TDCC 集保資料（從本週六往前推）

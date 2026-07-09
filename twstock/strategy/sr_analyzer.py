@@ -1011,24 +1011,6 @@ def run_strategy(params):
         conn.close()
 
 
-def get_sr_levels(code):
-    try:
-        conn = get_connection(readonly=True)
-        df = _fetch_history(conn, code)
-        conn.close()
-        if df.empty:
-            return {}
-        engine = SupportResistanceEngine(df)
-        result = engine.analyze()
-        return {
-            "short_resistance": result.get("nearest_resistance"),
-            "short_support": result.get("nearest_support"),
-        }
-    except Exception as exc:
-        logging.debug("get_sr_levels 失敗 (code=%s): %s", code, exc)
-        return {}
-
-
 class SupportResistanceStrategy:
     """撐壓策略 wrapper - 提供統一的 analyze() 介面。"""
 

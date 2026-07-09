@@ -283,11 +283,6 @@ class DataFetcher:
 
 
 # DoD module-level functions
-def fetch_stock_price(stock_id, start_date="", end_date=""):
-    """Module-level convenience function — DoD requirement."""
-    return DataFetcher().fetch_history_price(stock_id, start_date, end_date)
-
-
 def fetch_institutional(stock_id, start_date="", end_date=""):
     """Module-level convenience function — DoD requirement."""
     return DataFetcher().fetch_institutional(stock_id, start_date, end_date)
@@ -296,11 +291,6 @@ def fetch_institutional(stock_id, start_date="", end_date=""):
 def fetch_shareholding(stock_id, start_date="", end_date=""):
     """Module-level convenience function — DoD requirement."""
     return DataFetcher().fetch_shareholding(stock_id, start_date, end_date)
-
-
-def fetch_stock_info():
-    """Module-level convenience function — DoD requirement."""
-    return DataFetcher().fetch_stock_meta()
 
 
 # ============================================================================
@@ -843,112 +833,3 @@ class DividendFetcher:
         return count
 
 
-# ============================================================================
-# PERFetcher — Issue 006 (TWSE BWIBBU, monthly)
-# ============================================================================
-
-
-class PERFetcher:
-    """本益比資料抓取器，以月為單位"""
-
-    BASE_URL = "https://www.twse.com.tw/exchangeReport/BWIBBU"
-
-    def __init__(self, db):
-        self.db = db
-
-    def fetch_monthly(self, stock_id, year, month):
-        """
-        呼叫 TWSE BWIBBU API。
-        參數: response=json, date=YYYYMMDD（當月第一天）, stockNo=股票代號
-        """
-        date_str = f"{year}{month:02d}01"
-        params = {
-            "response": "json",
-            "date": date_str,
-            "stockNo": stock_id,
-        }
-        r = requests.get(self.BASE_URL, params=params, timeout=30)
-        r.raise_for_status()
-        resp = r.json()
-        if resp.get("stat") != "OK":
-            raise Exception(f"TWSE API error: stat={resp.get('stat')}")
-        return resp
-
-    def _transform(self, raw, stock_id):
-        """
-        如果 raw['stat'] != 'OK' → 拋 Exception
-        如果 raw['data'] 為空 → 拋 Exception("Cannot transform empty data")
-        fields: ["日期","殖利率(%)","股利年度","本益比","股價淨值比","財報年/季"]
-        索引: 0=日期, 1=殖利率, 3=本益比, 4=股價淨值比
-        ROC 日期轉 CE（年份 + 1911）
-        per 和 pe_ratio 都寫 float(本益比)
-        pbr 和 pb_ratio 都寫 float(股價淨值比)
-        source = 'official'
-        """
-        if raw.get("stat") != "OK":
-            raise Exception(f"TWSE API error: stat={raw.get('stat')}")
-
-        data = raw.get("data", [])
-        if not data:
-            raise Exception("Cannot transform empty data")
-
-        rows = []
-        for row in data:
-            # ROC 日期 "113/01/02" → CE "2024-01-02"
-            roc_date = row[0]
-            parts = roc_date.split("/")
-            ce_year = int(parts[0]) + 1911
-            date = f"{ce_year}-{parts[1]}-{parts[2]}"
-
-            per_val = float(row[3])
-            pbr_val = float(row[4])
-
-            rows.append(
-                {
-                    "stock_id": stock_id,
-                    "date": date,
-                    "dividend_yield": float(row[1]),
-                    "per": per_val,
-                    "pe_ratio": per_val,
-                    "pbr": pbr_val,
-                    "pb_ratio": pbr_val,
-                    "source": "official",
-                }
-            )
-        return rows
-
-    def save(self, rows):
-        """INSERT OR REPLACE 寫入 per_data"""
-        sql = """
-        INSERT OR REPLACE INTO per_data
-            (stock_id, date, per, pbr, pe_ratio, pb_ratio, dividend_yield, source)
-        VALUES
-            (:stock_id, :date, :per, :pbr, :pe_ratio, :pb_ratio, :dividend_yield, :source)
-        """
-        self.db.executemany(sql, rows)
-        self.db.commit()
-        return len(rows)
-
-    def fetch_and_save(self, stock_id, start_date, end_date):
-        """
-        按月迭代，對每個月呼叫 fetch_monthly → _transform → save。
-        start_date, end_date: 'YYYY-MM-DD' 格式。
-        """
-
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end = datetime.strptime(end_date, "%Y-%m-%d")
-
-        total = 0
-        current = start.replace(day=1)
-        while current <= end:
-            try:
-                raw = self.fetch_monthly(stock_id, current.year, current.month)
-                rows = self._transform(raw, stock_id)
-                total += self.save(rows)
-            except Exception:
-                pass  # 該月沒資料或其他錯誤，跳過
-            if current.month == 12:
-                current = current.replace(year=current.year + 1, month=1)
-            else:
-                current = current.replace(month=current.month + 1)
-        return total

@@ -78,24 +78,6 @@ def _convert_percent(value_str: Optional[str]) -> float:
         return 0.0
 
 
-def fetch_finmind_dividend_data(stock_code: str, start_date: str, end_date: str) -> pd.DataFrame:
-    """Fetch individual stock dividend data via FinMind API as a fallback"""
-    if not FINMIND_AVAILABLE:
-        print("  FinMind API is not available, skipping fallback fetch")
-        return pd.DataFrame()
-
-    try:
-        fetcher = DataFetcher()
-        df = fetcher.fetch_dividend_events(stock_code, start_date, end_date)
-        if not df.empty:
-            print(f"  Fetched {len(df)} ex-dividend records via FinMind API")
-            return df
-    except Exception as e:
-        print(f"  FinMind API fetch failed: {e}")
-
-    return pd.DataFrame()
-
-
 # [AI MOD] Hyper-optimized TWSE RWD endpoint support covering all stocks in one call
 def fetch_twse_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
     """Fetch all ex-rights/ex-dividends events for listed stocks in the date range"""
