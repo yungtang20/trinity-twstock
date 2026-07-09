@@ -5,6 +5,8 @@ strategy/indicators.py — 指標自動刷新機制
 確保策略分析前 stock_indicators 已有最新資料。
 """
 
+from __future__ import annotations
+
 import os
 import sqlite3
 import sys
@@ -19,8 +21,10 @@ from twstock.calculator import ATRCalculator, MACalculator, VWAPCalculator
 from twstock.db import get_connection
 
 
-def _writable_conn(db):
+def _writable_conn(db: sqlite3.Connection | None) -> sqlite3.Connection:
     """確保連線可寫入，若為唯讀則開新連線"""
+    if db is None:
+        return get_connection()
     try:
         db.execute("CREATE TEMP TABLE IF NOT EXISTS _write_test (id INTEGER)")
         db.execute("DROP TABLE IF EXISTS _write_test")
@@ -29,7 +33,7 @@ def _writable_conn(db):
         return get_connection()
 
 
-def refresh_indicators(stock_id, db=None):
+def refresh_indicators(stock_id: str, db: sqlite3.Connection | None = None) -> dict[str, int | str]:
     """
     重新計算指定股票的 MA/ATR/VWAP 指標並寫入 stock_indicators。
     回傳 dict 包含各 Calculator 寫入的筆數。
@@ -38,7 +42,7 @@ def refresh_indicators(stock_id, db=None):
         db = get_connection()
     db = _writable_conn(db)
 
-    results = {}
+    results: dict[str, int | str] = {}
     try:
         results["ma"] = MACalculator(db=db).calculate(stock_id)
     except Exception as e:
@@ -58,7 +62,7 @@ def refresh_indicators(stock_id, db=None):
     return results
 
 
-def ensure_indicators(stock_id, db=None):
+def ensure_indicators(stock_id: str, db: sqlite3.Connection | None = None) -> int:
     """
     檢查指定股票最新日 K 是否已有指標，若無則執行刷新。
     回筆寫入的指標筆數 (0 表示已有資料無需刷新)。
@@ -81,7 +85,7 @@ def ensure_indicators(stock_id, db=None):
     return total
 
 
-def ensure_indicators_all(db=None):
+def ensure_indicators_all(db: sqlite3.Connection | None = None) -> int:
     """
     檢查所有股票最新日 K 是否已有指標，若無則執行刷新。
     回傳已刷新的股票數量。

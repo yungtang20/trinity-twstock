@@ -49,7 +49,7 @@ except ImportError:
     from input_helper import _getch_windows, _kbhit_windows  # type: ignore[no-redef]
 
 
-def _compute_ma_with_deduction(closes: list, period: int):
+def _compute_ma_with_deduction(closes: list[float], period: int) -> dict[str, Any]:
     """
     計算 MA 值、扣抵值、明日 MA 預測方向。
 
@@ -103,7 +103,7 @@ def _compute_ma_with_deduction(closes: list, period: int):
     }
 
 
-def _render_mobile_ma(data, code, name):
+def _render_mobile_ma(data: dict[str, Any], code: str, name: str) -> None:
     """Mobile layout with deduction analysis."""
     console.print(f"[dim]{'─ 3 均線 ' + code + ' ' + name}{'─' * 20}[/]")  # [AI MOD]
 
@@ -139,7 +139,7 @@ def _render_mobile_ma(data, code, name):
         console.print(f"乖離 {bias:+.1f}%")
 
 
-def _render_full_ma(data, code, name):
+def _render_full_ma(data: dict[str, Any], code: str, name: str) -> None:
     """Desktop table with deduction column."""
     close = data["close"]
     prev_close = data.get("prev_close", close)
@@ -216,6 +216,8 @@ def scan_market_stocks(
     sort_choice: Optional[str] = None,
 ) -> None:
     import time as _time
+    import pandas as pd
+    import numpy as np
 
     _t0 = _time.time()
 
@@ -281,7 +283,7 @@ def scan_market_stocks(
             name_map = {}
 
         # === 嚴格三段式掃描 ===
-        # 第一段：SQL 撈 stock_history 最新一日 → snapshot (與原版一致)
+        # 第一段：SQL 撈 stock_indicators 最新一日 → snapshot (與原版一致)
 
         snapshot_sql = f"""
             SELECT i.stock_id, h.close, i.{target_ma_col}, i.vol_ma5, i.vol_ma60
@@ -311,160 +313,111 @@ def scan_market_stocks(
                 }
             )
 
-        # 第三段：只對命中股票 fetch_klines
+        # 第三段：批次載入命中股票歷史（每 500 檔一批 SQL），groupby 後以 rolling 向量計算
         from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
         all_results = []
         fetch_count = 0
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[cyan]🚀 正在對命中股票補讀歷史算回踩..."),
-            BarColumn(),
-            TimeElapsedColumn(),
-        ) as prog:
-            task = prog.add_task("補讀歷史", total=len(hit_list))
-            for stock in hit_list:
-                code = stock["stock_id"]
-                try:
-                    # 只對命中股票 fetch_klines
-                    df = pd.read_sql(
-                        """
-                        SELECT date, open, high, low, close, volume
-                        FROM klines
-                        WHERE stock_id = ?
-                        ORDER BY date DESC
-                        LIMIT 250
-                    """,
-                        conn,
-                        params=(code,),
+        if hit_list:
+            codes = [s["stock_id"] for s in hit_list]
+            dfs = []
+            chunk_size = 500
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[cyan]🚀 正在批次載入歷史資料與計算指標..."),
+                BarColumn(),
+                TimeElapsedColumn(),
+            ) as prog:
+                task = prog.add_task("載入與計算", total=len(codes))
+                for i in range(0, len(codes), chunk_size):
+                    chunk_codes = codes[i:i + chunk_size]
+                    placeholders = ",".join("?" * len(chunk_codes))
+                    bulk_sql = (
+                        "SELECT stock_id, date, close, volume FROM klines "
+                        "WHERE stock_id IN (" + placeholders + ") "
+                        "AND date >= date(?, '-18 months') "
+                        "ORDER BY stock_id, date ASC"
                     )
-                    # DESC LIMIT 取最新 N 筆，之後倒序回 ASC 以讓 iloc[-1] 對應到最新日
-                    df = df.sort_values("date").reset_index(drop=True)
-                    fetch_count += 1
+                    params = chunk_codes + [latest_date]
+                    df_chunk = pd.read_sql(bulk_sql, conn, params=params)
+                    dfs.append(df_chunk)
+                    prog.advance(task, len(chunk_codes))
 
-                    if df.empty or len(df) < period:
-                        prog.advance(task)
-                        continue
+            df_all = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-                    c = df["close"].values.tolist()
-                    v = df["volume"].values.tolist()
-                    ma_series = df["close"].rolling(window=period).mean().values.tolist()
+            if not df_all.empty:
+                df_all = df_all.sort_values(["stock_id", "date"]).reset_index(drop=True)
 
-                    curr_price = c[-1]
-                    prev_price = c[-2] if len(c) >= 2 else curr_price
-                    curr_vol = v[-1]
-                    prev_vol = v[-2] if len(v) >= 2 else curr_vol
+                if strat_choice == "1":
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(200).mean())
+                elif strat_choice == "2":
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(60).mean())
+                elif strat_choice == "3":
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(25).mean())
+                    df_all["vol_ma5"] = df_all.groupby("stock_id")["volume"].transform(lambda x: x.rolling(5).mean())
+                    df_all["vol_ma60"] = df_all.groupby("stock_id")["volume"].transform(lambda x: x.rolling(60).mean())
 
-                    # MA 趨勢方向：最後兩天 MA 比較
-                    ma_curr = ma_series[-1]
-                    ma_prev = ma_series[-2] if len(ma_series) >= 2 else ma_curr
-                    if ma_curr is not None and ma_prev is not None and ma_curr > 0 and ma_prev > 0:
-                        if ma_curr > ma_prev:
-                            ma_trend = "up"
-                        elif ma_curr < ma_prev:
-                            ma_trend = "down"
+                grouped = df_all.groupby("stock_id")
+
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[cyan]🚀 正在驗證交易策略..."),
+                    BarColumn(),
+                    TimeElapsedColumn(),
+                ) as prog:
+                    task = prog.add_task("策略驗證", total=len(hit_list))
+
+                    for stock in hit_list:
+                        code = stock["stock_id"]
+                        if code not in grouped.groups:
+                            prog.advance(task)
+                            continue
+
+                        fetch_count += 1
+                        group = grouped.get_group(code)
+                        if len(group) < period:
+                            prog.advance(task)
+                            continue
+
+                        c = group["close"].values.tolist()
+                        v = group["volume"].values.tolist()
+                        ma_series = group["ma_target"].values.tolist()
+
+                        curr_price = c[-1]
+                        prev_price = c[-2] if len(c) >= 2 else curr_price
+                        curr_vol = v[-1]
+                        prev_vol = v[-2] if len(v) >= 2 else curr_vol
+
+                        # MA 趨勢方向：最後兩天 MA 比較
+                        ma_curr = ma_series[-1]
+                        ma_prev = ma_series[-2] if len(ma_series) >= 2 else ma_curr
+                        if pd.notna(ma_curr) and pd.notna(ma_prev) and ma_curr > 0 and ma_prev > 0:
+                            if ma_curr > ma_prev:
+                                ma_trend = "up"
+                            elif ma_curr < ma_prev:
+                                ma_trend = "down"
+                            else:
+                                ma_trend = "flat"
                         else:
                             ma_trend = "flat"
-                    else:
-                        ma_trend = "flat"
 
-                    # 策略條件判斷
-                    triggered = []
+                        # 策略條件判斷
+                        triggered = []
 
-                    if strat_choice == "1":  # 突破年線
-                        if (
-                            len(c) >= 200
-                            and prev_price <= ma_series[-2]
-                            and curr_price > ma_series[-1]
-                            and curr_vol > prev_vol
-                        ):
-                            bias = (
-                                (curr_price - ma_series[-1]) / ma_series[-1] * 100
-                                if ma_series[-1] > 0
-                                else 0.0
-                            )
-                            vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
-                            retraces = _count_retraces_wrapped(ma_series, c, period)
-                            triggered.append(
-                                {
-                                    "code": code,
-                                    "name": name_map.get(code, "---"),
-                                    "close": curr_price,
-                                    "prev_close": prev_price,
-                                    "ma60": None,
-                                    "ma200": ma_series[-1],
-                                    "target_ma": ma_series[-1],
-                                    "vol_ratio": vol_ratio,
-                                    "bias": bias,
-                                    "trend": "突破年線",
-                                    "color": "bold yellow",
-                                    "vol": int(curr_vol) // 1000,
-                                    "prev_vol": int(prev_vol) // 1000,
-                                    "amount": (curr_price * curr_vol) / 1e8,
-                                    "strat_id": "1",
-                                    "retraces": retraces,
-                                    "ma_trend": ma_trend,
-                                }
-                            )
-                    elif strat_choice == "2":  # 突破季線
-                        if (
-                            prev_price <= ma_series[-2]
-                            and curr_price > ma_series[-1]
-                            and curr_vol > prev_vol
-                        ):
-                            bias = (
-                                (curr_price - ma_series[-1]) / ma_series[-1] * 100
-                                if ma_series[-1] > 0
-                                else 0.0
-                            )
-                            vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
-                            retraces = _count_retraces_wrapped(ma_series, c, period)
-                            triggered.append(
-                                {
-                                    "code": code,
-                                    "name": name_map.get(code, "---"),
-                                    "close": curr_price,
-                                    "prev_close": prev_price,
-                                    "ma60": ma_series[-1],
-                                    "ma200": None,
-                                    "target_ma": ma_series[-1],
-                                    "vol_ratio": vol_ratio,
-                                    "bias": bias,
-                                    "trend": "突破季線",
-                                    "color": "bright_magenta",
-                                    "vol": int(curr_vol) // 1000,
-                                    "prev_vol": int(prev_vol) // 1000,
-                                    "amount": (curr_price * curr_vol) / 1e8,
-                                    "strat_id": "2",
-                                    "retraces": retraces,
-                                    "ma_trend": ma_trend,
-                                }
-                            )
-                    elif strat_choice == "3":  # 2560戰法
-                        vol_ma5 = df["volume"].rolling(window=5).mean().values.tolist()
-                        vol_ma60 = df["volume"].rolling(window=60).mean().values.tolist()
-                        ma25 = df["close"].rolling(window=25).mean().values.tolist()
-                        vol_cross = vol_ma5[-2] <= vol_ma60[-2] and vol_ma5[-1] > vol_ma60[-1]
-                        retrace = ma25[-1] <= curr_price <= ma25[-1] * 1.10
-                        if vol_cross and retrace:
-                            found_2560 = False
-                            breakout_idx = None
-                            for t in range(2, min(60, len(c))):
-                                idx = len(c) - t
-                                if c[idx - 1] <= ma25[idx - 1] and c[idx] > ma25[idx]:
-                                    breakout_idx = idx
-                                    break
-                            if breakout_idx is not None:
-                                if all(c[k] >= ma25[k] for k in range(breakout_idx, len(c))):
-                                    found_2560 = True
-                            if found_2560:
-                                bias = (
-                                    (curr_price - ma25[-1]) / ma25[-1] * 100
-                                    if ma25[-1] > 0
-                                    else 0.0
-                                )
-                                retraces = _count_retraces_wrapped(ma25, c, 25)
+                        if strat_choice == "1":  # 突破年線
+                            if (
+                                len(c) >= 200
+                                and pd.notna(ma_series[-2])
+                                and pd.notna(ma_series[-1])
+                                and prev_price <= ma_series[-2]
+                                and curr_price > ma_series[-1]
+                                and curr_vol > prev_vol
+                            ):
+                                bias = ((curr_price - ma_series[-1]) / ma_series[-1] * 100) if ma_series[-1] > 0 else 0.0
+                                vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                retraces = _count_retraces_wrapped(ma_series, c, period)
                                 triggered.append(
                                     {
                                         "code": code,
@@ -472,30 +425,106 @@ def scan_market_stocks(
                                         "close": curr_price,
                                         "prev_close": prev_price,
                                         "ma60": None,
-                                        "ma200": None,
-                                        "target_ma": ma25[-1],
-                                        "vol_ratio": (
-                                            (curr_vol - prev_vol) / prev_vol
-                                            if prev_vol > 0
-                                            else 0.0
-                                        ),
+                                        "ma200": ma_series[-1],
+                                        "target_ma": ma_series[-1],
+                                        "vol_ratio": vol_ratio,
                                         "bias": bias,
-                                        "trend": "2560戰法",
-                                        "color": "cyan",
+                                        "trend": "突破年線",
+                                        "color": "bold yellow",
                                         "vol": int(curr_vol) // 1000,
                                         "prev_vol": int(prev_vol) // 1000,
                                         "amount": (curr_price * curr_vol) / 1e8,
-                                        "strat_id": "3",
+                                        "strat_id": "1",
                                         "retraces": retraces,
                                         "ma_trend": ma_trend,
                                     }
                                 )
+                        elif strat_choice == "2":  # 突破季線
+                            if (
+                                pd.notna(ma_series[-2])
+                                and pd.notna(ma_series[-1])
+                                and prev_price <= ma_series[-2]
+                                and curr_price > ma_series[-1]
+                                and curr_vol > prev_vol
+                            ):
+                                bias = ((curr_price - ma_series[-1]) / ma_series[-1] * 100) if ma_series[-1] > 0 else 0.0
+                                vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                retraces = _count_retraces_wrapped(ma_series, c, period)
+                                triggered.append(
+                                    {
+                                        "code": code,
+                                        "name": name_map.get(code, "---"),
+                                        "close": curr_price,
+                                        "prev_close": prev_price,
+                                        "ma60": ma_series[-1],
+                                        "ma200": None,
+                                        "target_ma": ma_series[-1],
+                                        "vol_ratio": vol_ratio,
+                                        "bias": bias,
+                                        "trend": "突破季線",
+                                        "color": "bright_magenta",
+                                        "vol": int(curr_vol) // 1000,
+                                        "prev_vol": int(prev_vol) // 1000,
+                                        "amount": (curr_price * curr_vol) / 1e8,
+                                        "strat_id": "2",
+                                        "retraces": retraces,
+                                        "ma_trend": ma_trend,
+                                    }
+                                )
+                        elif strat_choice == "3":  # 2560戰法
+                            vol_ma5 = group["vol_ma5"].values.tolist()
+                            vol_ma60 = group["vol_ma60"].values.tolist()
+                            ma25 = ma_series
+                            if (
+                                pd.notna(vol_ma5[-2]) and pd.notna(vol_ma60[-2])
+                                and pd.notna(vol_ma5[-1]) and pd.notna(vol_ma60[-1])
+                            ):
+                                vol_cross = vol_ma5[-2] <= vol_ma60[-2] and vol_ma5[-1] > vol_ma60[-1]
+                                retrace = ma25[-1] <= curr_price <= ma25[-1] * 1.10
+                                if vol_cross and retrace:
+                                    found_2560 = False
+                                    breakout_idx = None
+                                    for t in range(2, min(60, len(c))):
+                                        idx = len(c) - t
+                                        if pd.notna(ma25[idx - 1]) and pd.notna(ma25[idx]):
+                                            if c[idx - 1] <= ma25[idx - 1] and c[idx] > ma25[idx]:
+                                                breakout_idx = idx
+                                                break
+                                    if breakout_idx is not None:
+                                        if all(c[k] >= ma25[k] for k in range(breakout_idx, len(c))):
+                                            found_2560 = True
+                                    if found_2560:
+                                        bias = ((curr_price - ma25[-1]) / ma25[-1] * 100) if ma25[-1] > 0 else 0.0
+                                        retraces = _count_retraces_wrapped(ma25, c, 25)
+                                        triggered.append(
+                                            {
+                                                "code": code,
+                                                "name": name_map.get(code, "---"),
+                                                "close": curr_price,
+                                                "prev_close": prev_price,
+                                                "ma60": None,
+                                                "ma200": None,
+                                                "target_ma": ma25[-1],
+                                                "vol_ratio": (
+                                                    (curr_vol - prev_vol) / prev_vol
+                                                    if prev_vol > 0
+                                                    else 0.0
+                                                ),
+                                                "bias": bias,
+                                                "trend": "2560戰法",
+                                                "color": "cyan",
+                                                "vol": int(curr_vol) // 1000,
+                                                "prev_vol": int(prev_vol) // 1000,
+                                                "amount": (curr_price * curr_vol) / 1e8,
+                                                "strat_id": "3",
+                                                "retraces": retraces,
+                                                "ma_trend": ma_trend,
+                                            }
+                                        )
 
-                    if triggered:
-                        all_results.extend(triggered)
-                except Exception:
-                    pass
-                prog.advance(task)
+                        if triggered:
+                            all_results.extend(triggered)
+                        prog.advance(task)
 
         # assert fetch_count == len(hit_list)
         assert fetch_count == len(
@@ -543,7 +572,7 @@ def scan_market_stocks(
     _display_scan_results(results, latest_date, sort_choice, strat_choice)
 
 
-def _analyze_one(conn, code, name_map) -> list:
+def _analyze_one(conn: sqlite3.Connection, code: str, name_map: dict[str, str]) -> list[dict[str, Any]]:
     df = pd.read_sql(
         """
         SELECT date, open, high, low, close, volume
@@ -572,7 +601,7 @@ def _analyze_one(conn, code, name_map) -> list:
     # [AI MOD] Count support-holding retraces to MA during the most recent continuous breakout period
     # Definition: walk backwards from today to find the first day price fell below MA.
     # Exclude the breakout day itself (breakout_start) and count subsequent retraces (MA <= close <= MA * 1.10).
-    def _count_retraces(ma_series):
+    def _count_retraces(ma_series: list[float] | None) -> int:
         if (
             ma_series is None or len(df) == 0
         ):  # [AI MOD] Guard against None ma200 (insufficient data)
@@ -713,7 +742,11 @@ def _analyze_one(conn, code, name_map) -> list:
     return triggered
 
 
-def _count_retraces_wrapped(ma_series, closes, period):
+def _count_retraces_wrapped(
+    ma_series: list[float] | None,
+    closes: list[float],
+    period: int,
+) -> int:
     """
     包裝 _count_retraces：顯傳入 ma_series 與 closes，確保索引對齊。
     供兩段式掃描使用（命中股票補讀歷史後呼叫）。
@@ -828,7 +861,7 @@ def get_latest_date() -> str:
         conn.close()
 
 
-def run_strategy(params: dict):
+def run_strategy(params: dict[str, Any]) -> None:
     code = params.get("code")
     scan = params.get("scan", False)
     strat_choice = params.get("strat_choice")

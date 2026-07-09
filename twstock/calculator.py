@@ -6,6 +6,12 @@ calculator.py — 技術指標計算引擎
 並嘗試 LEFT JOIN 基本面與籌碼資料。
 """
 
+from __future__ import annotations
+
+import math
+import sqlite3
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -16,14 +22,14 @@ from twstock.db_admin import (
 
 
 class IndicatorEngine:
-    def __init__(self, stock_id, limit=600, df_intraday=None):
-        self.stock_id = stock_id
-        self.limit = limit
-        self.df = self._load_data()
+    def __init__(self, stock_id: str, limit: int = 600, df_intraday: pd.DataFrame | None = None) -> None:
+        self.stock_id: str = stock_id
+        self.limit: int = limit
+        self.df: pd.DataFrame = self._load_data()
         if df_intraday is not None and not df_intraday.empty:
             self.df = pd.concat([self.df, df_intraday], ignore_index=True)
 
-    def _load_data(self):
+    def _load_data(self) -> pd.DataFrame:
         """從 stock_history 讀取 date, open, high, low, close, volume，按 date 升序排列"""
         conn = get_connection(readonly=True)
         query = """
@@ -40,7 +46,7 @@ class IndicatorEngine:
         df["date"] = pd.to_datetime(df["date"])
         return df
 
-    def _add_moving_averages(self):
+    def _add_moving_averages(self) -> None:
         """計算 SMA 5/10/20/60/120/200, EMA 12/26, 成交量 SMA 5/20, 成交量比率"""
         if self.df.empty:
             return
@@ -60,7 +66,7 @@ class IndicatorEngine:
         self.df["volume_sma_20"] = vol.rolling(window=20).mean()
         self.df["volume_ratio"] = vol / self.df["volume_sma_5"]
 
-    def _add_macd(self):
+    def _add_macd(self) -> None:
         """MACD (12, 26, 9): DIF, DEA, HISTOGRAM"""
         if self.df.empty:
             return
@@ -71,7 +77,7 @@ class IndicatorEngine:
         self.df["macd_dea"] = self.df["macd_dif"].ewm(span=9, adjust=False).mean()
         self.df["macd_hist"] = self.df["macd_dif"] - self.df["macd_dea"]
 
-    def _add_kdj(self):
+    def _add_kdj(self) -> None:
         """KDJ (9, 3, 3): K, D, J"""
         if self.df.empty:
             return
@@ -85,7 +91,7 @@ class IndicatorEngine:
         self.df["kdj_d"] = self.df["kdj_k"].ewm(com=2, adjust=False).mean()
         self.df["kdj_j"] = 3 * self.df["kdj_k"] - 2 * self.df["kdj_d"]
 
-    def _add_rsi(self):
+    def _add_rsi(self) -> None:
         """RSI 6 / 14"""
         if self.df.empty:
             return
@@ -98,7 +104,7 @@ class IndicatorEngine:
             rs = avg_gain / avg_loss
             self.df[f"rsi_{period}"] = 100 - (100 / (1 + rs))
 
-    def _add_bollinger_bands(self):
+    def _add_bollinger_bands(self) -> None:
         """Bollinger Bands (20, 2): middle, upper, lower, bandwidth, %b"""
         if self.df.empty:
             return
@@ -114,13 +120,13 @@ class IndicatorEngine:
             self.df["bb_upper"] - self.df["bb_lower"]
         )
 
-    def _add_log_return(self):
+    def _add_log_return(self) -> None:
         """日報酬率 (log return)"""
         if self.df.empty:
             return
         self.df["log_return"] = np.log(self.df["close"] / self.df["close"].shift(1))
 
-    def _add_pivot(self):
+    def _add_pivot(self) -> None:
         """樞紐點: pivot, r1, r2, s1, s2"""
         if self.df.empty:
             return
@@ -130,13 +136,13 @@ class IndicatorEngine:
         self.df["pivot_s1"] = 2 * self.df["pivot"] - self.df["high"]
         self.df["pivot_s2"] = self.df["pivot"] - (self.df["high"] - self.df["low"])
 
-    def _join_fundamental_chips(self):
+    def _join_fundamental_chips(self) -> None:
         """JOIN 籌碼/基本面資料，若無對應表則跳過"""
         if self.df.empty:
             return
         try:
             conn = get_connection(readonly=True)
-            tables_to_join = [
+            tables_to_join: list[tuple[str, list[str]]] = [
                 ("institutional_data", ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]),
                 ("shareholding_data", ["foreign_shares", "foreign_ratio"]),
             ]
@@ -156,7 +162,7 @@ class IndicatorEngine:
         except Exception:
             pass
 
-    def build(self):
+    def build(self) -> pd.DataFrame:
         """整合所有計算步驟，回傳完整 DataFrame"""
         if self.df.empty:
             return self.df
@@ -195,10 +201,10 @@ class IndicatorEngine:
 class ATRCalculator:
     """ATR14 計算器，使用 Wilder's EMA 平滑法"""
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self.db: sqlite3.Connection = db
 
-    def calculate(self, stock_id):
+    def calculate(self, stock_id: str) -> int:
         """
         計算 stock_id 的 ATR14，UPSERT 到 stock_indicators.atr14。
 
@@ -217,30 +223,35 @@ class ATRCalculator:
         if not rows:
             return 0
 
-        import math
-
-        dates = [r[0] for r in rows]
-        highs = [r[1] for r in rows]
-        lows = [r[2] for r in rows]
-        closes = [r[3] for r in rows]
-        n = len(dates)
+        dates: list[Any] = [r[0] for r in rows]
+        highs: list[Any] = [r[1] for r in rows]
+        lows: list[Any] = [r[2] for r in rows]
+        closes: list[Any] = [r[3] for r in rows]
+        n: int = len(dates)
 
         # 計算 TR
-        tr = [0.0] * n
-        tr[0] = highs[0] - lows[0]  # 第一天無 prev_close
+        tr: list[float] = [0.0] * n
+        tr[0] = float(highs[0]) - float(lows[0])  # 第一天無 prev_close
         for i in range(1, n):
-            prev_close = closes[i - 1]
-            tr[i] = max(highs[i] - lows[i], abs(highs[i] - prev_close), abs(lows[i] - prev_close))
+            prev_close = float(closes[i - 1])
+            tr[i] = max(
+                float(highs[i]) - float(lows[i]),
+                abs(float(highs[i]) - prev_close),
+                abs(float(lows[i]) - prev_close),
+            )
 
         # 計算 ATR14（ Wilder's EMA）
-        atr14 = [None] * n
-        period = 14
+        atr14: list[float | None] = [None] * n
+        period: int = 14
         if n >= period:
             # 第一個 ATR14 = SMA(TR1..TR14)
             atr14[period - 1] = sum(tr[:period]) / period
             # 後續用 Wilder's EMA
             for i in range(period, n):
-                atr14[i] = (atr14[i - 1] * (period - 1) + tr[i]) / period
+                prev = atr14[i - 1]
+                if prev is None:
+                    prev = 0.0
+                atr14[i] = (prev * (period - 1) + tr[i]) / period
 
         # UPSERT stock_indicators（只更新 atr14）
         for i in range(n):
@@ -257,15 +268,15 @@ class ATRCalculator:
         self.db.commit()
         return n
 
-    def calculate_all(self):
+    def calculate_all(self) -> dict[str, int]:
         """
         對 stock_history 所有 stock_id 執行 calculate()。
         回傳 dict：{stock_id: count}
         """
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids = [row[0] for row in cur.fetchall()]
+        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
-        result = {}
+        result: dict[str, int] = {}
         for stock_id in stock_ids:
             result[stock_id] = self.calculate(stock_id)
         return result
@@ -279,10 +290,10 @@ class ATRCalculator:
 class VWAPCalculator:
     """日 VWAP 計算器，vwap = amount / volume"""
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self.db: sqlite3.Connection = db
 
-    def calculate(self, stock_id):
+    def calculate(self, stock_id: str) -> int:
         """
         計算 stock_id 的日 VWAP，UPSERT 到 stock_indicators.vwap。
 
@@ -296,8 +307,6 @@ class VWAPCalculator:
         rows = cur.fetchall()
         if not rows:
             return 0
-
-        import math
 
         updates = 0
         for date, volume, amount in rows:
@@ -318,15 +327,15 @@ class VWAPCalculator:
         self.db.commit()
         return updates
 
-    def calculate_all(self):
+    def calculate_all(self) -> dict[str, int]:
         """
         對 stock_history 所有 stock_id 執行 calculate()。
         回傳 dict：{stock_id: count}
         """
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids = [row[0] for row in cur.fetchall()]
+        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
-        result = {}
+        result: dict[str, int] = {}
         for stock_id in stock_ids:
             result[stock_id] = self.calculate(stock_id)
         return result
@@ -338,8 +347,8 @@ class MACalculator:
     介面：MACalculator(db=conn) → calculate(stock_id) → int
     """
 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self.db: sqlite3.Connection = db
 
     def calculate(self, stock_id: str) -> int:
         """
@@ -391,10 +400,11 @@ class MACalculator:
             vol_ma20 = float(cols["volume_sma_20"]) if pd.notna(cols.get("volume_sma_20")) else None
             vol_ma60 = float(cols["volume_sma_60"]) if pd.notna(cols.get("volume_sma_60")) else None
 
-            def _bias(c, m):
+            def _bias(c: float | None, m: float | None) -> float | None:
                 if m is None or m == 0:
                     return None
-                return (c - m) / m * 100
+                cm: float = c  # type: ignore[assignment]
+                return (cm - m) / m * 100
 
             close_val = float(cols["close"]) if pd.notna(cols.get("close")) else None
             bias_ma25 = _bias(close_val, ma25)
@@ -436,7 +446,7 @@ class MACalculator:
         self.db.commit()
         return written
 
-    def calculate_all(self):
+    def calculate_all(self) -> dict[str, int]:
         """
         對 stock_history 所有 stock_id 執行 calculate()。
         回傳 dict：{stock_id: count}
@@ -445,9 +455,9 @@ class MACalculator:
 
         create_tables(self.db)  # 只呼叫一次，避免每支股票重複 catalog 檢查
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids = [row[0] for row in cur.fetchall()]
+        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
-        result = {}
+        result: dict[str, int] = {}
         for stock_id in stock_ids:
             result[stock_id] = self.calculate(stock_id)
         return result
