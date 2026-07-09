@@ -8,6 +8,7 @@ Fetch ex-rights and ex-dividends data from TWSE and TPEx APIs, with FinMind fall
 import os
 import sys
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 
@@ -54,7 +55,7 @@ def _convert_date(date_str: str, input_format: str) -> str:
 
 
 # [AI MOD] Added ROC date conversions to clean up API calls
-def _convert_roc_to_ad(roc_date_str: str) -> str:
+def _convert_roc_to_ad(roc_date_str: str) -> Optional[str]:
     """Convert ROC date 'YYY/MM/DD' or 'YYY年MM月DD日' to 'YYYY-MM-DD'"""
     try:
         clean = roc_date_str.replace("年", "/").replace("月", "/").replace("日", "").strip()

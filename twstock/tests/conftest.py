@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,7 @@ def temp_db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def db_conn(temp_db_path: Path) -> sqlite3.Connection:
+def db_conn(temp_db_path: Path) -> Iterator[sqlite3.Connection]:
     """建立一個指向臨時 DB 的連線，測試結束後自動關閉。"""
     # [FIX] 移除無效的 os.environ["TWSTOCK_DB_PATH"] 設定 — db.py 不讀此 env var
     # DB_PATH 導向由 patch_db_path fixture 處理（monkeypatch.setattr）

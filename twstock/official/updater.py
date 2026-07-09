@@ -166,6 +166,7 @@ def update_official_daily(
     if date_int is None:
         base_date_int = cal.get_last_trading_day()
         base_dt = cal._int_to_date(base_date_int)
+        assert base_dt is not None  # get_last_trading_day 保證合法交易日
         print(f"📅 基準日期設為最近交易日: {base_date_int}", flush=True)
     else:
         base_dt = cal._int_to_date(date_int)
@@ -186,7 +187,7 @@ def update_official_daily(
 
     # 掃描需要抓取的日期
     print(f"🔍 開始掃描缺失日期（目標 {days} 天）...", flush=True)
-    fetch_dates = []
+    fetch_dates: list[int] = []
     current_dt = base_dt
     checked_count = 0
 
@@ -372,7 +373,9 @@ def update_official_daily(
     # 3. 抓取除權息事件（範圍：全年度，避免遺漏未來除權息日）
     if fetch_dates:
         # [AI MOD] Fetch entire year's dividend forecast to ensure all upcoming events are synced
-        current_year = cal._int_to_date(max(fetch_dates)).year
+        _latest_dt = cal._int_to_date(max(fetch_dates))
+        assert _latest_dt is not None  # fetch_dates 元素均為合法交易日 int
+        current_year = _latest_dt.year
         year_start = f"{current_year}-01-01"
         year_end = f"{current_year}-12-31"
         print(f"\n📅 同步本年度除權息事件 ({year_start} ~ {year_end})...", flush=True)

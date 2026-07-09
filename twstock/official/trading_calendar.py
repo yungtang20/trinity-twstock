@@ -10,6 +10,7 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 _PARENT = Path(__file__).resolve().parent.parent
 if str(_PARENT) not in sys.path:
@@ -23,7 +24,7 @@ def _date_to_int(dt: datetime) -> int:
     return int(dt.strftime("%Y%m%d"))
 
 
-def _int_to_date(date_int: int) -> datetime:
+def _int_to_date(date_int: int) -> Optional[datetime]:
     try:
         s = str(date_int)
         if len(s) != 8:
@@ -140,8 +141,11 @@ def get_nth_trading_day_back(n: int) -> datetime:  # [AI MOD] 取得過去第 N 
     n=0 表示最近交易日，n=1 表示再前一個交易日，以此類推。
     """
     if n <= 0:
-        return _int_to_date(get_last_trading_day())
+        result = _int_to_date(get_last_trading_day())
+        assert result is not None  # get_last_trading_day 保證回傳合法 8 碼交易日
+        return result
     dt = _int_to_date(get_last_trading_day())
+    assert dt is not None  # 同上,合法交易日保證可解析
     count = 0
     while count < n:
         dt -= timedelta(days=1)

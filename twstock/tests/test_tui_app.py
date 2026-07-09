@@ -13,7 +13,7 @@ if _DIR not in sys.path:
 # Suppress rich console output
 import rich.console
 
-rich.console.Console = lambda **kw: MagicMock()
+rich.console.Console = lambda **kw: MagicMock()  # type: ignore[misc,assignment]
 
 
 # ── TUIApp ──────────────────────────────────────────────────
