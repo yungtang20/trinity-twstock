@@ -178,17 +178,17 @@ def interactive_menu():
                     run_strategy_by_id(choice, {"code": ans})
                     continue
 
-                filter_map = {
+                indicator_filter_map = {
                     "1": "poc",
                     "2": "vwap",
                     "3": "long_sup",
                     "4": "short_sup",
                     "5": "front_low",
                 }
-                if ans in filter_map:
+                if ans in indicator_filter_map:
                     vol = _input_vol()
                     run_strategy_by_id(
-                        choice, {"scan": True, "vol": vol, "filter": filter_map[ans]}
+                        choice, {"scan": True, "vol": vol, "filter": indicator_filter_map[ans]}
                     )
                     _prompt_kronos_ai()
                     continue
@@ -328,11 +328,11 @@ def interactive_menu():
                     run_strategy_by_id(choice, {"code": ans})
                     continue
 
-                filter_map = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}
-                if ans in filter_map:
+                direction_filter_map = {"1": "bullish", "2": "neutral", "3": "bearish", "4": None}
+                if ans in direction_filter_map:
                     vol = _input_vol()
                     run_strategy_by_id(
-                        choice, {"scan": True, "vol": vol, "pattern_filter": filter_map[ans]}
+                        choice, {"scan": True, "vol": vol, "pattern_filter": direction_filter_map[ans]}
                     )
                     _prompt_kronos_ai()
                     continue
