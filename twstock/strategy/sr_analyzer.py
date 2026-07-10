@@ -10,9 +10,11 @@
 import logging
 import os
 import signal
+import sqlite3
 import sys
 import time
 import warnings
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -33,7 +35,7 @@ from twstock.display import price_color, price_rich, vol_color, vol_fmt
 from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
 
 
-def _to_date_int(val) -> int:
+def _to_date_int(val: Any) -> int:
     """安全地將日期轉換為 YYYYMMDD 整數格式"""
     try:
         s = str(val)
@@ -48,7 +50,7 @@ def _to_date_int(val) -> int:
 warnings.filterwarnings("ignore")
 
 _CACHE_TTL = 300  # 5 分鐘
-_SR_CACHE = {"date": None, "min_volume": None, "results": None, "ts": 0}
+_SR_CACHE: dict[str, Any] = {"date": None, "min_volume": None, "results": None, "ts": 0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import console
@@ -114,13 +116,13 @@ class StrategyConfig:
 
 
 class SupportResistanceEngine:
-    def __init__(self, df):
+    def __init__(self, df: pd.DataFrame) -> None:
         self.df = self._clean(df)
         self.last_close = float(self.df["close"].iloc[-1]) if not self.df.empty else 0.0
         self._compute_atr()
 
     @staticmethod
-    def _clean(df):
+    def _clean(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
             return df
         df = df.dropna(subset=["open", "high", "low", "close"]).copy()
@@ -132,7 +134,7 @@ class SupportResistanceEngine:
             df = df[df["volume"] >= 0].copy()
         return df.sort_values("date").reset_index(drop=True)
 
-    def _compute_atr(self, period: int = StrategyConfig.ATR_PERIOD):
+    def _compute_atr(self, period: int = StrategyConfig.ATR_PERIOD) -> None:
         if self.df.empty:
             return
         tick = StrategyConfig.get_tick_size(self.last_close)
@@ -148,7 +150,9 @@ class SupportResistanceEngine:
         self.df["atr"] = self.df["atr"].rolling(window=period).mean()
         self.df = self.df.drop(columns=["_pc", "_tr"])
 
-    def _find_swing(self, arr, dates, mode):
+    def _find_swing(
+        self, arr: np.ndarray, dates: np.ndarray, mode: str
+    ) -> dict[str, Any] | None:
         n = StrategyConfig.SWING_LEFT + StrategyConfig.SWING_RIGHT + 1
         if len(arr) < n:
             return None
@@ -161,7 +165,7 @@ class SupportResistanceEngine:
             win = arr[i - StrategyConfig.SWING_LEFT : i + StrategyConfig.SWING_RIGHT + 1]
             if len(win) == 0:
                 continue
-            extreme = cmp_fn(win)
+            extreme: float = float(cmp_fn(win))
             if arr[i] == extreme:
                 idxs = np.where(win == extreme)[0]
                 if idxs[-1] == StrategyConfig.SWING_LEFT:
@@ -175,14 +179,14 @@ class SupportResistanceEngine:
             }
         return None
 
-    def _find_swing_points(self):
+    def _find_swing_points(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         recent = self.df.tail(StrategyConfig.SWING_WINDOW)
         return (
             self._find_swing(recent["high"].to_numpy(), recent["date"].to_numpy(), "high"),
             self._find_swing(recent["low"].to_numpy(), recent["date"].to_numpy(), "low"),
         )
 
-    def _recent_extremes(self):
+    def _recent_extremes(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         if len(self.df) < 10:
             return None, None
         tail = self.df.tail(10)
@@ -199,7 +203,7 @@ class SupportResistanceEngine:
             },
         )
 
-    def _key_close_levels(self):
+    def _key_close_levels(self) -> pd.DataFrame:
         if len(self.df) < 20:
             return pd.DataFrame()
         recent = self.df.tail(StrategyConfig.KEY_CLOSE_WINDOW).copy()
@@ -216,7 +220,7 @@ class SupportResistanceEngine:
         result = recent[mask].sort_values("date", ascending=False).head(5)
         return result[["date", "close", "ret"]]
 
-    def _acceleration_band(self):
+    def _acceleration_band(self) -> dict[str, Any] | None:
         if len(self.df) < StrategyConfig.ACCEL_BOX_WINDOW + 1:
             return None
         recent = self.df.tail(StrategyConfig.ACCEL_WINDOW)
@@ -263,7 +267,7 @@ class SupportResistanceEngine:
             "band_mid": vwap,
         }
 
-    def _price_density(self):
+    def _price_density(self) -> dict[str, Any]:
         tail = self.df.tail(StrategyConfig.DENSITY_WINDOW).copy()
         tail["tp"] = (tail["high"] + tail["low"] + tail["close"]) / 3.0
         tail = tail[tail["tp"].notna() & (tail["tp"] > 0)].copy()
@@ -302,7 +306,7 @@ class SupportResistanceEngine:
             "meta": {"n_effective": n},
         }
 
-    def _merge_levels(self, levels, atr_ref):
+    def _merge_levels(self, levels: list[float], atr_ref: float) -> list[dict[str, Any]]:
         valid = sorted(lv for lv in levels if lv is not None and not np.isnan(lv))
         if not valid:
             return []
@@ -319,10 +323,19 @@ class SupportResistanceEngine:
                 cur = [lv]
         groups.append(cur)
         results = [{"level": float(np.mean(g)), "count": len(g), "members": g} for g in groups]
-        results.sort(key=lambda x: (-x["count"], x["level"]))
+        results.sort(key=lambda x: (-x["count"], x["level"]))  # type: ignore[operator]
         return results
 
-    def _classify(self, swing_hi, swing_lo, key_closes, accel, density, recent_hi, recent_lo):
+    def _classify(
+        self,
+        swing_hi: dict[str, Any] | None,
+        swing_lo: dict[str, Any] | None,
+        key_closes: pd.DataFrame,
+        accel: dict[str, Any] | None,
+        density: dict[str, Any],
+        recent_hi: dict[str, Any] | None,
+        recent_lo: dict[str, Any] | None,
+    ) -> tuple[list[float], list[float]]:
         raw = []
         windows = [5, 10, 20, 25, 60]
         valid_windows = [w for w in windows if len(self.df) >= w]
@@ -389,7 +402,7 @@ class SupportResistanceEngine:
             raw.extend([accel["band_low"], accel["band_mid"], accel["band_high"]])
         return [c for c in raw if c > self.last_close], [c for c in raw if c < self.last_close]
 
-    def analyze(self):
+    def analyze(self) -> dict[str, Any]:
         if self.df.empty:
             return {}
         try:
@@ -447,7 +460,7 @@ class SupportResistanceEngine:
             console.print(f"[red]分析錯誤: {e}[/red]")
             return {}
 
-    def _nearest(self, merged, above):
+    def _nearest(self, merged: list[dict[str, Any]], above: bool) -> float | None:
         margin = StrategyConfig.MIN_DISTANCE_PERCENT
         if above:
             valid = [g["level"] for g in merged if g["level"] > self.last_close * (1 + margin)]
@@ -491,24 +504,24 @@ class SupportResistanceEngine:
             return None
 
 
-def _render_header(title):
+def _render_header(title: str) -> None:
     render_header(title, console=console)
 
 
-def _clear_screen():
+def _clear_screen() -> None:
     clear_screen()
 
 
-def _get_stock_name(conn, stock_id):
+def _get_stock_name(conn: sqlite3.Connection, stock_id: str) -> str:
     return get_stock_name(conn, stock_id, FALLBACK_NAMES)
 
 
-def _fetch_history(conn, code, limit=512):
+def _fetch_history(conn: sqlite3.Connection, code: str, limit: int = 512) -> pd.DataFrame:
     """向後相容包裝：委託 _utils.fetch_klines。"""
     return fetch_klines(conn, code, limit)
 
 
-def _render_mobile_sr(data, code, name):
+def _render_mobile_sr(data: dict[str, Any], code: str, name: str) -> None:
     console.print(f"[dim]{'─ 1 撐壓 ' + code + ' ' + name}{'─' * 20}[/]")
     close = data.get("last_close", 0)
     atr = data.get("atr14", 0)
@@ -533,7 +546,14 @@ def _render_mobile_sr(data, code, name):
         )
 
 
-def display_stock_analysis(conn, symbol, name, df, compact=False, mobile=False):
+def display_stock_analysis(
+    conn: sqlite3.Connection,
+    symbol: str,
+    name: str,
+    df: pd.DataFrame,
+    compact: bool = False,
+    mobile: bool = False,
+) -> None:
     try:
         engine = SupportResistanceEngine(df)
         data = engine.analyze()
@@ -552,7 +572,7 @@ def display_stock_analysis(conn, symbol, name, df, compact=False, mobile=False):
         console.print(f"[red]❌ 顯示錯誤: {e}[/red]")
 
 
-def _show_market_overview(data, df):
+def _show_market_overview(data: dict[str, Any], df: pd.DataFrame) -> None:
     cur = df.iloc[-1]
     prev = df.iloc[-2] if len(df) > 1 else cur
     console.print("\n[bold]🔹 市場概況[/bold]")
@@ -560,7 +580,9 @@ def _show_market_overview(data, df):
     console.print(f"成交: {vol_fmt(int(cur.get('volume', 0)))}")
 
 
-def _calc_levels(levels, is_resistance, lc):
+def _calc_levels(
+    levels: list[float], is_resistance: bool, lc: float
+) -> tuple[float, float, float]:
     if levels:
         if is_resistance:
             return levels[0], levels[1] if len(levels) >= 3 else levels[0], levels[-1]
@@ -573,7 +595,7 @@ def _calc_levels(levels, is_resistance, lc):
             return lc * 0.98, lc * 0.95, lc * 0.85
 
 
-def _show_indicators(data):
+def _show_indicators(data: dict[str, Any]) -> None:
     lc = data["last_close"]
     all_levels = [
         x["level"]
@@ -592,7 +614,7 @@ def _show_indicators(data):
     )  # 支撐：綠
 
 
-def _show_extras(data):
+def _show_extras(data: dict[str, Any]) -> None:
     accel = data["acceleration_support_band"]
     if accel:
         console.print(
@@ -604,7 +626,11 @@ def _show_extras(data):
         console.print(f"vop(量價密集): {b['box_low']:.2f}~{b['box_high']:.2f}")
 
 
-def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME, init_filter=None):
+def scan_market_stocks(
+    conn: sqlite3.Connection,
+    min_volume_zhang: int = StrategyConfig.DEFAULT_MIN_VOLUME,
+    init_filter: str | None = None,
+) -> None:
     """全市場掃描"""
     # stock_history.volume 單位為股，min_volume_zhang 單位為張（1張=1000股）
     min_volume = min_volume_zhang * 1000
@@ -724,7 +750,7 @@ def scan_market_stocks(conn, min_volume_zhang=StrategyConfig.DEFAULT_MIN_VOLUME,
         _display_results(current_results, latest_date, "1", min_volume_zhang, current_filters)
 
 
-def _passes_filter(r, key, threshold=10.0):
+def _passes_filter(r: dict[str, Any], key: str, threshold: float = 10.0) -> bool:
     levels = r.get("filter_levels", {})
     low = levels.get(key)
     if low is None or low <= 0:
@@ -733,26 +759,80 @@ def _passes_filter(r, key, threshold=10.0):
     return low <= price <= low * (1 + threshold / 100)
 
 
-def _scan_with_progress_basic(conn, stocks, name_map, min_volume=StrategyConfig.DEFAULT_MIN_VOLUME):
-    results = []
+def _scan_with_progress_basic(
+    conn: sqlite3.Connection,
+    stocks: list[str],
+    name_map: dict[str, str],
+    min_volume: int = StrategyConfig.DEFAULT_MIN_VOLUME,
+    latest_date: int = 0,
+) -> list[dict[str, Any]]:
+    """全市場掃描（批次 SQL 向量版）。
+
+    將命中股票分塊（每塊 500 檔）一次載入歷史，避免逐檔 SQL round-trip。
+    每塊內再以 SupportResistanceEngine 單股分析（演算法與原版一致）。
+    """
+    import pandas as pd
+
+    results: list[dict[str, Any]] = []
+    chunk_size: int = 500
+
     with Progress(
-        SpinnerColumn(), TextColumn("[cyan]Scanning..."), BarColumn(), TimeElapsedColumn()
+        SpinnerColumn(),
+        TextColumn("[cyan]🚀 正在批次載入歷史資料與分析撐壓..."),
+        BarColumn(),
+        TimeElapsedColumn(),
     ) as prog:
         task = prog.add_task("掃描市場", total=len(stocks))
-        for code in stocks:
+        for i in range(0, len(stocks), chunk_size):
+            chunk_codes = stocks[i:i + chunk_size]
+            placeholders = ",".join("?" * len(chunk_codes))
+            bulk_sql = (
+                "SELECT stock_id, date, open, high, low, close, volume "
+                "FROM klines "
+                "WHERE stock_id IN (" + placeholders + ") "
+                "AND date >= date(?, '-18 months') "
+                "ORDER BY stock_id, date ASC"
+            )
+            params: list[Any] = chunk_codes + [str(latest_date)]
             try:
-                r = _analyze_one(conn, code, name_map)
-                if r:
-                    scored = _score(r["code"], r["name"], r["analysis"], r["df"])
+                df_chunk = pd.read_sql(bulk_sql, conn, params=params)
+            except Exception:
+                # 小塊失敗：逐支 fallback
+                df_chunk = pd.DataFrame(
+                    columns=["stock_id", "date", "open", "high", "low", "close", "volume"]
+                )
+
+            grouped: dict[str, pd.DataFrame] = (
+                dict(tuple(df_chunk.groupby("stock_id"))) if not df_chunk.empty else {}
+            )
+
+            for code in chunk_codes:
+                try:
+                    df_stock = grouped.get(code)
+                    if df_stock is None or len(df_stock) < 60:
+                        continue
+                    # 單股分析（引擎邏輯與原版完全相同）
+                    engine = SupportResistanceEngine(df_stock)
+                    analysis = engine.analyze()
+                    if not analysis:
+                        continue
+                    name = name_map.get(code) or FALLBACK_NAMES.get(code, "---")
+                    scored = _score(code, name, analysis, df_stock)
                     if scored and scored.get("raw_vol", 0) >= min_volume:
                         results.append(scored)
-            except Exception:
-                pass
-            prog.advance(task)
+                except Exception:
+                    pass
+                prog.advance(task)
+
     return results
 
 
-def _analyze_one(conn, code, name_map):
+def _analyze_one(
+    conn: sqlite3.Connection,
+    code: str,
+    name_map: dict[str, str],
+) -> dict[str, Any] | None:
+    """單支股票分析（逐支 I/O）；保留供 run_strategy(code=...) 個性化的 call path。"""
     df = _fetch_history(conn, code)
     if len(df) < 60:
         return None
@@ -768,7 +848,9 @@ def _analyze_one(conn, code, name_map):
     }
 
 
-def _score(code, name, a, df):
+def _score(
+    code: str, name: str, a: dict[str, Any], df: pd.DataFrame
+) -> dict[str, Any] | None:
     price = a["last_close"]
     prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else price
     vol = float(df["volume"].iloc[-1]) if "volume" in df.columns else 0
@@ -840,12 +922,12 @@ def _score(code, name, a, df):
 
 
 def _display_results(
-    results,
-    latest_date=0,
-    sort_choice="1",
-    min_volume=StrategyConfig.DEFAULT_MIN_VOLUME,
-    current_filters=None,
-):
+    results: list[dict[str, Any]],
+    latest_date: int = 0,
+    sort_choice: str = "1",
+    min_volume: int = StrategyConfig.DEFAULT_MIN_VOLUME,
+    current_filters: list[str] | None = None,
+) -> None:
     if not results:
         console.print("[yellow]📭 未發現符合條件的標的[/yellow]")
         return
@@ -932,7 +1014,7 @@ def _display_results(
     console.print(table)
 
 
-def main():
+def main() -> None:
     try:
         conn = get_connection(readonly=True)
         signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
@@ -951,7 +1033,7 @@ def main():
             conn.close()
 
 
-def _handle_input(conn):
+def _handle_input(conn: sqlite3.Connection) -> None:
     _clear_screen()
     _render_header("📘 撐壓分析系統 v3.2")
     console.print("指令: [4碼]查詢 | [Enter]近支撐掃描 | [0]退出")
@@ -987,7 +1069,7 @@ def get_latest_date() -> str:
         conn.close()
 
 
-def run_strategy(params):
+def run_strategy(params: dict[str, Any]) -> None:
     code = params.get("code")
     scan = params.get("scan", False)
     vol = params.get("vol", StrategyConfig.DEFAULT_MIN_VOLUME)
