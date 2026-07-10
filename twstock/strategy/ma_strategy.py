@@ -216,6 +216,7 @@ def scan_market_stocks(
     sort_choice: Optional[str] = None,
 ) -> None:
     import time as _time
+
     import pandas as pd
 
     _t0 = _time.time()

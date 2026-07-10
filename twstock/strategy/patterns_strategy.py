@@ -1272,14 +1272,35 @@ class PatternBreakoutScanner:
                     console=rconsole,
                 ) as prog:
                     task = prog.add_task("scan", total=len(symbols))
-                    for sym in symbols:
-                        try:
-                            r = self._scan_one(sym, nm.get(sym, "-"))
-                            if r:
-                                cands_with_data.append(r)
-                        except Exception:
-                            pass
-                        prog.advance(task)
+
+                    # ponytail: per-stock serial fetch_klines replaced with
+                    # batched bulk SQL. Reuse `ld` (latest_date) already in
+                    # scope for the cutoff; no extra SQL round-trip.
+                    chunk_size = 500
+                    for i in range(0, len(symbols), chunk_size):
+                        chunk = symbols[i:i + chunk_size]
+                        placeholders = ",".join("?" * len(chunk))
+                        params = list(chunk) + [ld]
+                        bulk_sql = (
+                            "SELECT stock_id, date, open, high, low, close, volume "
+                            "FROM klines_indicators "
+                            "WHERE stock_id IN (" + placeholders + ") "
+                            "AND date >= date(?, '-3 years') "
+                            "ORDER BY stock_id ASC, date ASC"
+                        )
+                        df_all = pd.read_sql(bulk_sql, self.conn, params=params)
+                        if df_all.empty:
+                            prog.advance(task, len(chunk))
+                            continue
+                        for sym, group in df_all.groupby("stock_id", sort=False):
+                            try:
+                                df = group.tail(CONTEXT_LEN * 2).copy()
+                                r = self._scan_one(sym, nm.get(sym, "-"), df=df)
+                                if r:
+                                    cands_with_data.append(r)
+                            except Exception:
+                                pass
+                        prog.advance(task, len(chunk))
 
                 # Store in session cache
                 _PATTERN_CACHE["date"] = ld
@@ -1347,9 +1368,10 @@ class PatternBreakoutScanner:
             params=[ld, min_shares],
         )["stock_id"].tolist()
 
-    def _scan_one(self, symbol, name):
-        # [AI MOD] Use klines view
-        df = fetch_klines(self.conn, symbol, limit=CONTEXT_LEN * 2)
+    def _scan_one(self, symbol, name, df=None):
+        if df is None:
+            # [AI MOD] Use klines view
+            df = fetch_klines(self.conn, symbol, limit=CONTEXT_LEN * 2)
         df = df.dropna(subset=["open", "high", "low", "close"]).sort_values("date")
         if len(df) < MIN_BARS:
             return None
