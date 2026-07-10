@@ -217,7 +217,6 @@ def scan_market_stocks(
 ) -> None:
     import time as _time
     import pandas as pd
-    import numpy as np
 
     _t0 = _time.time()
 

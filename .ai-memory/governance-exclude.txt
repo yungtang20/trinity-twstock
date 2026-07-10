@@ -1,0 +1,11 @@
+CURRENT_TASK.md
+EXECUTION_LOG.md
+AI_HANDOVER.md
+AI_BOOTSTRAP.md
+STOP_AI.md
+TASK_DIRECTIVE.md
+HUMAN_OVERRIDE.md
+CHANGELOG_AI.md
+phase-0.1-result.md
+.ai-memory/
+.claude/
