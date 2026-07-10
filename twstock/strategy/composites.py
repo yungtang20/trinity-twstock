@@ -60,8 +60,8 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
                     f"[yellow]⚠️ 資料庫最新日期為 {latest_db}（距今 {lag} 天），"
                     f"建議先執行每日更新[/yellow]\n"
                 )
-    except Exception:
-        pass
+    except Exception as e:
+        console.print(f"[dim]DB 新鮮度檢查跳過: {e}[/dim]")
 
     console.print(
         Panel(
@@ -194,8 +194,8 @@ def _fetch_live_quote(stock_id: str):
                 if vol:
                     vol *= 1000
                 return price, vol if vol else None
-    except Exception:
-        pass
+    except Exception as e:
+        console.print(f"[dim]即時報價 fetch 跳過: {e}[/dim]")
     return None, None
 
 

@@ -27,8 +27,8 @@ def _lookup_stock_name(conn: sqlite3.Connection, stock_id: str) -> Optional[str]
         ).fetchone()
         if row and row[0]:
             return row[0]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] _lookup_stock_name failed for {stock_id}: {e}")
     return None
 
 

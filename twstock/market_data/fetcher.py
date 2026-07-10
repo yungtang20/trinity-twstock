@@ -83,8 +83,8 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
             data = r.json()
             if data.get("tables"):
                 return _parse_twse_mi_index(data)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] get_realtime_mis_data MI_INDEX failed: {e}")
 
     # 方法 2: MIS API（某些環境可能 DNS 無法解析）
     try:
@@ -94,8 +94,8 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
             timeout=3,
             verify=get_ssl_verify(),
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] get_realtime_mis_data MIS preflight failed: {e}")
 
     ex_ch_list = ["tse_t00.tw", "otc_o00.tw"]
     if symbols:
@@ -111,8 +111,8 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
         r = safe_http_get(api_url, session=session, timeout=3, verify=get_ssl_verify())
         if r:
             return r.json()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] get_realtime_mis_data MIS getStockInfo failed: {e}")
     return {}
 
 
@@ -173,8 +173,8 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
                                 result["queryTime"]["sysDate"] = str(latest[0]).replace("/", "-")
                             except ValueError:
                                 pass
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[{__name__}] _parse_twse_mi_index FMTQIK fallback failed: {e}")
 
     return result
 
@@ -263,8 +263,8 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             if data.get("queryTime"):
                 results["time"] = data["queryTime"].get("sysTime", "")
                 results["date"] = data["queryTime"].get("sysDate", "")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] fetch_market_indices parse msgArray failed: {e}")
 
     # OTC 指數：從 TPEx highlight API 補齊（get_realtime_mis_data 只提供 TAIEX）
     if results["OTC"]["price"] == 0:
@@ -272,8 +272,8 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             otc_data = _fetch_otc_from_tpex()
             if otc_data:
                 results["OTC"].update(otc_data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[{__name__}] fetch_market_indices OTC fallback failed: {e}")
 
     try:
         twse_vol, tpex_vol = get_yahoo_market_volumes()
@@ -281,8 +281,8 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             results["TAIEX"]["amount"] = safe_float(twse_vol.replace(",", ""))
         if tpex_vol != "無資料":
             results["OTC"]["amount"] = safe_float(tpex_vol.replace(",", ""))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] fetch_market_indices Yahoo volume failed: {e}")
 
     try:
         import re as _re
@@ -394,8 +394,8 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                     amt_str = row[3].replace(",", "")
                     if amt_str.isdigit():
                         results["OTC"]["amount"] = safe_float(amt_str) / 100.0
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[{__name__}] fetch_market_indices TWSE/TPEx table parse failed: {e}")
 
     if results["TAIEX"]["price"] > 0 or results["OTC"]["price"] > 0:
         return results
