@@ -22,9 +22,24 @@ import pandas as pd
 import requests
 
 from twstock.api_config import get_finmind_token
+from twstock.db import get_connection
 from twstock.utils import safe_float as _safe_float
 
 logger = logging.getLogger(__name__)
+
+
+def _valid_stock_ids() -> set[str]:
+    """ponytail: 讀取 stock_meta 的合法 stock_id（COMMON Only）。 Process-level cache；O(1) 重覆呼叫。"""
+    cache: set[str] | None = getattr(_valid_stock_ids, "_CACHE", None)
+    if cache is not None:
+        return cache
+    try:
+        with get_connection(readonly=True) as conn:
+            cache = {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
+    except Exception:
+        cache = set()
+    setattr(_valid_stock_ids, "_CACHE", cache)
+    return cache
 
 # ============================================================================
 # 常數與預設值
@@ -368,6 +383,9 @@ class FinMindFetcher:
 
     def save(self, rows):
         """INSERT OR REPLACE 寫入 stock_history，回傳寫入列數"""
+        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        if not rows:
+            return 0
         sql = """
         INSERT OR REPLACE INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
@@ -475,6 +493,9 @@ class TWSEFetcher:
 
     def save(self, rows):
         """INSERT OR REPLACE 寫入 stock_history"""
+        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        if not rows:
+            return 0
         sql = """
         INSERT OR REPLACE INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
@@ -608,6 +629,9 @@ class InstitutionalFetcher:
 
     def save(self, rows):
         """INSERT OR REPLACE 寫入 institutional_data"""
+        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        if not rows:
+            return 0
         sql = """
         INSERT OR REPLACE INTO institutional_data
             (stock_id, date, foreign_buy, foreign_sell, foreign_net,

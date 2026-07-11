@@ -51,11 +51,30 @@ class DataProcessor:
         return count
 
     # ================== Public Upsert Methods ==================
+    @staticmethod
+    def _valid_stock_ids() -> set[str]:
+        """ponytail: 讀取 stock_meta 的 stock_id 集合, 第一次呼叫後 cache。O(n) hash lookup, process 只查一次 DB。"""
+        cache = getattr(DataProcessor, "_VALID_IDS_CACHE", None)
+        if cache is not None:
+            return cache
+        try:
+            with get_connection(readonly=True) as conn:
+                cache = {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
+        except Exception:
+            cache = set()
+        DataProcessor._VALID_IDS_CACHE = cache  # type: ignore[attr-defined]
+        return cache
+
     def upsert_history(self, df: Optional[pd.DataFrame]) -> int:
         """Upserts daily K-line prices into stock_history."""
         if df is None or df.empty:
             return 0
+        valid = self._valid_stock_ids()
+        if valid and "stock_id" in df.columns:
+            df = df[df["stock_id"].isin(valid)]
         df_write = df.copy()
+        if df_write.empty:
+            return 0
         if "source" not in df_write.columns:
             df_write["source"] = "official"
         expected = [
@@ -112,7 +131,12 @@ class DataProcessor:
         """Upserts institutional flow data into institutional_data."""
         if df is None or df.empty:
             return 0
+        valid = self._valid_stock_ids()
+        if valid and "stock_id" in df.columns:
+            df = df[df["stock_id"].isin(valid)]
         df_write = df.copy()
+        if df_write.empty:
+            return 0
         if "source" not in df_write.columns:
             df_write["source"] = "official"
         expected = [
@@ -184,6 +208,11 @@ class DataProcessor:
         extra_cols_sql: additional column names for INSERT column list
         extra_cols_values: additional ? placeholders for VALUES
         """
+        if df.empty:
+            return
+        valid = self._valid_stock_ids()
+        if valid and "stock_id" in df.columns:
+            df = df[df["stock_id"].isin(valid)]
         if df.empty:
             return
         df_write = df.copy()

@@ -10,6 +10,7 @@ official/updater.py - 主更新邏輯（價量、法人、除權息、集保）
 5. 自動檢查並更新 TDCC 集保資料
 """
 
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
@@ -18,6 +19,8 @@ from typing import Optional
 from . import institutional, quotes, tdcc
 from . import trading_calendar as cal
 from .dividend_crawler import fetch_dividend_events, upsert_dividend_events
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
@@ -35,10 +38,39 @@ except ImportError:
 
 
 # ---------- 通用寫入函數 ----------
+def _filter_valid_stocks(df):
+    """ponytail: 只在 stock_meta 中的 stock_id 才能寫入，拒絕 ETF/DR/测试邊料。教清一次 cost = O(n) hash lookup。"""
+    if df.empty or "stock_id" not in df.columns:
+        return df
+    valid = _VALID_STOCK_IDS
+    if valid is None:
+        valid = _load_valid_stock_ids()
+        globals()["_VALID_STOCK_IDS"] = valid
+    before = len(df)
+    df = df[df["stock_id"].isin(valid)].copy()
+    if len(df) < before:
+        logger.debug("upsert_dataframe 過濾 %d 行非普通股", before - len(df))
+    return df
+
+
+def _load_valid_stock_ids() -> set[str]:
+    try:
+        with get_connection(readonly=True) as conn:
+            return {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
+    except Exception:
+        return set()
+
+
+_VALID_STOCK_IDS: set[str] | None = None
+
+
 def upsert_dataframe(table_name: str, df):
     """將 DataFrame 寫入資料庫（轉換欄位名稱）"""
     import pandas as pd
 
+    if df.empty:
+        return
+    df = _filter_valid_stocks(df)
     if df.empty:
         return
     df = df.copy()
