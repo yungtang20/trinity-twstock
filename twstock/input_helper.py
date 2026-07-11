@@ -153,8 +153,8 @@ def _flush_input_buffer() -> None:
     elif _IS_TTY and HAS_TERMIOS:  # pragma: no cover — Unix-only branch, not executed on Windows CI
         try:
             termios.tcflush(sys.stdin, termios.TCIFLUSH)  # type: ignore[attr-defined]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[{__name__}] Error flushing stdin: {e}")
 
 
 def _get_interactive_input_windows(

@@ -335,8 +335,8 @@ class MarketScanner:
                             prev_volume=prev_vol,
                         )
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    rconsole.print(f"[red]⚠️ prediction scan failed: {e}[/red]")
                 progress.advance(task)
 
         return preds

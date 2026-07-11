@@ -1164,8 +1164,8 @@ class MarketScanner:
                     r = self._one(code, nm)
                     if r:
                         preds.append(r)
-                except Exception:
-                    pass
+                except Exception as e:
+                    rconsole.print(f"[red]⚠️ Kronos predict {code} failed: {e}[/red]")
                 prog.advance(task)
         return preds
 
@@ -1298,8 +1298,8 @@ class PatternBreakoutScanner:
                                 r = self._scan_one(sym, nm.get(sym, "-"), df=df)
                                 if r:
                                     cands_with_data.append(r)
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                rconsole.print(f"[red]⚠️ pattern scan {sym} failed: {e}[/red]")
                         prog.advance(task, len(chunk))
 
                 # Store in session cache

@@ -820,8 +820,8 @@ def _scan_with_progress_basic(
                     scored = _score(code, name, analysis, df_stock)
                     if scored and scored.get("raw_vol", 0) >= min_volume:
                         results.append(scored)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.warning("sr_analyzer batch scan failed for %s: %s", code, e)
                 prog.advance(task)
 
     return results

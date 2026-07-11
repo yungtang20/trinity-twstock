@@ -170,7 +170,8 @@ def scan_market(vol: int = 500) -> list[dict]:
         try:
             result = analyze({"code": stock_id})
             results.append(result)
-        except Exception:
+        except Exception as e:
+            print(f"[{__name__}] analyze failed for {stock_id}: {e}")
             continue  # 單支失敗不影響其他
 
     # 按 score 降序排列

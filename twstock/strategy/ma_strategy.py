@@ -228,8 +228,8 @@ def scan_market_stocks(
         refreshed = ensure_indicators_all(conn)
         if refreshed:
             console.print(f"[dim]🔄 自動刷新 {refreshed} 檔指標[/dim]")
-    except Exception:
-        pass
+    except Exception as e:
+        console.print(f"[dim]auto refresh indicators skipped: {e}[/dim]")
 
     try:
         latest_date = conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]
@@ -252,8 +252,8 @@ def scan_market_stocks(
                 ch = _getch_windows()
                 if ch in ("1", "2", "3"):
                     strat_choice = ch
-        except Exception:
-            pass
+        except Exception as e:
+            console.print(f"[dim]strategy key input skipped: {e}[/dim]")
 
     # [FIX] Update target_ma_map & period after strat_choice is confirmed
     target_ma_map = {"1": "ma200", "2": "ma60", "3": "ma25"}
@@ -877,8 +877,8 @@ def run_strategy(params: dict[str, Any]) -> None:
                 from twstock.strategy.indicators import ensure_indicators
 
                 ensure_indicators(code, conn)
-            except Exception:
-                pass
+            except Exception as e:
+                console.print(f"[dim]ensure_indicators skipped for {code}: {e}[/dim]")
 
         if scan:
             scan_market_stocks(conn, vol, strat_choice, sort_choice=sort_choice)

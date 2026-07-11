@@ -503,8 +503,8 @@ class TWSEFetcher:
                 raw = self.fetch_monthly(stock_id, current.year, current.month)
                 rows = self._transform(raw, stock_id)
                 total += self.save(rows)
-            except Exception:
-                pass  # 該月沒資料或其他錯誤，跳過
+            except Exception as e:
+                print(f"[{__name__}] fetch_monthly failed for {stock_id} {current.year}-{current.month}: {e}")
             # 下個月
             if current.month == 12:
                 current = current.replace(year=current.year + 1, month=1)
