@@ -70,12 +70,12 @@ def upsert_dataframe(table_name: str, df):
 
     if df.empty:
         return
-    df = _filter_valid_stocks(df)
-    if df.empty:
-        return
     df = df.copy()
     if "code" in df.columns:
         df.rename(columns={"code": "stock_id"}, inplace=True)
+    df = _filter_valid_stocks(df)
+    if df.empty:
+        return
     if "date_int" in df.columns:
         df["date"] = pd.to_datetime(df["date_int"].astype(str), format="%Y%m%d").dt.strftime(
             "%Y-%m-%d"
