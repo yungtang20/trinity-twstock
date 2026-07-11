@@ -17,6 +17,7 @@ _PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PKG_DIR not in sys.path:
     sys.path.insert(0, _PKG_DIR)
 
+from twstock.retry import retry_get
 from twstock.utils import get_http_session, get_ssl_verify, safe_float  # noqa: E402
 
 # ── **Public API** — 即時盤中指數抓取 ─────────────────
@@ -182,14 +183,11 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
 # ── OTC 指數（TPEx）─────────────────────────────────────
 def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
     """從 TPEx highlight API 取得櫃買指數。回傳 dict 或 None。"""
-    from twstock.utils import get_ssl_verify, safe_http_get
+    from twstock.utils import get_ssl_verify
 
-    session = get_http_session()
-    if session is None:
-        return None
     url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw"
-    r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
-    if not r:
+    r = retry_get(url, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
+    if r is None:
         return None
     data = r.json()
     if data.get("stat") != "ok" or not data.get("tables"):
@@ -362,14 +360,12 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             "market_highlight/highlight_result.php?l=zh-tw"
         )
         r_otc_data = None
-        for _ in range(1):
-            r_otc = safe_http_get(url_otc, session=session, timeout=1.5, verify=True)
-            if r_otc:
-                try:
-                    r_otc_data = r_otc.json()
-                    break
-                except ValueError:
-                    pass
+        r_otc = retry_get(url_otc, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
+        if r_otc:
+            try:
+                r_otc_data = r_otc.json()
+            except ValueError:
+                pass
 
         if r_otc_data and r_otc_data.get("stat") == "ok" and r_otc_data.get("tables"):
             otc_table = r_otc_data["tables"][0]

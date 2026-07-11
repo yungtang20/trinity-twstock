@@ -113,6 +113,16 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
             raw_data = tables[0].get("data", [])
             fields = tables[0].get("fields", [])
 
+    # 非交易日（或盤後尚無行情）時，API 會回覆 totalCount:0 與空 data，
+    # 屬於正常而非格式改版，降級為 INFO 避免誤導為「old format detected」。
+    total_count = data.get("totalCount")
+    if total_count == 0 and not raw_data:
+        logging.info(
+            "TPEx quotes empty (totalCount=0, likely non-trading day) for %s, skipping.",
+            date_int,
+        )
+        return pd.DataFrame()
+
     if not raw_data or not fields:
         logging.warning(
             "TPEx quotes data or fields missing (old format detected), aborting to avoid index guess."

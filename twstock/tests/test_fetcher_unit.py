@@ -131,16 +131,18 @@ class TestGetRealtimeMisData:
 class TestFetchMarketIndices:
     """fetch_market_indices 整合入口測試。"""
 
+    @patch("twstock.market_data.fetcher.retry_get")
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
-    def test_returns_none_on_failure(self, mock_mis, mock_yahoo, mock_session, mock_http_get):
-        """全部 API 失敗且 safe_http_get 回傳 None 時應回傳 None。"""
+    def test_returns_none_on_failure(self, mock_mis, mock_yahoo, mock_session, mock_http_get, mock_retry):
+        """全部 API 失敗且 safe_http_get / retry_get 回傳 None 時應回傳 None。"""
         mock_mis.return_value = {}
         mock_yahoo.return_value = ("無資料", "無資料")
         mock_session.return_value = MagicMock()
-        mock_http_get.return_value = None  # 所有外部請求失敗
+        mock_http_get.return_value = None  # TSE MI_INDEX 失敗
+        mock_retry.return_value = None  # TPEX highlight 失敗
 
         result = fetcher.fetch_market_indices()
         assert result is None
@@ -378,11 +380,12 @@ class TestFetchMarketIndicesBranches:
         }
         assert fetcher.fetch_market_indices() is None
 
+    @patch("twstock.market_data.fetcher.retry_get")
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
-    def test_full_twse_and_tpex_path(self, mock_mis, mock_yahoo, mock_sess, mock_get):
+    def test_full_twse_and_tpex_path(self, mock_mis, mock_yahoo, mock_sess, mock_get, mock_retry):
         """Happy path: TWSE MI_INDEX tables + TPEx highlight both parse."""
         mock_sess.return_value = MagicMock()
         mock_yahoo.return_value = ("無資料", "無資料")
@@ -454,6 +457,7 @@ class TestFetchMarketIndicesBranches:
             return None
 
         mock_get.side_effect = side
+        mock_retry.side_effect = side
 
         r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
@@ -474,11 +478,12 @@ class TestFetchMarketIndicesBranches:
         assert r["OTC"]["price"] == 230
         assert r["OTC"]["change"] == 2
 
+    @patch("twstock.market_data.fetcher.retry_get")
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
-    def test_tpex_data_with_digit_amount(self, mock_mis, mock_yahoo, mock_sess, mock_get):
+    def test_tpex_data_with_digit_amount(self, mock_mis, mock_yahoo, mock_sess, mock_get, mock_retry):
         """TPEx row[3] is a digit string → OTC amount = safe_float / 100."""
         mock_sess.return_value = MagicMock()
         mock_yahoo.return_value = ("無資料", "無資料")
@@ -507,6 +512,7 @@ class TestFetchMarketIndicesBranches:
             return None
 
         mock_get.side_effect = side
+        mock_retry.side_effect = side
         r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
         assert r["OTC"]["amount"] == 50.0
@@ -583,7 +589,8 @@ class TestFetchMarketIndicesBranches:
         }
         mock_yahoo.return_value = ("無資料", "無資料")
         with patch("utils.safe_http_get", return_value=None):
-            assert fetcher.fetch_market_indices() is None
+            with patch("twstock.market_data.fetcher.retry_get", return_value=None):
+                assert fetcher.fetch_market_indices() is None
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
