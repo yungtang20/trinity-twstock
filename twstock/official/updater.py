@@ -338,6 +338,11 @@ def update_official_daily(
             twse_df = quotes.fetch_twse_quotes(d)
             tpex_df = quotes.fetch_tpex_quotes(d)
 
+            # 兩個市場都空 → 非交易日（颱風假、國定假日），直接跳過不預期數量計算
+            if twse_df.empty and tpex_df.empty:
+                print(f"  [yellow]⚠️ {d} 兩市場皆無資料（可能為休市日或尚無收盤資料），跳過[/yellow]", flush=True)
+                continue
+
             # 標記來源市場，供 update_stock_meta_from_df 寫入 stock_meta.market
             if not twse_df.empty:
                 twse_df["market"] = "TSE"
@@ -378,10 +383,6 @@ def update_official_daily(
                 f"      [TPEx] 今日需抓 {tpex_expected:4d} 檔，已抓 {tpex_fetched:4d} 檔，失敗 {tpex_missing:4d} 檔",
                 flush=True,
             )
-
-            if twse_df.empty and tpex_df.empty:
-                print("  ⚠️ 價量資料為空 (可能為休市日)", flush=True)
-                continue
 
             price_df = pd.concat([twse_df, tpex_df], ignore_index=True)
             price_df = price_df.drop_duplicates(subset=["stock_id", "date"])
