@@ -29,6 +29,7 @@ from rich.table import Table
 from twstock.strategy._utils import fetch_klines
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
+from twstock.strategy.base import BaseStrategy
 from twstock.terminal import rconsole
 
 _StockPredictionAnalyzer: Optional[type] = None
@@ -433,8 +434,8 @@ class PredictionAnalysisApp:
                 _clear_screen()
                 _render_header("🧠 AI 策略整合：趨勢預測分析 v3.3")
 
-                latest_date = conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
-                latest_str = str(latest_date) if latest_date else "N/A"
+                ld_temp = BaseStrategy.get_latest_date("stock_history")
+                latest_str = str(ld_temp) if ld_temp else "N/A"
                 rconsole.print(f"[dim]基準日期: {latest_str}[/dim]\n")
 
                 cmd = rconsole.input("[bold cyan]🔍 輸入股號或按 Enter 回到上一頁: [/]").strip()
@@ -470,16 +471,11 @@ class PredictionAnalysisApp:
 
 
 def get_latest_date() -> str:
-    """供 strategies.py 查詢資料基準日"""
-    from db import (
-        get_connection,  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
-    )
-
-    conn = get_connection(readonly=True)
-    try:
-        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
-    finally:
-        conn.close()
+    """供 strategies.py 查詢資料基準日 — 委託 StrategyBase 統一查詢。"""
+    ld = BaseStrategy.get_latest_date("stock_history")
+    if ld is None:
+        raise RuntimeError("stock_history 無資料")
+    return ld
 
 
 def run_strategy(params: dict):

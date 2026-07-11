@@ -29,6 +29,7 @@ from rich.progress import (
 from rich.table import Table
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
+from twstock.strategy.base import BaseStrategy
 from twstock.terminal import rconsole
 
 _CACHE_TTL = 300  # 5 分鐘
@@ -1137,12 +1138,12 @@ class MarketScanner:
 
     def _get_market_data(self):
         with self.conn:
-            dr = self.conn.execute("SELECT MAX(date) FROM stock_history").fetchone()
-            if not dr or not dr[0]:
+            dr_val = BaseStrategy.get_latest_date("stock_history")
+            if not dr_val:
                 return None, {}
             # [AI MOD] stock_id, stock_name
             nr = self.conn.execute("SELECT stock_id, stock_name FROM stock_meta").fetchall()
-            return dr[0], {str(r[0]): str(r[1]) for r in nr}
+            return dr_val, {str(r[0]): str(r[1]) for r in nr}
 
     def _get_targets(self, ld, mv):
         # [AI MOD] parameterized query, converted mv from sheets (張) to shares (股)
@@ -1351,12 +1352,12 @@ class PatternBreakoutScanner:
 
     def _get_market_data(self):
         with self.conn:
-            dr = self.conn.execute("SELECT MAX(date) FROM stock_history").fetchone()
-            if not dr or not dr[0]:
+            dr_val = BaseStrategy.get_latest_date("stock_history")
+            if not dr_val:
                 return None, {}
             # [AI MOD] stock_id, stock_name
             nr = self.conn.execute("SELECT stock_id, stock_name FROM stock_meta").fetchall()
-            return dr[0], {str(r[0]): str(r[1]) for r in nr}
+            return dr_val, {str(r[0]): str(r[1]) for r in nr}
 
     def _get_targets(self, ld, mv):
         # mv 單位為張，stock_history.volume 單位為股（1張=1000股）
@@ -1713,16 +1714,11 @@ class PredictionAnalysisApp:
 
 
 def get_latest_date() -> str:
-    """供 strategies.py 查詢資料基準日"""
-    from db import (
-        get_connection,  # ponytail: _utils does not export get_connection; align with sr/ma_strategy
-    )
-
-    conn = get_connection(readonly=True)
-    try:
-        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
-    finally:
-        conn.close()
+    """供 strategies.py 查詢資料基準日 — 委託 StrategyBase 統一查詢。"""
+    ld = BaseStrategy.get_latest_date("stock_history")
+    if ld is None:
+        raise RuntimeError("stock_history 無資料")
+    return ld
 
 
 def run_strategy(params: dict):

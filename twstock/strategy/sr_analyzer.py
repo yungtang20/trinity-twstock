@@ -33,6 +33,7 @@ if _TWSTOCK_DIR not in sys.path:
 from twstock.db import get_connection
 from twstock.display import price_color, price_rich, vol_color, vol_fmt
 from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+from twstock.strategy.base import BaseStrategy
 
 
 def _to_date_int(val: Any) -> int:
@@ -1061,12 +1062,11 @@ def _handle_input(conn: sqlite3.Connection) -> None:
 
 
 def get_latest_date() -> str:
-    """供 strategies.py 查詢資料基準日"""
-    conn = get_connection(readonly=True)
-    try:
-        return conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
-    finally:
-        conn.close()
+    """供 strategies.py 查詢資料基準日 — 委託 StrategyBase 統一查詢。"""
+    ld = BaseStrategy.get_latest_date("stock_history")
+    if ld is None:
+        raise RuntimeError("stock_history 無資料")
+    return ld
 
 
 def run_strategy(params: dict[str, Any]) -> None:

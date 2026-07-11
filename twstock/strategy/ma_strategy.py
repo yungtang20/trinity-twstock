@@ -29,6 +29,7 @@ import time as _time_mod
 
 # Import unified connection factory
 from twstock.db import get_connection
+from twstock.strategy.base import BaseStrategy
 from twstock.terminal import console
 
 _CACHE_TTL = 300  # 5 分鐘
@@ -851,14 +852,11 @@ def _display_scan_results(
 
 
 def get_latest_date() -> str:
-    """供 strategies.py 查詢資料基準日"""
-    from db import get_connection  # [FIX] _utils does not export get_connection
-
-    conn = get_connection(readonly=True)
-    try:
-        return conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]
-    finally:
-        conn.close()
+    """供 strategies.py 查詢資料基準日 — 委託 StrategyBase 統一查詢。"""
+    ld = BaseStrategy.get_latest_date("stock_indicators")
+    if ld is None:
+        raise RuntimeError("stock_indicators 無資料")
+    return ld
 
 
 def run_strategy(params: dict[str, Any]) -> None:
