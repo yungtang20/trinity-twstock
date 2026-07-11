@@ -190,11 +190,12 @@ def update_official_daily(
     fetch_dates: list[int] = []
     current_dt = base_dt
     checked_count = 0
+    found_valid_days = 0
 
     # [AI MOD] Limit scan depth dynamically based on requested days to prevent searching 800 days when up-to-date
     max_scan = 800 if force else max(days * 3, 15)
 
-    while len(fetch_dates) < days:
+    while len(fetch_dates) < days if force else found_valid_days < days:
         current_int = cal._date_to_int(current_dt)
         if cal.is_trading_day(current_int):
             if force:
@@ -202,6 +203,9 @@ def update_official_daily(
             else:
                 if not cal.date_exists_in_history(current_int):
                     fetch_dates.append(current_int)
+                    found_valid_days = 0
+                else:
+                    found_valid_days += 1
         current_dt -= timedelta(days=1)
         checked_count += 1
         if checked_count > max_scan:
