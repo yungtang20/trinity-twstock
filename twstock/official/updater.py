@@ -340,7 +340,31 @@ def update_official_daily(
 
             # 兩個市場都空 → 非交易日（颱風假、國定假日），直接跳過不預期數量計算
             if twse_df.empty and tpex_df.empty:
-                print(f"  [yellow]⚠️ {d} 兩市場皆無資料（可能為休市日或尚無收盤資料），跳過[/yellow]", flush=True)
+                # [AI MOD] 互動式標記休市：使用者真正接管 TTY 時才詢問，
+                # CI / cron / 背景執行 (isatty=False) 直接跳過，永不阻斷自動化。
+                if sys.stdin.isatty() and sys.stdout.isatty():
+                    ans = input(
+                        f"⚠️ {d} 兩市場皆無資料，是否為休市日？（預設為否）[y/N]: "
+                    ).strip().lower()
+                    if ans == "y":
+                        d_str = f"{d // 10000:04d}-{(d // 100) % 100:02d}-{d % 100:02d}"
+                        conn_holiday = get_connection()
+                        conn_holiday.execute(
+                            "INSERT OR REPLACE INTO stock_trading_calendar "
+                            "(date, is_open, description) VALUES (?, 0, ?)",
+                            (d_str, "使用者標記休市"),
+                        )
+                        conn_holiday.commit()
+                        conn_holiday.close()
+                        print(
+                            f"  ✅ 已將 {d_str} 標記為休市日，日後將跳過抓取。",
+                            flush=True,
+                        )
+                        continue
+                print(
+                    f"  ⚠️ {d} 兩市場皆無資料（可能為休市日或尚無收盤資料），跳過。",
+                    flush=True,
+                )
                 continue
 
             # 標記來源市場，供 update_stock_meta_from_df 寫入 stock_meta.market

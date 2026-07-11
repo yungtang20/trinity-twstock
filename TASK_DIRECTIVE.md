@@ -1,43 +1,45 @@
 # TASK DIRECTIVE
 
-Task ID: TASK-0006
+Task ID: TASK-0007
 Permission Level: LEVEL 2
 Source: User Request
-Reason: patterns_strategy.py 批次化重構
+Reason: Interactive holiday marking for days when both markets return empty data
 
 ## Objective
-將 patterns_strategy.py 中的 _scan_one 逐股序列查詢改為批次 SQL + groupby 向量化計算，提升掃描效能。
+Add interactive prompt during daily update: when TWSE and TPEX both return empty data, allow the user to mark the day as a market holiday so future runs skip it. Prevent user-marked holidays from being overwritten by official calendar sync.
 
 ## Change Budget
-Maximum Files: 2
-Maximum Lines: 100
+Maximum Files: 3
+Maximum Lines: 80
 
 ## Allowed Changes
-- twstock/strategy/patterns_strategy.py
-- TASK_DIRECTIVE.md
-- CURRENT_TASK.md
+- twstock/official/updater.py (empty-market-data interactive prompt block)
+- twstock/official/trading_calendar.py (sync must not overwrite user-marked entries)
+- TASK_DIRECTIVE.md / CURRENT_TASK.md (statebook)
 
 ## Forbidden Changes
-- 修改 BreakoutCandidate 欄位定義
-- 修改 _display() 介面
-- 修改 find_pivots / find_patterns 的核心演算法邏輯
-- 執行 git commit / push
+- 修改 _filter_valid_stocks 邏輯
+- 修改 upsert_shareholding / 集保寫入目標(已實驗證實為健康)
+- 修改 DataProcessor 的核心 batch UPSERT 行為
+- 在 test suite 路徑上阻斷 stdin/input(不可在測試中 hang)
 
 ## Target Files
-- twstock/strategy/patterns_strategy.py
+- twstock/official/updater.py
+- twstock/official/trading_calendar.py
 
-## Implementation Plan
-1. 將 scan() 中的 symbols 切分為 chunk_size=500 的批次。
-2. 每批執行一次 SQL：SELECT stock_id, date, open, high, low, close, volume FROM klines_indicators WHERE stock_id IN (...) ORDER BY stock_id, date ASC。
-3. Python 端用 groupby('stock_id', sort=False) 分組。
-4. 每 group 執行 df = group.tail(CONTEXT_LEN * 2)。
-5. 將 df 傳入後續的 find_pivots/find_patterns/BreakoutCandidate 邏輯。
+## Technical Notes
+- 互動只在 `sys.stdin.isatty()` 為 True 時啟用,CI/test 一律跳過
+- 使用者輸入預設為 N (no),需明確輸入 'y' 才標記
+- 標記語意: INSERT OR REPLACE `stock_trading_calendar(date, is_open=0, description='使用者標記休市')`
+- 官方同步遇到 `description` 包含「使用者標記」的列不得覆蓋 (保留 is_open=0)
+- 不可使用 rich console / [yellow] 等非標準語法,維持 plain print + flush=True (與 updater.py 風格一致)
 
 ## Acceptance Criteria
 - ruff check 零錯誤
 - mypy 零錯誤
 - pytest 699 passed / 22 skipped
-- git diff 需經 GLM-5.2 確認後才可 commit
+- 手動 dry-run 確認 two-empty 情境會跳出互動提示
+- git commit + push origin main 需依 Task Owner 明確授權
 
 ## Human Decision Required
-Yes (commit 前請先暫停讓我確認)
+Yes (push 前需 owners 確認 — 本次業主要求測試後直接放行)

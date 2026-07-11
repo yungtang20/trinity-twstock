@@ -72,10 +72,30 @@ def init_trading_calendar():
         start_date = datetime(min_year, 1, 1)
         end_date = datetime(max_year, 12, 31)
 
+        # [AI MOD] 撈出使用者手動標記的休市日 (description 含「使用者標記」)，
+        # 官方同步時保留其值，不遭覆蓋。資料表尚未建立時忽略。
+        user_marked: dict[str, tuple[int, str]] = {}
+        try:
+            _conn = sqlite3.connect(DB_PATH)
+            for _row in _conn.execute(
+                "SELECT date, is_open, description FROM stock_trading_calendar "
+                "WHERE description LIKE '%使用者標記%'"
+            ):
+                user_marked[_row[0]] = (_row[1], _row[2])
+            _conn.close()
+        except Exception:
+            pass
+
         calendar_data = []
         curr = start_date
         while curr <= end_date:
             d_str = curr.strftime("%Y-%m-%d")
+            if d_str in user_marked:
+                # 保留使用者手動標記 (is_open + description 原值)，官方同步不覆蓋
+                is_open, desc = user_marked[d_str]
+                calendar_data.append((d_str, is_open, desc))
+                curr += timedelta(days=1)
+                continue
             # 週末休市 (5=週六, 6=週日)，或位於官方休市名單中 [AI MOD]
             is_open = 0 if (curr.weekday() >= 5 or d_str in holidays) else 1
             desc = holidays.get(d_str, "") if is_open == 0 else ""

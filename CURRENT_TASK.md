@@ -1,18 +1,18 @@
 # CURRENT TASK
 
-Directive Task ID: TASK-0006
-State Task ID: TASK-0006
+Directive Task ID: TASK-0007
+State Task ID: TASK-0007
 Match: YES
 
-State: DONE
-Current Stage: COMPLETE
+State: IN_PROGRESS
+CurrentStage: READING
 
 Change Budget:
-Files: 2 / 2
-Lines: 34 / 100
+Files: 0 / 3
+Lines: 0 / 80
 
 Snapshot Baseline:
-Commit: 5c8f6f5
+Commit: (前次 deployment commit)
 
 Deployment Commit: ab13fa80d6c46d87f47dcf3b34a9cf4ce5c61eef
 
