@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 
 from twstock.db import get_connection
 from twstock.input_helper import get_interactive_input, setup_console_encoding
@@ -218,27 +219,31 @@ def _check_zero_volume_anomalies(suspended: set | list) -> None:
 # 4. 資料庫維護
 # ══════════════════════════════════════════════════════════════
 def run_db_maintenance() -> None:
-    """VACUUM 資料庫維護。"""
+    """VACUUM 資料庫維護"""
     os.system("cls" if os.name == "nt" else "clear")
-    from rich import box
-    from rich.align import Align
-    from rich.panel import Panel
-    from rich.text import Text
+    print("=" * 60)
+    print("資料庫維護")
+    print("=" * 60)
+    print("⏳ 正在執行資料庫重組與壓縮，請稍候（期間請勿關閉程式）...")
 
-    console.print(
-        Panel(
-            Align.center(Text("🔧 資料庫結構重整與維護", style="bold yellow")),
-            box=box.DOUBLE,
-            border_style="yellow",
-        )
-    )
-    console.print("[cyan]>> 正在重整 SQLite 資料庫 (VACUUM)...[/cyan]")
     try:
-        with get_connection() as conn:
+        conn = get_connection()
+        try:
             conn.execute("VACUUM")
-        console.print("[green]✅ 資料庫結構優化與物理壓縮完成！[/green]")
+            print("\n✅ 資料庫維護完成！")
+        finally:
+            conn.close()
+    except sqlite3.OperationalError as e:
+        if "locked" in str(e).lower():
+            print(
+                "\n❌ 維護失敗：資料庫被鎖定。請關閉其他可能使用資料庫的程式"
+                "（如其他更新排程或資料庫檢視器）後再試一次。"
+            )
+        else:
+            print(f"\n❌ 維護失敗：{e}")
     except Exception as e:
-        console.print(f"[red]❌ 維護失敗: {e}[/red]")
+        print(f"\n❌ 維護失敗：{e}")
+
     input("\n按 Enter 鍵返回主選單...")
 
 
