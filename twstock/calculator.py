@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,6 +18,35 @@ from twstock.db import get_connection
 from twstock.db_admin import (
     create_tables,  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
 )
+
+
+def _bulk_load_stocks(
+    db: sqlite3.Connection,
+    stock_ids: list[str],
+    *,
+    chunk_size: int = 400,
+) -> dict[str, pd.DataFrame]:
+    """ponytail: 一次 IN (...) 批次載入整批 history，避免 calculate_all 逐股 N+1。
+    chunk_size=400：SQLite 單句ude變數上限 32766，留安全餘量。
+    回傳 {stock_id: df}，df 已排序、含全部六個欄位（含 amount，供 VWAP 用）。"""
+    if not stock_ids:
+        return {}
+    result: dict[str, pd.DataFrame] = {}
+    for i in range(0, len(stock_ids), chunk_size):
+        chunk = stock_ids[i : i + chunk_size]
+        placeholders = ",".join(["?"] * len(chunk))
+        df_chunk = pd.read_sql(
+            "SELECT stock_id, date, open, high, low, close, volume, amount "
+            f"FROM stock_history WHERE stock_id IN ({placeholders}) "
+            "ORDER BY stock_id ASC, date ASC",
+            db,
+            params=chunk,
+        )
+        if df_chunk.empty:
+            continue
+        for sid, group in df_chunk.groupby("stock_id", sort=False):
+            result[sid] = group.reset_index(drop=True)
+    return result
 
 
 class IndicatorEngine:
@@ -204,7 +232,7 @@ class ATRCalculator:
     def __init__(self, db: sqlite3.Connection) -> None:
         self.db: sqlite3.Connection = db
 
-    def calculate(self, stock_id: str) -> int:
+    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
         """
         計算 stock_id 的 ATR14，UPSERT 到 stock_indicators.atr14。
 
@@ -213,20 +241,30 @@ class ATRCalculator:
         ATR14(14) = mean(TR1..TR14)（第一個值用 SMA）
         ATR14(t)  = (ATR14(t-1) * 13 + TR(t)) / 14（Wilder's EMA）
         前 13 天 = NULL
-        """
-        cur = self.db.execute(
-            "SELECT date, high, low, close FROM stock_history "
-            "WHERE stock_id=? ORDER BY date ASC",
-            (stock_id,),
-        )
-        rows = cur.fetchall()
-        if not rows:
-            return 0
 
-        dates: list[Any] = [r[0] for r in rows]
-        highs: list[Any] = [r[1] for r in rows]
-        lows: list[Any] = [r[2] for r in rows]
-        closes: list[Any] = [r[3] for r in rows]
+        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
+        """
+        if df is None:
+            cur = self.db.execute(
+                "SELECT date, high, low, close FROM stock_history "
+                "WHERE stock_id=? ORDER BY date ASC",
+                (stock_id,),
+            )
+            rows = cur.fetchall()
+            if not rows:
+                return 0
+            dates = [r[0] for r in rows]
+            highs = [r[1] for r in rows]
+            lows = [r[2] for r in rows]
+            closes = [r[3] for r in rows]
+        else:
+            if df.empty:
+                return 0
+            sub = df.sort_values("date").reset_index(drop=True)
+            dates = sub["date"].tolist()
+            highs = sub["high"].tolist()
+            lows = sub["low"].tolist()
+            closes = sub["close"].tolist()
         n: int = len(dates)
 
         # 計算 TR
@@ -276,9 +314,13 @@ class ATRCalculator:
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
         stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
+        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
+        bulk = _bulk_load_stocks(self.db, stock_ids)
+
         result: dict[str, int] = {}
         for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id)
+            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
+        self.db.commit()
         return result
 
 
@@ -293,18 +335,24 @@ class VWAPCalculator:
     def __init__(self, db: sqlite3.Connection) -> None:
         self.db: sqlite3.Connection = db
 
-    def calculate(self, stock_id: str) -> int:
+    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
         """
         計算 stock_id 的日 VWAP，UPSERT 到 stock_indicators.vwap。
 
         vwap = amount / volume
         volume = 0 → vwap = NULL
+
+        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
         """
-        cur = self.db.execute(
-            "SELECT date, volume, amount FROM stock_history " "WHERE stock_id=? ORDER BY date ASC",
-            (stock_id,),
-        )
-        rows = cur.fetchall()
+        if df is None:
+            cur = self.db.execute(
+                "SELECT date, volume, amount FROM stock_history WHERE stock_id=? ORDER BY date ASC",
+                (stock_id,),
+            )
+            rows = cur.fetchall()
+        else:
+            sub = df.sort_values("date").reset_index(drop=True)
+            rows = list(sub[["date", "volume", "amount"]].itertuples(index=False, name=None))
         if not rows:
             return 0
 
@@ -335,9 +383,13 @@ class VWAPCalculator:
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
         stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
+        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
+        bulk = _bulk_load_stocks(self.db, stock_ids)
+
         result: dict[str, int] = {}
         for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id)
+            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
+        self.db.commit()
         return result
 
 
@@ -350,18 +402,23 @@ class MACalculator:
     def __init__(self, db: sqlite3.Connection) -> None:
         self.db: sqlite3.Connection = db
 
-    def calculate(self, stock_id: str) -> int:
+    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
         """
         計算 stock_id 的 MA 指標並寫入 stock_indicators。
         回傳寫入列數。
+
+        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
         """
-        # 用 pd.read_sql 從 db 讀取（不加 LIMIT，確保全部歷史資料都被計算）
-        df = pd.read_sql(
-            "SELECT date, open, high, low, close, volume FROM stock_history "
-            "WHERE stock_id = ? ORDER BY date ASC",
-            self.db,
-            params=(stock_id,),
-        )
+        if df is None:
+            # 用 pd.read_sql 從 db 讀取（不加 LIMIT，確保全部歷史資料都被計算）
+            df = pd.read_sql(
+                "SELECT date, open, high, low, close, volume FROM stock_history "
+                "WHERE stock_id = ? ORDER BY date ASC",
+                self.db,
+                params=(stock_id,),
+            )
+        else:
+            df = df.copy()
         if df.empty:
             return 0
 
@@ -451,13 +508,15 @@ class MACalculator:
         對 stock_history 所有 stock_id 執行 calculate()。
         回傳 dict：{stock_id: count}
         """
-        from twstock.db_admin import create_tables
-
         create_tables(self.db)  # 只呼叫一次，避免每支股票重複 catalog 檢查
         cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
         stock_ids: list[str] = [row[0] for row in cur.fetchall()]
 
+        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
+        bulk = _bulk_load_stocks(self.db, stock_ids)
+
         result: dict[str, int] = {}
         for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id)
+            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
+        self.db.commit()
         return result
