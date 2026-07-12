@@ -1,32 +1,40 @@
 # TASK DIRECTIVE
 
-Task ID: TASK-0008
+Task ID: TASK-0012 (Final)
 Permission Level: LEVEL 2
 Source: User Request
-Reason: Refactor run_db_maintenance() — Rich Markup / connection handling / error prompt
+Reason: UI/UX bundle: system-time header + market-title timestamp + dynamic intraday/post-market detection
 
 ## Objective
-Refactor `twstock/tui/menu.py:run_db_maintenance()` to clean up Rich markup bare-printing, use explicit connection open/close, and strengthen SQLite error handling (especially the "locked" case).
+Bundle three related UI modifications — (1) header always shows real system time, (2) market overview title shows API data timestamp, (3) market mode (盤中/盤後) dynamically detected by comparing market field changes instead of hardcoded clock ranges — into a single deployment commit.
 
 ## Change Budget
-Maximum Files: 1
-Maximum Lines: 30
+Maximum Files: 2
+Maximum Lines: ~52
 
 ## Allowed Changes
-- twstock/tui/menu.py (run_db_maintenance body only)
+- twstock/market_data/cache.py (MarketCache: _prev_data / _is_data_changed / get_market_mode / snapshot in _async_fetch_worker)
+- twstock/tui/render.py (render_dashboard market_mode block + _render_market_panel title + _render_header)
 
 ## Forbidden Changes
-- 修改其他 run_daily_update / run_historical_update_menu 等無關函式
-- 修改 run_db_maintenance 介面(仍為 `def run_db_maintenance() -> None`)
-- 更動 stock_history / shareholding_unified / stock_meta 等資料表的實際資料
+- 修改 fetch_market_indices 回傳結構(巳有 6 個欄位)
+- 更動 MarketCache.get() / get_status() / invalidate() 介面
 - 在验证通过前執行 git commit / push
 
-## Acceptance Criteria
-- ruff check 零錯誤
-- mypy 零錯誤
+## Completion Criteria
+- ruff check 零錯誤(cache.py + render.py)
+- mypy 零錯誤(cache.py + render.py)
 - pytest 699 passed / 22 skipped 維持不變
-- 本地 dry-run 確認「locked」分支訊息正確(用 mock conn.execute raise sqlite3.OperationalError("database is locked") 觸發)
-- git commit + push 前需貼完整 diff + ruff/mypy/pytest 結果,等 Task Owner 明確說「可以 commit」
+- 手動五態 dry-run 验證(首次 → 🔴 盤後;不變 → 🔴 盤後;price 變 / amount 變 / l_up 變 → 🟢 盤中)
+- 部署至 origin main
+
+## Completed Tasks (Deployment)
+  ✅ TASK-0010  feat(ui): Header time strict system time
+  ✅ TASK-0011  feat(ui): Market overview title with API data timestamp
+  ✅ TASK-0012  feat(ui): Dynamic market mode via 6-field comparison
+
+Deployment Commit: d7842e4
+Deployed: 2026-07-12 (d7842e4 → origin main)
 
 ## Human Decision Required
-Yes (commit / push 前需 owners 明示)
+(Deployment authorized by Task Owner in dialogue)
