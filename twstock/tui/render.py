@@ -71,7 +71,7 @@ def render_dashboard() -> None:
     layout = make_layout()
     indices = fetch_market_indices_cached()
 
-    _render_market_panel(layout, indices)
+    _render_market_panel(layout, indices, market_mode)
     _render_header(layout, indices, now, is_live, current_minutes)
     _render_menu(layout)
     _render_status(layout, info, market_mode)
@@ -95,7 +95,7 @@ def render_dashboard() -> None:
 
 
 # ── panel helpers ──────────────────────────────────────────
-def _render_market_panel(layout, indices) -> None:
+def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> None:
     # 嘗試從 cache 取得資料（即使 background fetch 尚未完全結束）
     if not indices:
         indices = _market_cache.get()
@@ -169,12 +169,15 @@ def _render_market_panel(layout, indices) -> None:
             _get_market_text(indices["TAIEX"], "加權指數"),
             _get_market_text(indices["OTC"], "櫃買指數"),
         )
-    # [AI MOD] 市場行情標題附上資料時間(ROC 民國年 + 時:分:秒)。
-    # 格式範例: "📊 市場:  115/07/09 13:30:00"。純文字 + emoji,避 Rich Markup。
+    # [AI MOD] 市場行情標題顯示日期、時間與盤中/盤後標記(ROC 民國年, hyphen 連接)。
+    # 格式範例: "📊 市場: 115-07-09 13:30:00 🟢 盤中"。純文字 + emoji,避 Rich Markup。
     api_date = indices.get("date")
-    api_time = indices.get("time", "")
     if api_date:
-        market_title = f"📊 市場:  {to_roc_date(api_date)} {api_time}".rstrip()
+        # to_roc_date 輸出 slash 形式(115/07/09),依需求轉為 hyphen(115-07-09)
+        roc_date = to_roc_date(api_date).replace("/", "-")
+        api_time = indices.get("time", "")
+        time_str = api_time if api_time else "00:00:00"
+        market_title = f"📊 市場: {roc_date} {time_str} {market_mode}"
     else:
         market_title = "📊 市場: 即時行情(尚無日期)"
 
