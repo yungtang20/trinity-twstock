@@ -65,12 +65,8 @@ def render_dashboard() -> None:
     current_minutes = now.hour * 60 + now.minute
     is_live = 9 * 60 <= current_minutes <= 13 * 60 + 30
 
-    if current_minutes < 9 * 60:
-        market_mode = "🔴 未開盤"
-    elif is_live:
-        market_mode = "🟢 盤中"
-    else:
-        market_mode = "🔴 收盤後"
+    # [AI MOD] 改以資料異動判斷盤中/盤後,不再依賴時間範圍(避免週末/颱風假誤判)
+    market_mode = _market_cache.get_market_mode()
 
     layout = make_layout()
     indices = fetch_market_indices_cached()
@@ -173,10 +169,19 @@ def _render_market_panel(layout, indices) -> None:
             _get_market_text(indices["TAIEX"], "加權指數"),
             _get_market_text(indices["OTC"], "櫃買指數"),
         )
+    # [AI MOD] 市場行情標題附上資料時間(ROC 民國年 + 時:分:秒)。
+    # 格式範例: "📊 市場:  115/07/09 13:30:00"。純文字 + emoji,避 Rich Markup。
+    api_date = indices.get("date")
+    api_time = indices.get("time", "")
+    if api_date:
+        market_title = f"📊 市場:  {to_roc_date(api_date)} {api_time}".rstrip()
+    else:
+        market_title = "📊 市場: 即時行情(尚無日期)"
+
     layout["market"].update(
         Panel(
             m_grid,
-            title="[bold white] 市 場 即 時 行 情 [/]",
+            title=market_title,
             border_style="bright_blue",
             box=box.ROUNDED,
             padding=(0, 1),
@@ -185,17 +190,9 @@ def _render_market_panel(layout, indices) -> None:
 
 
 def _render_header(layout, indices, now, is_live, current_minutes) -> None:
-    if indices and indices.get("date"):
-        date_str = to_roc_date(indices["date"])
-    else:
-        date_str = to_roc_date(now.strftime("%Y%m%d"))
-
-    if is_live:
-        time_display = (
-            indices.get("time") if indices and indices.get("time") else now.strftime("%H:%M:%S")
-        )
-    else:
-        time_display = now.strftime("%H:%M:%S")
+    # [AI MOD] 日期/時間一律使用系統時鐘,避免休市日 API 回傳最後一次交易日舊日期造成誤解。
+    date_str = to_roc_date(now.strftime("%Y%m%d"))
+    time_display = now.strftime("%H:%M:%S")
 
     header_text = Text.assemble(
         (" ⚡ TRINITY ", "bold cyan"),

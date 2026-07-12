@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -27,6 +28,7 @@ class MarketCache:
 
     def __init__(self):
         self._data: Optional[Dict[str, Any]] = None
+        self._prev_data: Optional[Dict[str, Any]] = None  # [AI MOD] 上一次快取快照,用於判斷市場是否有異動
         self._last_fetch: float = 0.0
         self._is_fetching: bool = False
         self._last_error: Optional[str] = None  # 最後一次抓取錯誤訊息
@@ -63,8 +65,16 @@ class MarketCache:
     def invalidate(self) -> None:
         """清除快取（下次 get() 會重新抓取）。"""
         self._data = None
+        self._prev_data = None  # [AI MOD] 清除快照避免下一次比對誤判
         self._last_fetch = 0.0
         self._last_error = None
+
+    def get_market_mode(self) -> str:
+        """依資料異動判斷「盤中」或「盤後」.
+
+        若與前一次抓取的任何一欄不同即為盤中；若全部相同或首次無可比判則為盤後。
+        """
+        return "🟢 盤中" if self._is_data_changed() else "🔴 盤後"
 
     # ── internal ──────────────────────────────────────────
     @staticmethod
@@ -72,6 +82,31 @@ class MarketCache:
         now = datetime.now()
         mins = now.hour * 60 + now.minute
         return 9 * 60 <= mins <= 13 * 60 + 35
+
+    def _is_data_changed(self) -> bool:
+        """[AI MOD] 比對這一次和上一次的 6 個市場欄位;若任一不同即為盤中."""
+        if self._prev_data is None:
+            return False
+        if not self._data:
+            return False
+        # (群組, 欄位) — 6 個欄位全部比對,任一變動即為盤中
+        compare_keys = [
+            ("TAIEX", "price"),
+            ("OTC", "price"),
+            ("TAIEX", "amount"),
+            ("OTC", "amount"),
+            ("TAIEX", "l_up"),
+            ("OTC", "l_up"),
+        ]
+        for group, field in compare_keys:
+            prev_val = self._prev_data.get(group, {}).get(field)
+            curr_val = self._data.get(group, {}).get(field)
+            # None 標準化為 0,避免 None != 0 造成誤判
+            prev_norm = 0 if prev_val is None else prev_val
+            curr_norm = 0 if curr_val is None else curr_val
+            if prev_norm != curr_norm:
+                return True
+        return False
 
     def _async_fetch_worker(self) -> None:
         """背景抓取，帶整體逾時。"""
@@ -97,6 +132,8 @@ class MarketCache:
             self._last_error = f"抓取逾時（>{_FETCH_TIMEOUT:.0f}s）"
             logger.warning("MarketCache: %s", self._last_error)
         elif result:
+            # [AI MOD] 先保留舊快照再覆寫 _data,供下次 _is_data_changed 比對
+            self._prev_data = copy.deepcopy(self._data)
             self._data = result
             self._last_error = None
         else:
