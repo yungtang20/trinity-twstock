@@ -1,19 +1,19 @@
 # CURRENT TASK
 
-Directive Task ID: TASK-0007
-State Task ID: TASK-0007
+Directive Task ID: TASK-0008
+State Task ID: TASK-0008
 Match: YES
 
-State: IN_PROGRESS
-CurrentStage: READING
+State: DONE
+CurrentStage: COMPLETE
 
 Change Budget:
-Files: 0 / 3
-Lines: 0 / 80
+Files: 1 / 1 (twstock/tui/menu.py)
+Lines: ~21 / 30
 
 Snapshot Baseline:
-Commit: (前次 deployment commit)
+Commit: b9657a1
 
-Deployment Commit: ab13fa80d6c46d87f47dcf3b34a9cf4ce5c61eef
+Deployment Commit: 4478836
 
 Blocker: None
