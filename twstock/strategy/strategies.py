@@ -332,7 +332,8 @@ def interactive_menu():
                 if ans in direction_filter_map:
                     vol = _input_vol()
                     run_strategy_by_id(
-                        choice, {"scan": True, "vol": vol, "pattern_filter": direction_filter_map[ans]}
+                        choice,
+                        {"scan": True, "vol": vol, "pattern_filter": direction_filter_map[ans]},
                     )
                     _prompt_kronos_ai()
                     continue

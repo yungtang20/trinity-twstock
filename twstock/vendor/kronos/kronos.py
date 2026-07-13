@@ -1,13 +1,10 @@
-import sys
-
 import numpy as np
 import pandas as pd
 import torch
 from huggingface_hub import PyTorchModelHubMixin
 from tqdm import trange
 
-sys.path.append("../")
-from model.module import (
+from .module import (
     BSQuantizer,
     DependencyAwareLayer,
     DualHead,

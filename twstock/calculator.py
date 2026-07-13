@@ -50,7 +50,9 @@ def _bulk_load_stocks(
 
 
 class IndicatorEngine:
-    def __init__(self, stock_id: str, limit: int = 600, df_intraday: pd.DataFrame | None = None) -> None:
+    def __init__(
+        self, stock_id: str, limit: int = 600, df_intraday: pd.DataFrame | None = None
+    ) -> None:
         self.stock_id: str = stock_id
         self.limit: int = limit
         self.df: pd.DataFrame = self._load_data()

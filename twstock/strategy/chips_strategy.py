@@ -431,7 +431,10 @@ class StockAnalyzer:
 
 
 def scan_market(
-    analyzer: StockAnalyzer, strat_choice: Optional[str] = None, n_days: int = 2, sort_choice: int = 1
+    analyzer: StockAnalyzer,
+    strat_choice: Optional[str] = None,
+    n_days: int = 2,
+    sort_choice: int = 1,
 ):
     """市場掃描主函數（參數由 strategies.py 或 run_strategy 傳入，不再互動提示）"""
     hist_date, inst_date = analyzer.get_latest_dates()

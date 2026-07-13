@@ -3,6 +3,7 @@
 ponytail: one-shot dump, no framework, overwrites prior output. Ceiling: if
 graph schema changes (column renames), rewrite SELECTs here — not parameterized.
 """
+
 import os
 import sqlite3
 import sys
@@ -23,6 +24,7 @@ def main() -> int:
             ORDER BY file_path, start_line, name
         """
         nodes = conn.execute(nodes_sql, (PROJECT,)).fetchall()
+
         def esc(v):
             """ponytail: strip CR/LF/TAB so one node/edge never spans multiple TSV rows."""
             if v is None:
@@ -30,8 +32,7 @@ def main() -> int:
             s = str(v)
             return s.replace("\r", " ").replace("\n", " ").replace("\t", " ")
 
-        with open(os.path.join(OUT, "02-nodes.tsv"), "w", encoding="utf-8",
-                  newline="") as f:
+        with open(os.path.join(OUT, "02-nodes.tsv"), "w", encoding="utf-8", newline="") as f:
             f.write("id\tlabel\tname\tqualified_name\tfile_path\tstart_line\tend_line\n")
             for r in nodes:
                 f.write("\t".join(esc(v) for v in r) + "\n")
@@ -47,10 +48,11 @@ def main() -> int:
             ORDER BY e.type, sn.qualified_name, tn.qualified_name
         """
         edges = conn.execute(edges_sql, (PROJECT,)).fetchall()
-        with open(os.path.join(OUT, "03-edges.tsv"), "w", encoding="utf-8",
-                  newline="") as f:
-            f.write("source_id\tsource_qualified_name\tedge_type\t"
-                    "target_id\ttarget_qualified_name\tproperties\n")
+        with open(os.path.join(OUT, "03-edges.tsv"), "w", encoding="utf-8", newline="") as f:
+            f.write(
+                "source_id\tsource_qualified_name\tedge_type\t"
+                "target_id\ttarget_qualified_name\tproperties\n"
+            )
             for r in edges:
                 f.write("\t".join(esc(v) for v in r) + "\n")
 

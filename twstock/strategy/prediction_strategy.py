@@ -136,7 +136,9 @@ def _get_stock_name(conn, stock_id):
     return get_stock_name(conn, stock_id)
 
 
-def _render_kronos_prediction(df, code: str, name: str, engine: PredictionEngine, skipped_list: List[str] | None = None):
+def _render_kronos_prediction(
+    df, code: str, name: str, engine: PredictionEngine, skipped_list: List[str] | None = None
+):
     """繪製 Kronos 5 日價格預測結果"""
     try:
         # Kronos 需要 DatetimeIndex；若 df 的 date 欄位是字串，先轉換

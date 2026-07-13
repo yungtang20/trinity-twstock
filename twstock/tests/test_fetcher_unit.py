@@ -136,7 +136,9 @@ class TestFetchMarketIndices:
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
-    def test_returns_none_on_failure(self, mock_mis, mock_yahoo, mock_session, mock_http_get, mock_retry):
+    def test_returns_none_on_failure(
+        self, mock_mis, mock_yahoo, mock_session, mock_http_get, mock_retry
+    ):
         """全部 API 失敗且 safe_http_get / retry_get 回傳 None 時應回傳 None。"""
         mock_mis.return_value = {}
         mock_yahoo.return_value = ("無資料", "無資料")
@@ -483,7 +485,9 @@ class TestFetchMarketIndicesBranches:
     @patch("twstock.market_data.fetcher.get_http_session")
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
-    def test_tpex_data_with_digit_amount(self, mock_mis, mock_yahoo, mock_sess, mock_get, mock_retry):
+    def test_tpex_data_with_digit_amount(
+        self, mock_mis, mock_yahoo, mock_sess, mock_get, mock_retry
+    ):
         """TPEx row[3] is a digit string → OTC amount = safe_float / 100."""
         mock_sess.return_value = MagicMock()
         mock_yahoo.return_value = ("無資料", "無資料")

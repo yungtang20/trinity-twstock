@@ -41,6 +41,7 @@ def _valid_stock_ids() -> set[str]:
     setattr(_valid_stock_ids, "_CACHE", cache)
     return cache
 
+
 # ============================================================================
 # 常數與預設值
 # ============================================================================
@@ -525,7 +526,9 @@ class TWSEFetcher:
                 rows = self._transform(raw, stock_id)
                 total += self.save(rows)
             except Exception as e:
-                print(f"[{__name__}] fetch_monthly failed for {stock_id} {current.year}-{current.month}: {e}")
+                print(
+                    f"[{__name__}] fetch_monthly failed for {stock_id} {current.year}-{current.month}: {e}"
+                )
             # 下個月
             if current.month == 12:
                 current = current.replace(year=current.year + 1, month=1)
@@ -855,5 +858,3 @@ class DividendFetcher:
         rows = self._transform(raw)
         count = self.save(rows)
         return count
-
-

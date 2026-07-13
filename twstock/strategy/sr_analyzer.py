@@ -151,9 +151,7 @@ class SupportResistanceEngine:
         self.df["atr"] = self.df["atr"].rolling(window=period).mean()
         self.df = self.df.drop(columns=["_pc", "_tr"])
 
-    def _find_swing(
-        self, arr: np.ndarray, dates: np.ndarray, mode: str
-    ) -> dict[str, Any] | None:
+    def _find_swing(self, arr: np.ndarray, dates: np.ndarray, mode: str) -> dict[str, Any] | None:
         n = StrategyConfig.SWING_LEFT + StrategyConfig.SWING_RIGHT + 1
         if len(arr) < n:
             return None
@@ -581,9 +579,7 @@ def _show_market_overview(data: dict[str, Any], df: pd.DataFrame) -> None:
     console.print(f"成交: {vol_fmt(int(cur.get('volume', 0)))}")
 
 
-def _calc_levels(
-    levels: list[float], is_resistance: bool, lc: float
-) -> tuple[float, float, float]:
+def _calc_levels(levels: list[float], is_resistance: bool, lc: float) -> tuple[float, float, float]:
     if levels:
         if is_resistance:
             return levels[0], levels[1] if len(levels) >= 3 else levels[0], levels[-1]
@@ -785,7 +781,7 @@ def _scan_with_progress_basic(
     ) as prog:
         task = prog.add_task("掃描市場", total=len(stocks))
         for i in range(0, len(stocks), chunk_size):
-            chunk_codes = stocks[i:i + chunk_size]
+            chunk_codes = stocks[i : i + chunk_size]
             placeholders = ",".join("?" * len(chunk_codes))
             bulk_sql = (
                 "SELECT stock_id, date, open, high, low, close, volume "
@@ -849,9 +845,7 @@ def _analyze_one(
     }
 
 
-def _score(
-    code: str, name: str, a: dict[str, Any], df: pd.DataFrame
-) -> dict[str, Any] | None:
+def _score(code: str, name: str, a: dict[str, Any], df: pd.DataFrame) -> dict[str, Any] | None:
     price = a["last_close"]
     prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else price
     vol = float(df["volume"].iloc[-1]) if "volume" in df.columns else 0
@@ -983,9 +977,7 @@ def _display_results(
         ("額(億)", "yellow", True),
         (dist_col, "bright_red", True),
     ]:
-        table.add_column(
-            col, justify="left", style=style, no_wrap=nw, overflow="fold"
-        )
+        table.add_column(col, justify="left", style=style, no_wrap=nw, overflow="fold")
     for r in results[: StrategyConfig.MAX_SCAN_RESULTS]:
         if current_filters:
             lv = r.get("filter_levels", {})
