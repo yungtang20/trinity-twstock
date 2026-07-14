@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-07-15
+
+### Docs
+- 19 個根目錄 .md 歸位到 `docs/{architecture,specs,process,meta,archive}/`
+- 合併 ARCHITECTURE/CONTEXT/PROJECT_RULES 三份重複規則(import 方向、命名規則、錯誤處理策略)
+- 新增 `twstock/README.md` 作為 5 分鐘入口
+- 舊稽核報告移至 `docs/archive/` 並加日期戳,明確標示「不代表現況」
+
+### Refactor
+- `get_single_key_input` 收斂至 `input_helper.py`(原 chips_strategy/strategies 兩份逐字相同的 3 行 wrapper)
+- `_get_session` 收斂至 `official/utils.py`(原 quotes/institutional 兩份逐字相同,保留原截斷版 UA 與嚴格 raise 行為,不 swap 到 utils.py 的 get_http_session)
+
+### Chore
+- `dependency_graph.json` 用 AST 重建,舊版 61% 模組有漏列
+- 新版:60 模組 / 120 依賴邊,可作為後續代碼重構的安全網
+- 模組路徑改用標準 Python 慣例(`twstock.commands.__init__` → `twstock.commands`)
+
+### Notes
+- 階段 2 掃描報告中 P1(死代碼)/ P2(命名衝突 rename)/ P3(fetcher 模板重構)**未處理**,需獨立評估
+- 階段 4(代碼分包 `core/` `ingest/` `ui/`)未啟動,有可信依賴圖後可安全推進
+
+---
+
 ## [Unreleased]
 
 ### 新增
