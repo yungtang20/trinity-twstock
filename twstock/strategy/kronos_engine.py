@@ -9,7 +9,6 @@ import contextlib
 import io
 import logging
 import os
-import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -95,24 +94,6 @@ def _resolve_model_path(path: str) -> Optional[str]:
     return None
 
 
-def _find_kronos_model_src() -> Optional[str]:
-    """
-    尋找 Kronos 原始碼 model/ 目錄。
-    搜尋順序：專案根目錄 (twse/model/) > twstock/model/ > strategy/model/
-    """
-    strategy_dir = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        os.path.join(strategy_dir, "..", "..", "model"),  # twse/model/
-        os.path.join(strategy_dir, "..", "model"),  # twstock/model/
-        os.path.join(strategy_dir, "model"),  # strategy/model/
-    ]
-    for c in candidates:
-        c = os.path.normpath(c)
-        if os.path.isfile(os.path.join(c, "kronos.py")):
-            return c
-    return None
-
-
 def load_kronos(
     model_path: str = "models/kronos-base", tokenizer_path: str = "models/kronos-tokenizer-base"
 ):
@@ -120,10 +101,6 @@ def load_kronos(
     載入 Kronos 模型與 tokenizer。
     回傳 (tokenizer, model, predictor) 或 raise ImportError。
     """
-    model_src = _find_kronos_model_src()
-    if model_src and model_src not in sys.path:
-        sys.path.insert(0, model_src)
-
     resolved_model = _resolve_model_path(model_path)
     resolved_tokenizer = _resolve_model_path(tokenizer_path)
     if not resolved_model or not resolved_tokenizer:
@@ -131,12 +108,7 @@ def load_kronos(
             f"Kronos 模型路徑不存在: model={resolved_model}, tokenizer={resolved_tokenizer}"
         )
 
-    # 加入 model/ 所在目錄，讓 'import model' 能解析 Kronos 原始碼
-    if model_src:
-        parent = os.path.dirname(model_src)
-        if parent not in sys.path:
-            sys.path.insert(0, parent)
-    from model import Kronos, KronosPredictor, KronosTokenizer
+    from twstock.vendor.kronos import Kronos, KronosPredictor, KronosTokenizer
 
     tokenizer = KronosTokenizer.from_pretrained(resolved_tokenizer)
     model = Kronos.from_pretrained(resolved_model)

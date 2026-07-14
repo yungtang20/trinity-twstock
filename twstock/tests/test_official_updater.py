@@ -487,15 +487,18 @@ class TestUpdateOfficialDaily:
     ):
         # 讓 _date_to_int 逐次遞減以模擬真實的日期回溯
         d2i_counter = [20260702]
+
         def _d2i_side_effect(dt):
             result = d2i_counter[0]
             d2i_counter[0] -= 1
             return result
+
         mock_d2i.side_effect = _d2i_side_effect
 
         # 當日期 >= 20260708 時回傳 True（表示該日有完整資料），< 20260708 則回傳 False
         def _exists_side_effect(date_int):
             return date_int >= 20260708
+
         mock_exists.side_effect = _exists_side_effect
 
         mock_i2d.return_value = _dt(2026, 7, 2)

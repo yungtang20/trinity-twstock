@@ -333,7 +333,7 @@ def scan_market_stocks(
             ) as prog:
                 task = prog.add_task("載入與計算", total=len(codes))
                 for i in range(0, len(codes), chunk_size):
-                    chunk_codes = codes[i:i + chunk_size]
+                    chunk_codes = codes[i : i + chunk_size]
                     placeholders = ",".join("?" * len(chunk_codes))
                     bulk_sql = (
                         "SELECT stock_id, date, close, volume FROM klines "
@@ -352,13 +352,23 @@ def scan_market_stocks(
                 df_all = df_all.sort_values(["stock_id", "date"]).reset_index(drop=True)
 
                 if strat_choice == "1":
-                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(200).mean())
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(
+                        lambda x: x.rolling(200).mean()
+                    )
                 elif strat_choice == "2":
-                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(60).mean())
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(
+                        lambda x: x.rolling(60).mean()
+                    )
                 elif strat_choice == "3":
-                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(lambda x: x.rolling(25).mean())
-                    df_all["vol_ma5"] = df_all.groupby("stock_id")["volume"].transform(lambda x: x.rolling(5).mean())
-                    df_all["vol_ma60"] = df_all.groupby("stock_id")["volume"].transform(lambda x: x.rolling(60).mean())
+                    df_all["ma_target"] = df_all.groupby("stock_id")["close"].transform(
+                        lambda x: x.rolling(25).mean()
+                    )
+                    df_all["vol_ma5"] = df_all.groupby("stock_id")["volume"].transform(
+                        lambda x: x.rolling(5).mean()
+                    )
+                    df_all["vol_ma60"] = df_all.groupby("stock_id")["volume"].transform(
+                        lambda x: x.rolling(60).mean()
+                    )
 
                 grouped = df_all.groupby("stock_id")
 
@@ -416,8 +426,14 @@ def scan_market_stocks(
                                 and curr_price > ma_series[-1]
                                 and curr_vol > prev_vol
                             ):
-                                bias = ((curr_price - ma_series[-1]) / ma_series[-1] * 100) if ma_series[-1] > 0 else 0.0
-                                vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                bias = (
+                                    ((curr_price - ma_series[-1]) / ma_series[-1] * 100)
+                                    if ma_series[-1] > 0
+                                    else 0.0
+                                )
+                                vol_ratio = (
+                                    (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                )
                                 retraces = _count_retraces_wrapped(ma_series, c, period)
                                 triggered.append(
                                     {
@@ -448,8 +464,14 @@ def scan_market_stocks(
                                 and curr_price > ma_series[-1]
                                 and curr_vol > prev_vol
                             ):
-                                bias = ((curr_price - ma_series[-1]) / ma_series[-1] * 100) if ma_series[-1] > 0 else 0.0
-                                vol_ratio = (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                bias = (
+                                    ((curr_price - ma_series[-1]) / ma_series[-1] * 100)
+                                    if ma_series[-1] > 0
+                                    else 0.0
+                                )
+                                vol_ratio = (
+                                    (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
+                                )
                                 retraces = _count_retraces_wrapped(ma_series, c, period)
                                 triggered.append(
                                     {
@@ -477,10 +499,14 @@ def scan_market_stocks(
                             vol_ma60 = group["vol_ma60"].values.tolist()
                             ma25 = ma_series
                             if (
-                                pd.notna(vol_ma5[-2]) and pd.notna(vol_ma60[-2])
-                                and pd.notna(vol_ma5[-1]) and pd.notna(vol_ma60[-1])
+                                pd.notna(vol_ma5[-2])
+                                and pd.notna(vol_ma60[-2])
+                                and pd.notna(vol_ma5[-1])
+                                and pd.notna(vol_ma60[-1])
                             ):
-                                vol_cross = vol_ma5[-2] <= vol_ma60[-2] and vol_ma5[-1] > vol_ma60[-1]
+                                vol_cross = (
+                                    vol_ma5[-2] <= vol_ma60[-2] and vol_ma5[-1] > vol_ma60[-1]
+                                )
                                 retrace = ma25[-1] <= curr_price <= ma25[-1] * 1.10
                                 if vol_cross and retrace:
                                     found_2560 = False
@@ -492,10 +518,16 @@ def scan_market_stocks(
                                                 breakout_idx = idx
                                                 break
                                     if breakout_idx is not None:
-                                        if all(c[k] >= ma25[k] for k in range(breakout_idx, len(c))):
+                                        if all(
+                                            c[k] >= ma25[k] for k in range(breakout_idx, len(c))
+                                        ):
                                             found_2560 = True
                                     if found_2560:
-                                        bias = ((curr_price - ma25[-1]) / ma25[-1] * 100) if ma25[-1] > 0 else 0.0
+                                        bias = (
+                                            ((curr_price - ma25[-1]) / ma25[-1] * 100)
+                                            if ma25[-1] > 0
+                                            else 0.0
+                                        )
                                         retraces = _count_retraces_wrapped(ma25, c, 25)
                                         triggered.append(
                                             {
@@ -573,7 +605,9 @@ def scan_market_stocks(
     _display_scan_results(results, latest_date, sort_choice, strat_choice)
 
 
-def _analyze_one(conn: sqlite3.Connection, code: str, name_map: dict[str, str]) -> list[dict[str, Any]]:
+def _analyze_one(
+    conn: sqlite3.Connection, code: str, name_map: dict[str, str]
+) -> list[dict[str, Any]]:
     df = pd.read_sql(
         """
         SELECT date, open, high, low, close, volume
@@ -644,31 +678,27 @@ def _analyze_one(conn: sqlite3.Connection, code: str, name_map: dict[str, str]) 
 
     # 1. 突破年線
     if len(df) >= 200 and ma200 is not None:
-        if (
-            prev_price <= ma200[-2]
-            and curr_price > ma200[-1]
-            and curr_vol > prev_vol
-        ):
+        if prev_price <= ma200[-2] and curr_price > ma200[-1] and curr_vol > prev_vol:
             bias = (curr_price - ma200[-1]) / ma200[-1] * 100 if ma200[-1] > 0 else 0.0
             triggered.append(
-            {
-                "code": code,
-                "name": name_map.get(code, "---"),
-                "close": curr_price,
-                "prev_close": prev_price,  # [AI MOD] Include prev_close for coloring
-                "ma60": ma60[-1],
-                "ma200": ma200[-1],
-                "target_ma": ma200[-1],
-                "vol_ratio": vol_ratio,
-                "bias": bias,
-                "trend": "突破年線",
-                "color": "bold yellow",
-                "vol": int(curr_vol) // 1000,
-                "amount": (curr_price * curr_vol) / 1e8,
-                "strat_id": "1",
-                "retraces": _count_retraces(ma200),  # [AI MOD]
-            }
-        )
+                {
+                    "code": code,
+                    "name": name_map.get(code, "---"),
+                    "close": curr_price,
+                    "prev_close": prev_price,  # [AI MOD] Include prev_close for coloring
+                    "ma60": ma60[-1],
+                    "ma200": ma200[-1],
+                    "target_ma": ma200[-1],
+                    "vol_ratio": vol_ratio,
+                    "bias": bias,
+                    "trend": "突破年線",
+                    "color": "bold yellow",
+                    "vol": int(curr_vol) // 1000,
+                    "amount": (curr_price * curr_vol) / 1e8,
+                    "strat_id": "1",
+                    "retraces": _count_retraces(ma200),  # [AI MOD]
+                }
+            )
 
     # 2. 突破季線
     if prev_price <= ma60[-2] and curr_price > ma60[-1] and curr_vol > prev_vol:

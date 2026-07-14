@@ -1,19 +1,10 @@
 import logging
 
 import pandas as pd
-import requests
 
 from twstock.retry import retry_get
 
-from .utils import safe_int
-
-
-def _get_session():
-    session = requests.Session()
-    session.headers.update(
-        {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    )
-    return session
+from .utils import safe_int, _get_session
 
 
 SESSION = _get_session()

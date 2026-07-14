@@ -272,6 +272,16 @@ def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed
                         return buf
 
 
+# ── Convenience alias ────────────────────────────────────────
+def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
+    """單鍵輸入的語意化別名，委託給 :func:`get_interactive_input`。"""
+    return get_interactive_input(
+        prompt=prompt,
+        menu_keys=keys,
+        auto_four=auto_four,
+    )
+
+
 # ── 阻塞單鍵（供策略模組「按任意鍵選擇」使用）─────────────
 def get_blocking_key(prompt: str = "") -> str:
     """阻塞等待第一鍵（Windows msvcrt / Unix termios / fallback input）。
@@ -327,6 +337,7 @@ def get_blocking_key(prompt: str = "") -> str:
 # ── Convenience exports ────────────────────────────────
 __all__ = [
     "get_interactive_input",
+    "get_single_key_input",
     "get_blocking_key",
     "clear_screen",
     "setup_console_encoding",

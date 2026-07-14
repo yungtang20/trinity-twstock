@@ -200,8 +200,6 @@ def _clear_screen():
     clear_screen()
 
 
-
-
 def _render_header(title, is_detail=False):
     render_header(title, is_detail=is_detail, console=rconsole)
 
@@ -1279,7 +1277,7 @@ class PatternBreakoutScanner:
                     # scope for the cutoff; no extra SQL round-trip.
                     chunk_size = 500
                     for i in range(0, len(symbols), chunk_size):
-                        chunk = symbols[i:i + chunk_size]
+                        chunk = symbols[i : i + chunk_size]
                         placeholders = ",".join("?" * len(chunk))
                         params = list(chunk) + [ld]
                         bulk_sql = (

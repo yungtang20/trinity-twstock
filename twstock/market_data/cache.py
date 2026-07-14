@@ -28,7 +28,9 @@ class MarketCache:
 
     def __init__(self):
         self._data: Optional[Dict[str, Any]] = None
-        self._prev_data: Optional[Dict[str, Any]] = None  # [AI MOD] 上一次快取快照,用於判斷市場是否有異動
+        self._prev_data: Optional[Dict[str, Any]] = (
+            None  # [AI MOD] 上一次快取快照,用於判斷市場是否有異動
+        )
         self._last_fetch: float = 0.0
         self._is_fetching: bool = False
         self._last_error: Optional[str] = None  # 最後一次抓取錯誤訊息

@@ -343,9 +343,11 @@ def update_official_daily(
                 # [AI MOD] 互動式標記休市：使用者真正接管 TTY 時才詢問，
                 # CI / cron / 背景執行 (isatty=False) 直接跳過，永不阻斷自動化。
                 if sys.stdin.isatty() and sys.stdout.isatty():
-                    ans = input(
-                        f"⚠️ {d} 兩市場皆無資料，是否為休市日？（預設為否）[y/N]: "
-                    ).strip().lower()
+                    ans = (
+                        input(f"⚠️ {d} 兩市場皆無資料，是否為休市日？（預設為否）[y/N]: ")
+                        .strip()
+                        .lower()
+                    )
                     if ans == "y":
                         d_str = f"{d // 10000:04d}-{(d // 100) % 100:02d}-{d % 100:02d}"
                         conn_holiday = get_connection()
