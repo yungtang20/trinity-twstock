@@ -30,14 +30,9 @@ from twstock.display import price_color, vol_color
 from twstock.strategy._utils import clear_screen, get_stock_name, render_header
 
 try:
-    from twstock.input_helper import get_interactive_input
+    from twstock.input_helper import get_interactive_input, get_single_key_input
 except ImportError:
-    from input_helper import get_interactive_input  # type: ignore[no-redef]
-
-
-def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
-    return get_interactive_input(prompt=prompt, menu_keys=keys, auto_four=auto_four)
+    from input_helper import get_interactive_input, get_single_key_input  # type: ignore[no-redef]
 
 
 # ── Local helpers ─────────────────────────────────────────

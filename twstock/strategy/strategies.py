@@ -99,12 +99,7 @@ def run_strategy_by_id(strategy_id, params):
 
 
 # --- 統一輸入層（input_helper）---
-from twstock.input_helper import _flush_input_buffer, get_interactive_input
-
-
-def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    """向後相容包裝：統一使用 input_helper.get_interactive_input。"""
-    return get_interactive_input(prompt=prompt, menu_keys=keys, auto_four=auto_four)
+from twstock.input_helper import _flush_input_buffer, get_interactive_input, get_single_key_input
 
 
 def _flush_msvcrt():
