@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from twstock.processor import DataProcessor
+from twstock.core.processor import DataProcessor
 
 # Module-level holder for the "no-close" proxy used by the current test.
 # Set by the ``patch_gc`` context-manager fixture below; read by tests
@@ -67,7 +67,7 @@ def patch_gc(real_conn: sqlite3.Connection):
         # conn is still open here — safe to query
     """
     proxy = _NonClosingConn(real_conn)
-    with patch("twstock.processor.get_connection", return_value=proxy):
+    with patch("twstock.core.processor.get_connection", return_value=proxy):
         yield
 
 
@@ -917,14 +917,14 @@ class TestMainGuard:
     def test_main_guard(self, tmp_path):
         """Running the module as __main__ prints the success message (line 378).
 
-        We simulate ``python -m twstock.processor`` by writing a small runner
+        We simulate ``python -m twstock.core.processor`` by writing a small runner
         that inserts the project root on sys.path, then runs the module file
         under the ``__main__`` entry-point.
         """
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         # 專案根目錄（twstock 的父目錄）— 讓 from twstock.xxx 能解析
         repo_root = os.path.dirname(project_root)
-        processor_src = os.path.join(project_root, "processor.py")
+        processor_src = os.path.join(project_root, "core", "processor.py")
         runner = tmp_path / "_main_runner.py"
         runner.write_text(
             "import runpy, sys\n"
@@ -946,10 +946,10 @@ class TestMainGuard:
 
     def test_module_import_does_not_run_main(self):
         """Importing processor should not trigger the __main__ block."""
-        import twstock.processor as proc_mod
+        import twstock.core.processor as proc_mod
 
-        # The module should have __name__ == 'twstock.processor', not '__main__'
-        assert proc_mod.__name__ == "twstock.processor"
+        # The module should have __name__ == 'twstock.core.processor', not '__main__'
+        assert proc_mod.__name__ == "twstock.core.processor"
         # The reference print exists in source — just verify module is importable
         assert hasattr(proc_mod, "DataProcessor")
 

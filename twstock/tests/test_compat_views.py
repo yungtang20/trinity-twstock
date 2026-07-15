@@ -31,7 +31,7 @@ def test_compatibility_views_exist(db_conn, patch_db_path):
 def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
     """tdcc_shareholding VIEW 應能讀取 shareholding_unified 中 source='tdcc' 的資料。"""
     import pandas as pd
-    from processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     from twstock.db_admin import init_db
 
@@ -62,7 +62,7 @@ def test_tdcc_shareholding_view_reads_from_unified(db_conn, patch_db_path):
 def test_institutional_daily_view_reads_from_institutional_data(db_conn, patch_db_path):
     """institutional_daily VIEW 應能讀取 institutional_data 的資料。"""
     import pandas as pd
-    from processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     from twstock.db_admin import init_db
 

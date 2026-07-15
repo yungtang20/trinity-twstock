@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    from processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     PROCESSOR_AVAILABLE = True
 except ImportError:

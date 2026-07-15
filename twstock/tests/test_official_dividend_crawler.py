@@ -330,7 +330,7 @@ class TestUpsertDividendEvents:
         """空 DataFrame 輸入應直接回傳。"""
         assert dividend_crawler.upsert_dividend_events(pd.DataFrame()) is None
 
-    @patch("processor.DataProcessor")
+    @patch("twstock.core.processor.DataProcessor")
     def test_happy_path_bulk(self, mock_processor_cls):
         """資料完整時應走批量 upsert 路徑。"""
         mock_processor = MagicMock()
@@ -358,7 +358,7 @@ class TestUpsertDividendEvents:
         assert "date" in passed_df.columns
         assert "event_date" not in passed_df.columns
 
-    @patch("processor.DataProcessor")
+    @patch("twstock.core.processor.DataProcessor")
     def test_missing_columns_get_defaulted(self, mock_processor_cls):
         """缺少 before/after/reference/source 欄位時應補預設值。"""
         mock_processor = MagicMock()

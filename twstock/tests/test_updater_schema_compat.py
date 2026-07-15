@@ -28,7 +28,7 @@ def test_stock_history_has_no_adj_close_column(db_conn, patch_db_path):
 
 def test_save_stock_history_does_not_write_adj_close(db_conn, patch_db_path):
     """processor.upsert_history 不應嘗試寫入 adj_close 欄位。"""
-    from processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     from twstock.db_admin import init_db
 

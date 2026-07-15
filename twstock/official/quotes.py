@@ -161,7 +161,7 @@ def update_stock_meta_from_df(df: pd.DataFrame):
     """從行情 df 擷取 stock_id, name, market → 更新 stock_meta"""
     if df.empty:
         return
-    from twstock.processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     # 需要的欄位：stock_id, name（必要）；market 由 updater.py 在 concat 前標記
     needed = ["stock_id", "name"]

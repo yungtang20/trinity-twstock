@@ -265,6 +265,6 @@ def upsert_dividend_events(df: pd.DataFrame):
         df["source"] = "official"
 
     # 使用 processor.py 的批量 UPSERT（ON CONFLICT DO UPDATE），不再逐筆 DELETE+INSERT
-    from processor import DataProcessor
+    from twstock.core.processor import DataProcessor
 
     DataProcessor().upsert_dividend_events(df)
