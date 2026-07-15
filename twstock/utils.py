@@ -15,9 +15,13 @@ utils.py — 跨模組共用工具函式
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # 確保 twstock 目錄在 sys.path（讓 from db import 能運作）
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,9 +139,7 @@ def safe_http_get(url, session=None, timeout=5.0, verify=True, params=None, head
 
 # ── 股票名稱查詢 ─────────────────────────────────────────
 def get_token():
-    """從 api_config 取得 FinMind token。"""
-    from twstock.api_config import get_finmind_token
-
+    """取得 FinMind token（統一由本模組兩段式 dotenv 載入）。"""
     return get_finmind_token()
 
 
@@ -221,3 +223,63 @@ def format_price_change(current: float, previous: float):
     else:
         color = "bright_red" if diff > 0 else ("bright_green" if diff < 0 else "white")
     return diff, pct, color
+
+
+# ── API 設定讀取（原 api_config.py，統一集中）──────────────
+# 所有 API key / endpoint 由此區塊集中管理，禁止在其他檔案中硬編碼。
+# 載入順序：twstock/api.env（優先）→ twstock/.env（不覆蓋）→ 系統環境變數。
+
+_api_logger = logging.getLogger(__name__ + ".api_config")
+
+# twstock/ 目錄
+_PKG_DIR = Path(__file__).resolve().parent
+
+# 載入狀態（避免重複 load_dotenv）
+_api_env_loaded = False
+
+
+def _ensure_loaded():
+    """載入 api.env > .env > 系統環境變數（兩段式 dotenv）。"""
+    global _api_env_loaded
+    if _api_env_loaded:
+        return
+    # 優先載入 api.env
+    api_env = _PKG_DIR / "api.env"
+    if api_env.exists():
+        load_dotenv(api_env, override=True)
+        _api_logger.debug("Loaded API config from %s", api_env)
+    # 再載入 .env（不覆蓋 api.env 已設定的值）
+    dot_env = _PKG_DIR / ".env"
+    if dot_env.exists():
+        load_dotenv(dot_env, override=False)
+    _api_env_loaded = True
+
+
+def get_finmind_token() -> str:
+    """取得 FinMind API token。"""
+    _ensure_loaded()
+    token = os.environ.get("FINMIND_TOKEN", "").strip()
+    if not token:
+        raise ValueError("FINMIND_TOKEN 未設定。請在 twstock/api.env 或系統環境變數中設定。")
+    return token
+
+
+def get_longcat_api_key() -> str:
+    """取得 LongCat API key。"""
+    _ensure_loaded()
+    key = os.environ.get("LONGCAT_API_KEY", "").strip()
+    if not key:
+        raise ValueError("LONGCAT_API_KEY 未設定。請在 twstock/api.env 或系統環境變數中設定。")
+    return key
+
+
+def get_longcat_api_url() -> str:
+    """取得 LongCat API URL。"""
+    _ensure_loaded()
+    return os.environ.get("LONGCAT_API_URL", "https://api.longcat.chat/openai")
+
+
+def get_longcat_model() -> str:
+    """取得 LongCat 模型名稱。"""
+    _ensure_loaded()
+    return os.environ.get("LONGCAT_MODEL", "LongCat-2.0-Preview")

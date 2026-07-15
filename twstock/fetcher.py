@@ -21,8 +21,8 @@ from datetime import datetime
 import pandas as pd
 import requests
 
-from twstock.api_config import get_finmind_token
 from twstock.db import get_connection
+from twstock.utils import get_finmind_token
 from twstock.utils import safe_float as _safe_float
 
 logger = logging.getLogger(__name__)

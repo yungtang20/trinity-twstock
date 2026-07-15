@@ -12,7 +12,7 @@ from typing import Optional
 
 import pandas as pd
 
-from twstock.api_config import (
+from twstock.utils import (
     _ensure_loaded,
     get_longcat_api_key,
     get_longcat_api_url,
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_api_key() -> Optional[str]:
-    """取得 LongCat API Key（統一由 api_config 載入，dotenv 兩段式）。"""
+    """取得 LongCat API Key（統一由 utils 兩段式 dotenv 載入）。"""
     _ensure_loaded()
     return get_longcat_api_key()
 
