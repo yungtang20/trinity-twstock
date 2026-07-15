@@ -16,30 +16,30 @@
 
 ## 文件導覽
 
-啟動時先讀 `DOCUMENT_INDEX.md` 找到需要的文件。
+啟動時先讀 `docs/meta/DOCUMENT_INDEX.md` 找到需要的文件。
 
 | 你想做… | 看… |
 |---------|------|
-| 了解完整架構 | `ARCHITECTURE.md` |
-| 專案開發規範 | `PROJECT_RULES.md` |
-| 新增一個策略 | `DEVELOPMENT_GUIDE.md` |
-| 修改完成自我驗收 | `AI_CHECKLIST.md` |
-| 資料庫欄位詳情 | `DB_SCHEMA.md` |
-| API 規格 | `API_SPEC.md` |
-| JSON 輸出格式 | `JSON_CONTRACT.md` |
-| 效能規範 | `PERFORMANCE_RULES.md` |
-| 測試資料規範 | `TEST_DATA.md` |
+| 了解完整架構 | `docs/architecture/ARCHITECTURE.md` |
+| 專案開發規範 | `docs/architecture/PROJECT_RULES.md` |
+| 新增一個策略 | `docs/process/DEVELOPMENT_GUIDE.md` |
+| 修改完成自我驗收 | `docs/process/AI_CHECKLIST.md` |
+| 資料庫欄位詳情 | `docs/specs/DB_SCHEMA.md` |
+| API 規格 | `docs/specs/API_SPEC.md` |
+| JSON 輸出格式 | `docs/specs/JSON_CONTRACT.md` |
+| 效能規範 | `docs/specs/PERFORMANCE_RULES.md` |
+| 測試資料規範 | `docs/specs/TEST_DATA.md` |
 | 策略開發模板 | `strategy/templates/strategy_template.py` |
-| 系統架構圖 | `SYSTEM_OVERVIEW.md` |
-| 相依套件版本 | `DEPENDENCIES.md` |
-| 版本資訊 | `VERSION.md` |
-| 變更歷史 | `CHANGELOG.md` |
+| 系統架構圖 | `docs/architecture/SYSTEM_OVERVIEW.md` |
+| 相依套件版本 | `docs/meta/DEPENDENCIES.md` |
+| 版本資訊 | `docs/meta/VERSION.md` |
+| 變更歷史 | `docs/meta/CHANGELOG.md` |
 
 ---
 
 ## 工作前
 
-1. 閱讀 `DOCUMENT_INDEX.md`
+1. 閱讀 `docs/meta/DOCUMENT_INDEX.md`
 2. 根據任務閱讀對應文件
 3. 確認任務範圍，只改必要的
 
@@ -47,14 +47,14 @@
 
 | 規範 | 檔案 |
 |------|------|
-| Architecture Rule | `ARCHITECTURE.md` — 允許 / 禁止 import |
-| Coding Rule | `PROJECT_RULES.md` — 禁止修改 Public API |
-| Naming Rule | `PROJECT_RULES.md` — 8 種動詞前綴 |
-| Error Policy | `ARCHITECTURE.md` — 每種情境的行為 |
-| DB Rule | `ARCHITECTURE.md` — executemany / Index |
-| CLI Rule | `ARCHITECTURE.md` — argparse 唯一入口 |
-| Strategy Interface | `ARCHITECTURE.md` — analyze / run_strategy / scan_market |
-| Performance | `PERFORMANCE_RULES.md` — 禁止 N+1 查詢 |
+| Architecture Rule | `docs/architecture/ARCHITECTURE.md` — 允許 / 禁止 import |
+| Coding Rule | `docs/architecture/PROJECT_RULES.md` — 禁止修改 Public API |
+| Naming Rule | `docs/architecture/PROJECT_RULES.md` — 8 種動詞前綴 |
+| Error Policy | `docs/architecture/ARCHITECTURE.md` — 每種情境的行為 |
+| DB Rule | `docs/architecture/ARCHITECTURE.md` — executemany / Index |
+| CLI Rule | `docs/architecture/ARCHITECTURE.md` — argparse 唯一入口 |
+| Strategy Interface | `docs/architecture/ARCHITECTURE.md` — analyze / run_strategy / scan_market |
+| Performance | `docs/specs/PERFORMANCE_RULES.md` — 禁止 N+1 查詢 |
 
 ## 絕對禁止
 

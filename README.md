@@ -343,7 +343,7 @@ TRINITY 台股分析平台是一個全方位的股票分析工具，提供即時
 > **備註**：
 > - `twse-app/` 為舊 React + Vite 前端子資料夾（未維護），其內容主要對應上方第 6.1 / 6.2 節描述。
 > - `TWSEMCPServer-main/` 為外部第三方 MCP 伺服器存放區，與本專案主要建置無關，不列入主構建範圍。
-> - 目前專案開發主力資料夾為 `twstock/`（Python CLI + TUI + 策略模組），詳細結構請參考 `twstock/README.md` 或 `twstock/ARCHITECTURE.md`。
+> - 目前專案開發主力資料夾為 `twstock/`（Python CLI + TUI + 策略模組），詳細結構請參考 `twstock/docs/architecture/ARCHITECTURE.md`。
 
 ```
 D:\twse\
