@@ -16,7 +16,8 @@
 - 模組路徑改用標準 Python 慣例（`twstock.commands.__init__` → `twstock.commands`）
 
 ### Notes
-- 先前 merge message（7ba0ae2）提及的「19 .md 歸位 / 合併三份規則 / 新增 README」**尚未執行**，待後續獨立處理（涉及 test_docs_contract.py 9 處路徑與 ~30 處交叉引用）
+- 先前 merge message（7ba0ae2）提及的「19 .md 歸位」**已執行**（commit 79acb10）:17 個根目錄 .md 歸位到 `docs/{architecture,specs,process,meta,archive}/`，`AGENTS.md` 留根目錄作為 AI 入口；同步更新 test_docs_contract.py 9 處路徑與 AGENTS/DOCUMENT_INDEX/README 交叉引用。實際搬移數 17（非 merge message 所稱 19）
+- 「合併三份規則 / 新增 README」**仍未執行**，待後續獨立處理
 - 階段 2 掃描報告中 P1（死代碼）/ P2（命名衝突 rename）/ P3（fetcher 模板重構）**未處理**，需獨立評估
 - 階段 4（代碼分包 `core/` `ingest/` `ui/`）未啟動，有可信依賴圖後可安全推進
 
