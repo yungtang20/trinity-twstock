@@ -15,7 +15,7 @@ import os
 import sys
 from typing import Optional
 
-from twstock.output_writer import ConsoleWriter, JsonWriter
+from twstock.ui.output_writer import ConsoleWriter, JsonWriter
 
 # Windows encoding fix — 只在直接執行時才替換 stdout/stderr
 if sys.platform == "win32" and __name__ == "__main__":

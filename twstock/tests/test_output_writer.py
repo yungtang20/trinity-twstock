@@ -7,7 +7,7 @@ import io
 import json
 from unittest.mock import MagicMock
 
-from twstock.output_writer import ConsoleWriter, JsonWriter
+from twstock.ui.output_writer import ConsoleWriter, JsonWriter
 
 # ── ConsoleWriter ──────────────────────────────────────────
 
@@ -163,14 +163,14 @@ class TestOutputWriterProtocol:
 
     def test_console_writer_satisfies_protocol(self):
         """ConsoleWriter 應滿足 OutputWriter 協定。"""
-        from twstock.output_writer import OutputWriter
+        from twstock.ui.output_writer import OutputWriter
 
         writer = ConsoleWriter()
         assert isinstance(writer, OutputWriter)
 
     def test_json_writer_satisfies_protocol(self):
         """JsonWriter 應滿足 OutputWriter 協定。"""
-        from twstock.output_writer import OutputWriter
+        from twstock.ui.output_writer import OutputWriter
 
         writer = JsonWriter()
         assert isinstance(writer, OutputWriter)
