@@ -171,13 +171,15 @@ def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> N
         )
     # [AI MOD] 市場行情標題顯示日期、時間與盤中/盤後標記(ROC 民國年, hyphen 連接)。
     # 格式範例: "📊 市場: 115-07-09 13:30:00 🟢 盤中"。純文字 + emoji,避 Rich Markup。
+    # 時間來源: fetcher _parse_twse_mi_index 補上 sysTime 定制(13:30:00) 或 MIS 真實 sysTime。
+    # 若時間仍為空(極端未取到資料)則不顯示時間欄位,避免誤導性的 00:00:00。
     api_date = indices.get("date")
     if api_date:
         # to_roc_date 輸出 slash 形式(115/07/09),依需求轉為 hyphen(115-07-09)
         roc_date = to_roc_date(api_date).replace("/", "-")
         api_time = indices.get("time", "")
-        time_str = api_time if api_time else "00:00:00"
-        market_title = f"📊 市場: {roc_date} {time_str} {market_mode}"
+        time_part = f" {api_time}" if api_time else ""
+        market_title = f"📊 市場: {roc_date}{time_part} {market_mode}"
     else:
         market_title = "📊 市場: 即時行情(尚無日期)"
 
@@ -252,7 +254,8 @@ def _render_status(layout, info, market_mode) -> None:
         "🕒 資料期間:",
         f"[yellow]{to_roc_date(info['first'])} ~ {to_roc_date(info['last'])}[/]",
     )
-    status_table.add_row("📊 市場:", market_mode)
+    # [AI MOD] 移除「📊 市場: <market_mode>」一行：盤中/盤後標記已顯示於
+    # _render_market_panel 的市場行情框標題（render.py:180），系統狀態框內重複顯示為多餘。
 
     layout["status"].update(
         Panel(

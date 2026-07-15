@@ -131,6 +131,11 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
     sys_date = data.get("date", "")
     if sys_date and len(sys_date) == 8:
         result["queryTime"]["sysDate"] = f"{sys_date[:4]}-{sys_date[4:6]}-{sys_date[6:]}"
+        # TWSE MI_INDEX 盤後 API 僅回傳日期、不含時間。台股現股收盤時間固定為
+        # 13:30:00，此處作為收盤時間定制記入 sysTime，供 UI 顯示「最後更新時間」。
+        # 註：此值非來自 API 即時欄位（MI_INDEX 無 sysTime 欄位）；盤中若有 MIS
+        # fallback 成功，會以 MIS queryTime.sysTime 覆寫（見 get_realtime_mis_data 方法 2）。
+        result["queryTime"]["sysTime"] = "13:30:00"
 
     # 找包含「收盤指數」的表格（非「大盤統計資訊」）
     for table in data.get("tables", []):
