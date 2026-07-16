@@ -511,10 +511,6 @@ def _clear_screen() -> None:
     clear_screen()
 
 
-def _get_stock_name(conn: sqlite3.Connection, stock_id: str) -> str:
-    return get_stock_name(conn, stock_id, FALLBACK_NAMES)
-
-
 def _fetch_history(conn: sqlite3.Connection, code: str, limit: int = 512) -> pd.DataFrame:
     """向後相容包裝：委託 _utils.fetch_klines。"""
     return fetch_klines(conn, code, limit)
@@ -1045,7 +1041,7 @@ def _handle_input(conn: sqlite3.Connection) -> None:
             time.sleep(1)
             return
         df = df.sort_values("date").reset_index(drop=True)
-        name = _get_stock_name(conn, cmd)
+        name = get_stock_name(conn, cmd, FALLBACK_NAMES)
         display_stock_analysis(conn, cmd, name, df)
         input("\n按Enter返回...")
     else:
@@ -1077,7 +1073,7 @@ def run_strategy(params: dict[str, Any]) -> None:
             if df.empty:
                 console.print("[red]❌ 查無資料[/red]")
                 return
-            name = _get_stock_name(conn, code)
+            name = get_stock_name(conn, code, FALLBACK_NAMES)
             display_stock_analysis(conn, code, name, df, compact=compact, mobile=mobile)
         else:
             main()

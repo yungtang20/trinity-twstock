@@ -132,10 +132,6 @@ def _wait_for_enter():
     rconsole.input("\n按 Enter 繼續...")
 
 
-def _get_stock_name(conn, stock_id):
-    return get_stock_name(conn, stock_id)
-
-
 def _render_kronos_prediction(
     df, code: str, name: str, engine: PredictionEngine, skipped_list: List[str] | None = None
 ):
@@ -453,7 +449,7 @@ class PredictionAnalysisApp:
                     df = fetch_klines(conn, cmd, limit=512)
                     df = df.dropna(subset=["close"]).sort_values("date")
                     if not df.empty:
-                        name = _get_stock_name(conn, cmd)
+                        name = get_stock_name(conn, cmd)
                         analyzer.analyze_single_stock(cmd, name, df)
                         _wait_for_enter()
                     else:
@@ -500,7 +496,7 @@ def run_strategy(params: dict):
             df = fetch_klines(conn, code, limit=512)
             df = df.dropna(subset=["close"]).sort_values("date")
             if not df.empty:
-                name = _get_stock_name(conn, code)
+                name = get_stock_name(conn, code)
                 # 幾何型態分析
                 if _StockPredictionAnalyzer:
                     analyzer = _StockPredictionAnalyzer(app.config)

@@ -232,10 +232,6 @@ def _get_single_key_input(
     return default
 
 
-def _get_stock_name(conn, stock_id):
-    return get_stock_name(conn, stock_id)
-
-
 class PivotBasedScanner:
 
     @staticmethod
@@ -1548,7 +1544,7 @@ class PredictionAnalysisApp:
                 rconsole.print(f"[red]❌ 查無資料: {code}[/]")
                 time.sleep(1)
                 return
-            name = _get_stock_name(conn, code)
+            name = get_stock_name(conn, code)
             if not self.analyzer:
                 self.analyzer = StockPredictionAnalyzer(self.config)
 
