@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,6 +25,43 @@ from twstock.utils import get_http_session, get_ssl_verify, safe_float  # noqa: 
 # 此檔案的頂級函式（get_yahoo_market_volumes, get_realtime_mis_data,
 # fetch_market_indices）為 **Public API**。
 # 變更簽名前，須先檢查 dependency_graph.json 中所有依賴方。
+
+# 修正 E4：MI_INDEX response 短 TTL cache，避免同一 fetch_market_indices
+# 呼叫流程內（get_realtime_mis_data 方法1 與 尾段漲跌家數）重打同一個
+# MI_INDEX URL。30 秒 TTL 保守值，不跨»一日«資料邊界（盤後資料靜止）。
+_MI_INDEX_CACHE: Dict[str, Any] = {"url": None, "data": None, "ts": 0.0}
+_MI_INDEX_TTL = 30.0
+_MI_INDEX_LOCK = threading.Lock()
+
+
+def _fetch_mi_index_cached(session, url: str) -> Optional[Dict[str, Any]]:
+    """E4：MI_INDEX 短 TTL 快取。若 30 秒內曾打過同 URL，直接重用 response。
+
+    注意：回傳的是快取內容的 reference；caller 不可 mutate（這裡供唯讀解析用）。
+    """
+    # 依本檔慣例：safe_http_get 在 function-local import（module-level 未匯入）
+    from twstock.utils import safe_http_get
+
+    now = time.time()
+    with _MI_INDEX_LOCK:
+        if (
+            _MI_INDEX_CACHE["url"] == url
+            and _MI_INDEX_CACHE["data"] is not None
+            and now - _MI_INDEX_CACHE.get("ts", 0.0) < _MI_INDEX_TTL
+        ):
+            return _MI_INDEX_CACHE["data"]
+    r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
+    if not r:
+        return None
+    try:
+        data = r.json()
+    except ValueError:
+        return None
+    with _MI_INDEX_LOCK:
+        _MI_INDEX_CACHE["url"] = url
+        _MI_INDEX_CACHE["data"] = data
+        _MI_INDEX_CACHE["ts"] = now
+    return data
 
 
 # ── Yahoo 成交金額 ──────────────────────────────────────
@@ -53,10 +91,14 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
             return twse_vol, tpex_vol
         soup = BeautifulSoup(response.text, "html.parser")
         text = soup.get_text(separator=" ", strip=True)
-        twse_match = re.search(r"(?:加權指數|大盤).{0,50}?([\d,\.]+)\s*億", text)
+        # 修正 B3：regex 鬆緊——改用 re.S 之外的限制：
+        # 1. 限定「加權指數/大盤」後「緊接」的數字+億（用 \s*允許空白，不跨行抓錯段落）
+        # 2. 用 \d{1,3}(?:,\d{3})*(?:\.\d+)? 精確匹配金額格式，避免誤抓純小數
+        _amt_pat = r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s*億"
+        twse_match = re.search(r"(?:加權指數|大盤)[^\n]{0,30}?" + _amt_pat, text)
         if twse_match:
             twse_vol = twse_match.group(1)
-        tpex_match = re.search(r"(?:櫃買指數|上櫃).{0,50}?([\d,\.]+)\s*億", text)
+        tpex_match = re.search(r"(?:櫃買指數|上櫃)[^\n]{0,30}?" + _amt_pat, text)
         if tpex_match:
             tpex_vol = tpex_match.group(1)
     except Exception:
@@ -79,9 +121,9 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
     # 方法 1: TWSE 官方 MI_INDEX API（收盤後仍有數據）
     try:
         url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
-        r = safe_http_get(url, session=session, timeout=5, verify=get_ssl_verify())
-        if r:
-            data = r.json()
+        # E4：改走快取，與 fetch_market_indices 尾段共用同一次 HTTP 回應
+        data = _fetch_mi_index_cached(session, url)
+        if data:
             if data.get("tables"):
                 return _parse_twse_mi_index(data)
     except Exception as e:
@@ -131,11 +173,15 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
     sys_date = data.get("date", "")
     if sys_date and len(sys_date) == 8:
         result["queryTime"]["sysDate"] = f"{sys_date[:4]}-{sys_date[4:6]}-{sys_date[6:]}"
-        # TWSE MI_INDEX 盤後 API 僅回傳日期、不含時間。台股現股收盤時間固定為
-        # 13:30:00，此處作為收盤時間定制記入 sysTime，供 UI 顯示「最後更新時間」。
-        # 註：此值非來自 API 即時欄位（MI_INDEX 無 sysTime 欄位）；盤中若有 MIS
-        # fallback 成功，會以 MIS queryTime.sysTime 覆寫（見 get_realtime_mis_data 方法 2）。
-        result["queryTime"]["sysTime"] = "13:30:00"
+        # TWSE MI_INDEX 盤後 API 僅回傳日期、不含時間。若仍在盤中（09:00–13:30），
+        # 顯示當下時間供 UI 即時更新提示；盤後則用固定收盤時間 13:30:00。
+        from datetime import datetime as _dt
+
+        mins = _dt.now().hour * 60 + _dt.now().minute
+        if 540 <= mins < 810:
+            result["queryTime"]["sysTime"] = _dt.now().strftime("%H:%M:%S")
+        else:
+            result["queryTime"]["sysTime"] = "13:30:00"
 
     # 找包含「收盤指數」的表格（非「大盤統計資訊」）
     for table in data.get("tables", []):
@@ -188,14 +234,8 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
 # ── OTC 指數（TPEx）─────────────────────────────────────
 def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
     """從 TPEx highlight API 取得櫃買指數。回傳 dict 或 None。"""
-    from twstock.utils import get_ssl_verify
-
-    url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw"
-    r = retry_get(url, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
-    if r is None:
-        return None
-    data = r.json()
-    if data.get("stat") != "ok" or not data.get("tables"):
+    data = _get_tpex_highlight()
+    if data is None:
         return None
     table = data["tables"][0]
     fields = table.get("fields", [])
@@ -216,6 +256,41 @@ def _fetch_otc_from_tpex() -> Optional[Dict[str, Any]]:
         "change": change,
         "pct": (change / prev * 100) if prev else 0,
     }
+
+
+# ── TPEx highlight 短 TTL 快取（OTC 指數 + 漲跌家數共用）─────────────
+_TPEX_HIGHLIGHT_CACHE: Dict[str, Any] = {"data": None, "ts": 0.0}
+_TPEX_HIGHLIGHT_TTL = 30.0
+_TPEX_HIGHLIGHT_LOCK = threading.Lock()
+
+
+def _get_tpex_highlight() -> Optional[Dict[str, Any]]:
+    """TPEx market_highlight 短 TTL 快取。
+
+    供 _fetch_otc_from_tpex（OTC 指數）與 fetch_market_indices 尾段（OTC 漲跌家數）
+    共用，避免 fetch_market_indices 一次流程內重打同一個 TPEx URL。
+    """
+    from twstock.utils import get_ssl_verify
+
+    now = time.time()
+    with _TPEX_HIGHLIGHT_LOCK:
+        cached = _TPEX_HIGHLIGHT_CACHE["data"]
+        if cached is not None and now - _TPEX_HIGHLIGHT_CACHE.get("ts", 0.0) < _TPEX_HIGHLIGHT_TTL:
+            return cached
+    url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw"
+    r = retry_get(url, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
+    if r is None:
+        return None
+    try:
+        data = r.json()
+    except ValueError:
+        return None
+    if data.get("stat") != "ok" or not data.get("tables"):
+        return None
+    with _TPEX_HIGHLIGHT_LOCK:
+        _TPEX_HIGHLIGHT_CACHE["data"] = data
+        _TPEX_HIGHLIGHT_CACHE["ts"] = now
+    return data
 
 
 # ── 整合入口 ─────────────────────────────────────────────
@@ -293,23 +368,11 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
         session = get_http_session()
         if session is None:
             return None
-        from twstock.utils import safe_http_get
 
         url_tse = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
-        r_tse_data = None
-        for _ in range(1):
-            r_tse = safe_http_get(
-                url_tse,
-                session=session,
-                timeout=1.5,
-                verify=get_ssl_verify(),
-            )
-            if r_tse:
-                try:
-                    r_tse_data = r_tse.json()
-                    break
-                except ValueError:
-                    pass
+        # E4：改走 _fetch_mi_index_cached，與 get_realtime_mis_data 方法1 共用同一次 HTTP 回應，
+        # 消除原尾段自己再打一次 MI_INDEX 的重複外部呼叫。
+        r_tse_data = _fetch_mi_index_cached(session, url_tse)
 
         if r_tse_data and r_tse_data.get("tables"):
 
@@ -364,13 +427,9 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             "https://www.tpex.org.tw/web/stock/aftertrading/"
             "market_highlight/highlight_result.php?l=zh-tw"
         )
-        r_otc_data = None
-        r_otc = retry_get(url_otc, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
-        if r_otc:
-            try:
-                r_otc_data = r_otc.json()
-            except ValueError:
-                pass
+        # 改走 _get_tpex_highlight 快取，與前段 _fetch_otc_from_tpex 共用同一次 HTTP 回應，
+        # 消除 tail 自己再打一次 TPEx 的重複外部呼叫。
+        r_otc_data = _get_tpex_highlight()
 
         if r_otc_data and r_otc_data.get("stat") == "ok" and r_otc_data.get("tables"):
             otc_table = r_otc_data["tables"][0]

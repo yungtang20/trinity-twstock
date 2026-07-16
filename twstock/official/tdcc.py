@@ -261,5 +261,5 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
 
 
 def fetch_latest_tdcc(max_weeks=4) -> pd.DataFrame:
-    """舊版相容：只抓最新一期（內部呼叫 fetch_tdcc_historical(1)）"""
+    """DEPRECATED: use fetch_tdcc_historical(weeks=1) directly."""
     return fetch_tdcc_historical(weeks=1)

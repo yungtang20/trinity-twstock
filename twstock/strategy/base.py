@@ -73,9 +73,12 @@ class BaseStrategy(ABC):
             return None
 
     # ── 工具方法 ─────────────────────────────────────────
+    _ALLOWED_TABLES = frozenset({"stock_history", "stock_indicators", "institutional_data", "dividend_events", "stock_meta"})
+
     @staticmethod
     def get_latest_date(table: str = "stock_history") -> Optional[str]:
         """取得資料庫最新日期。"""
+        assert table in BaseStrategy._ALLOWED_TABLES, f"Invalid table: {table}"
         try:
             with get_connection(readonly=True) as conn:
                 row = conn.execute(f"SELECT MAX(date) FROM {table}").fetchone()

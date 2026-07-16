@@ -12,6 +12,22 @@ import pytest
 
 from twstock.market_data import fetcher
 
+
+@pytest.fixture(autouse=True)
+def _clear_fetcher_caches():
+    """每個測試前重置 fetcher 模組的快取，避免測試間污染。"""
+    fetcher._MI_INDEX_CACHE["url"] = None
+    fetcher._MI_INDEX_CACHE["data"] = None
+    fetcher._MI_INDEX_CACHE["ts"] = 0.0
+    fetcher._TPEX_HIGHLIGHT_CACHE["data"] = None
+    fetcher._TPEX_HIGHLIGHT_CACHE["ts"] = 0.0
+    yield
+    fetcher._MI_INDEX_CACHE["url"] = None
+    fetcher._MI_INDEX_CACHE["data"] = None
+    fetcher._MI_INDEX_CACHE["ts"] = 0.0
+    fetcher._TPEX_HIGHLIGHT_CACHE["data"] = None
+    fetcher._TPEX_HIGHLIGHT_CACHE["ts"] = 0.0
+
 # ── Fixtures ──────────────────────────────────────────────
 
 
@@ -99,28 +115,23 @@ class TestGetRealtimeMisData:
         assert isinstance(result, dict)
 
     @patch("twstock.market_data.fetcher.get_http_session")
-    @patch("twstock.utils.safe_http_get")
-    def test_mi_index_without_stat_parsed(self, mock_get, mock_sess):
+    def test_mi_index_without_stat_parsed(self, mock_sess):
         """TWSE MI_INDEX JSON without stat but with tables should still be parsed."""
         mock_sess.return_value = MagicMock()
 
-        def side(url, *args, **kwargs):
-            if "MI_INDEX" in url:
-                return SimpleNamespace(
-                    json=lambda: {
-                        "tables": [
-                            {
-                                "title": "115年07月03日 大盤統計資訊",
-                                "fields": ["成交統計", "成交金額(元)", "成交股數(股)", "成交筆數"],
-                                "data": [["1.一般股票", "1,000", "100", "10"]],
-                            }
-                        ]
-                    }
-                )
-            return None
+        cached_payload = {
+            "tables": [
+                {
+                    "title": "115年07月03日 大盤統計資訊",
+                    "fields": ["成交統計", "成交金額(元)", "成交股數(股)", "成交筆數"],
+                    "data": [["1.一般股票", "1,000", "100", "10"]],
+                }
+            ],
+            "queryTime": {"sysTime": "10:00:00", "sysDate": "2026/07/03"},
+        }
 
-        mock_get.side_effect = side
-        result = fetcher.get_realtime_mis_data()
+        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=cached_payload):
+            result = fetcher.get_realtime_mis_data()
         assert isinstance(result, dict)
         assert result.get("queryTime") is not None
 
@@ -399,29 +410,27 @@ class TestFetchMarketIndicesBranches:
             "queryTime": {"sysTime": "10:00:00", "sysDate": "2026/07/02"},
         }
 
+        mi_index_payload = {
+            "tables": [
+                {
+                    "title": "漲跌證券數合計",
+                    "fields": ["類型", "整體市場", "股票"],
+                    "data": [
+                        ["上漲(漲停)", "1000(25)", "50(0)"],
+                        ["下跌(跌停)", "800(12)", "80(1)"],
+                        ["持平", "200", "20"],
+                    ],
+                },
+                {
+                    "title": "大盤統計資訊",
+                    "data": [
+                        ["總計", "123456789"],
+                    ],
+                },
+            ]
+        }
+
         def side(url, *a, **k):
-            if "MI_INDEX" in url:
-                return SimpleNamespace(
-                    json=lambda: {
-                        "tables": [
-                            {
-                                "title": "漲跌證券數合計",
-                                "fields": ["類型", "整體市場", "股票"],
-                                "data": [
-                                    ["上漲(漲停)", "1000(25)", "50(0)"],
-                                    ["下跌(跌停)", "800(12)", "80(1)"],
-                                    ["持平", "200", "20"],
-                                ],
-                            },
-                            {
-                                "title": "大盤統計資訊",
-                                "data": [
-                                    ["總計", "123456789"],
-                                ],
-                            },
-                        ]
-                    }
-                )
             if "tpex.org.tw" in url:
                 return SimpleNamespace(
                     json=lambda: {
@@ -461,7 +470,8 @@ class TestFetchMarketIndicesBranches:
         mock_get.side_effect = side
         mock_retry.side_effect = side
 
-        r = fetcher.fetch_market_indices()
+        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=mi_index_payload):
+            r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
         # TAIEX breadth (uses 股票 column, excludes ETF/warrants/etc.)
         assert r["TAIEX"]["up"] == 50 and r["TAIEX"]["l_up"] == 0
@@ -499,8 +509,6 @@ class TestFetchMarketIndicesBranches:
         }
 
         def side(url, *a, **k):
-            if "MI_INDEX" in url:
-                return SimpleNamespace(json=lambda: {"tables": []})
             if "tpex.org.tw" in url:
                 return SimpleNamespace(
                     json=lambda: {
@@ -517,7 +525,9 @@ class TestFetchMarketIndicesBranches:
 
         mock_get.side_effect = side
         mock_retry.side_effect = side
-        r = fetcher.fetch_market_indices()
+
+        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value={"tables": []}):
+            r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
         assert r["OTC"]["amount"] == 50.0
 
@@ -592,9 +602,10 @@ class TestFetchMarketIndicesBranches:
             ],
         }
         mock_yahoo.return_value = ("無資料", "無資料")
-        with patch("utils.safe_http_get", return_value=None):
+        with patch("twstock.utils.safe_http_get", return_value=None):
             with patch("twstock.market_data.fetcher.retry_get", return_value=None):
-                assert fetcher.fetch_market_indices() is None
+                with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=None):
+                    assert fetcher.fetch_market_indices() is None
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")

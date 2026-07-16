@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from twstock.fetcher import DataFetcher
+from twstock.market_data.historical_fetcher import DataFetcher
 from twstock.official import fetch_dividend_events
 from twstock.official import fetch_tdcc_historical_from_tdcc as fetch_tdcc_historical
 from twstock.core.processor import DataProcessor

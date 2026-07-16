@@ -33,7 +33,7 @@ if str(_PARENT) not in sys.path:
 
 # FinMind API fallback
 try:
-    from fetcher import DataFetcher
+    from twstock.market_data.historical_fetcher import DataFetcher
 
     FINMIND_AVAILABLE = True
 except ImportError:
@@ -231,7 +231,7 @@ def fetch_dividend_events(
                 # Fallback sequentially per stock (useful for missing individual tickers)
                 for stock in stock_list.itertuples(index=False):
                     stock_id = stock.stock_id
-                    df = fetcher.fetch_dividend_events(stock_id, start_date, end_date)
+                    df = fetcher.fetch_dividend(stock_id, start_date, end_date)
                     if not df.empty:
                         all_dividends.append(df)
                 if all_dividends:

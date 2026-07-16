@@ -10,7 +10,7 @@ import sqlite3
 
 import pytest
 
-from twstock.fetcher import DividendFetcher
+from twstock.market_data.historical_fetcher import DividendFetcher
 
 
 @pytest.fixture

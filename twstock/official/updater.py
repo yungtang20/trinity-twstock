@@ -46,6 +46,10 @@ def _filter_valid_stocks(df):
     if valid is None:
         valid = _load_valid_stock_ids()
         globals()["_VALID_STOCK_IDS"] = valid
+    if valid is None:
+        # DB 查詢失敗，放行全部 rows 並 log warning（避免靜默丟資料）
+        logger.warning("_filter_valid_stocks: _valid_stock_ids unavailable, saving ALL rows unfiltered")
+        return df
     before = len(df)
     df = df[df["stock_id"].isin(valid)].copy()
     if len(df) < before:
@@ -53,12 +57,13 @@ def _filter_valid_stocks(df):
     return df
 
 
-def _load_valid_stock_ids() -> set[str]:
+def _load_valid_stock_ids() -> set[str] | None:
     try:
         with get_connection(readonly=True) as conn:
             return {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
     except Exception:
-        return set()
+        logger.warning("_load_valid_stock_ids query failed, caller will skip filter")
+        return None
 
 
 _VALID_STOCK_IDS: set[str] | None = None
@@ -250,77 +255,75 @@ def update_official_daily(
         print("✅ 沒有缺失的交易日，無需從官方重新抓取", flush=True)
         # [AI MOD] User requested to see TWSE/TPEx stats even if data is already in DB
         try:
-            conn_meta = get_connection()
-            cur = conn_meta.cursor()
-            latest_date = cur.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
+            with get_connection() as conn_meta:
+                cur = conn_meta.cursor()
+                latest_date = cur.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
 
-            # [FIX] 即使 stock_history 已最新，仍應確認三大法人是否也同步。
-            # 三大法人資料收盤後隔日才公佈，常 lag 1 日。
-            if latest_date:
-                inst_max = cur.execute("SELECT MAX(date) FROM institutional_data").fetchone()[0]
-                if inst_max is None or str(inst_max) < str(latest_date):
-                    parts = str(latest_date).split("-")
-                    d_int = int(parts[0]) * 10000 + int(parts[1]) * 100 + int(parts[2])
+                # [FIX] 即使 stock_history 已最新，仍應確認三大法人是否也同步。
+                # 三大法人資料收盤後隔日才公佈，常 lag 1 日。
+                if latest_date:
+                    inst_max = cur.execute("SELECT MAX(date) FROM institutional_data").fetchone()[0]
+                    if inst_max is None or str(inst_max) < str(latest_date):
+                        parts = str(latest_date).split("-")
+                        d_int = int(parts[0]) * 10000 + int(parts[1]) * 100 + int(parts[2])
+                        print(
+                            f"\n⚡ 補抓三大法人資料（最新交易日 {latest_date}，目前在庫 {inst_max or 'N/A'}）...",
+                            flush=True,
+                        )
+                        try:
+                            inst_df = institutional.fetch_all_institutional(d_int)
+                            if inst_df is not None and not inst_df.empty:
+                                upsert_dataframe("institutional_data", inst_df)
+                                print(f"  ✅ 三大法人補抓: {len(inst_df)} 筆", flush=True)
+                            else:
+                                print("  ⚠️ 三大法人補抓為空（可能尚未公佈）", flush=True)
+                        except Exception as e:
+                            print(f"  ⚠️ 三大法人補抓失敗: {e}", flush=True)
+
+                if latest_date:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4"
+                    )
+                    twse_expected = cur.fetchone()[0] or 1000
+                    cur.execute(
+                        "SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4"
+                    )
+                    tpex_expected = cur.fetchone()[0] or 800
+
+                    cur.execute(
+                        """
+                        SELECT
+                            SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
+                            SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
+                        FROM stock_history h
+                        JOIN stock_meta m ON h.stock_id = m.stock_id
+                        WHERE h.date = ? AND m.type = 'COMMON'
+                    """,
+                        (latest_date,),
+                    )
+                    row = cur.fetchone()
+                    twse_fetched = row[0] or 0
+                    tpex_fetched = row[1] or 0
+                    # [AI MOD] 由於官方 API 是整包回傳，若有抓到資料即代表當日有效活躍股票已全數取得。
+                    # 為了避免 stock_meta 中歷史下市/休眠股票造成的「假性失敗」，當取得資料時直接對齊期望值。
+                    twse_expected = twse_fetched if twse_fetched > 0 else twse_expected
+                    tpex_expected = tpex_fetched if tpex_fetched > 0 else tpex_expected
+
+                    twse_missing = max(0, twse_expected - twse_fetched)
+                    tpex_missing = max(0, tpex_expected - tpex_fetched)
+
+                    print(f"  📊 資料庫內最新進度 ({latest_date}):")
                     print(
-                        f"\n⚡ 補抓三大法人資料（最新交易日 {latest_date}，目前在庫 {inst_max or 'N/A'}）...",
+                        f"      [TWSE] 需抓 {twse_expected:4d} 檔，已在庫 {twse_fetched:4d} 檔，缺漏 {twse_missing:4d} 檔",
                         flush=True,
                     )
-                    try:
-                        inst_df = institutional.fetch_all_institutional(d_int)
-                        if inst_df is not None and not inst_df.empty:
-                            upsert_dataframe("institutional_data", inst_df)
-                            print(f"  ✅ 三大法人補抓: {len(inst_df)} 筆", flush=True)
-                        else:
-                            print("  ⚠️ 三大法人補抓為空（可能尚未公佈）", flush=True)
-                    except Exception as e:
-                        print(f"  ⚠️ 三大法人補抓失敗: {e}", flush=True)
-
-            if latest_date:
-                cur.execute(
-                    "SELECT COUNT(*) FROM stock_meta WHERE market='TSE' AND type='COMMON' AND length(stock_id) = 4"
-                )
-                twse_expected = cur.fetchone()[0] or 1000
-                cur.execute(
-                    "SELECT COUNT(*) FROM stock_meta WHERE market='OTC' AND type='COMMON' AND length(stock_id) = 4"
-                )
-                tpex_expected = cur.fetchone()[0] or 800
-
-                cur.execute(
-                    """
-                    SELECT
-                        SUM(CASE WHEN m.market = 'TSE' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN m.market = 'OTC' THEN 1 ELSE 0 END)
-                    FROM stock_history h
-                    JOIN stock_meta m ON h.stock_id = m.stock_id
-                    WHERE h.date = ? AND m.type = 'COMMON'
-                """,
-                    (latest_date,),
-                )
-                row = cur.fetchone()
-                twse_fetched = row[0] or 0
-                tpex_fetched = row[1] or 0
-                # [AI MOD] 由於官方 API 是整包回傳，若有抓到資料即代表當日有效活躍股票已全數取得。
-                # 為了避免 stock_meta 中歷史下市/休眠股票造成的「假性失敗」，當取得資料時直接對齊期望值。
-                twse_expected = twse_fetched if twse_fetched > 0 else twse_expected
-                tpex_expected = tpex_fetched if tpex_fetched > 0 else tpex_expected
-
-                twse_missing = max(0, twse_expected - twse_fetched)
-                tpex_missing = max(0, tpex_expected - tpex_fetched)
-
-                print(f"  📊 資料庫內最新進度 ({latest_date}):")
-                print(
-                    f"      [TWSE] 需抓 {twse_expected:4d} 檔，已在庫 {twse_fetched:4d} 檔，缺漏 {twse_missing:4d} 檔",
-                    flush=True,
-                )
-                print(
-                    f"      [TPEx] 需抓 {tpex_expected:4d} 檔，已在庫 {tpex_fetched:4d} 檔，缺漏 {tpex_missing:4d} 檔",
-                    flush=True,
-                )
-            conn_meta.close()
+                    print(
+                        f"      [TPEx] 需抓 {tpex_expected:4d} 檔，已在庫 {tpex_fetched:4d} 檔，缺漏 {tpex_missing:4d} 檔",
+                        flush=True,
+                    )
         except Exception:
-            pass
-
-            _auto_update_tdcc()
+            logger.exception("show_stats failed")
+        _auto_update_tdcc()
         return
 
     # 由近到遠處理（fetch_dates 已由遠到近，反轉）

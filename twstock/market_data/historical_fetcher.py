@@ -28,18 +28,52 @@ from twstock.utils import safe_float as _safe_float
 logger = logging.getLogger(__name__)
 
 
-def _valid_stock_ids() -> set[str]:
-    """ponytail: 讀取 stock_meta 的合法 stock_id（COMMON Only）。 Process-level cache；O(1) 重覆呼叫。"""
+def _valid_stock_ids() -> set[str] | None:
+    """ponytail: 讀取 stock_meta 的合法 stock_id（COMMON Only）。 Process-level cache；O(1) 重覆呼叫。
+
+    修正 B4：失敗時回傳 None（而非空 set），讓 caller 能區分「真無合法 id」與「查詢失敗」。
+    原本回傳 set() 會使 save() 的 `if stock_id in set()` 全判 False，靜默丟棄全部 rows 並回 0，
+    形成靜默吞資料。改回傳 None 後由 caller 決定放行或警示。
+    """
     cache: set[str] | None = getattr(_valid_stock_ids, "_CACHE", None)
     if cache is not None:
         return cache
     try:
         with get_connection(readonly=True) as conn:
             cache = {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
-    except Exception:
-        cache = set()
+    except Exception as e:
+        # 修正 B4：查詢失敗不退化為空 set，改回 None 並 log
+        logger.warning("_valid_stock_ids query failed, caller will skip filter: %s", e)
+        return None
     setattr(_valid_stock_ids, "_CACHE", cache)
     return cache
+
+
+def _filter_valid_rows(rows: list[dict]) -> list[dict]:
+    """共通用：過濾合法 stock_id 的 rows。
+
+    修正 B4：若 _valid_stock_ids() 失敗（回 None），不再靜默丟棄全部 rows，
+    而是放行原始 rows 並 log warning，避免靜默吞資料。
+    """
+    valid = _valid_stock_ids()
+    if valid is None:
+        logger.warning("_valid_stock_ids unavailable, saving ALL rows unfiltered")
+        return rows
+    return [r for r in rows if r.get("stock_id") in valid]
+
+
+def _bulk_upsert(db, sql: str, rows: list[dict]) -> int:
+    """D1：共通 INSERT OR REPLACE 寫入器。
+
+    三個 Fetcher.save() 原本各自 executemany + commit，SQL 與流程重複。
+    收斂至此：單一 executemany 即單一交易，commit 一次維持 ACID。
+    回傳實際寫入列數（過濾後）。
+    """
+    if not rows:
+        return 0
+    db.executemany(sql, rows)
+    db.commit()
+    return len(rows)
 
 
 # ============================================================================
@@ -383,8 +417,12 @@ class FinMindFetcher:
         return rows
 
     def save(self, rows):
-        """INSERT OR REPLACE 寫入 stock_history，回傳寫入列數"""
-        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        """INSERT OR REPLACE 寫入 stock_history，回傳寫入列數
+
+        B4：過濾改走 _filter_valid_rows（失敗時放行而非丟全部）；
+        D1+E2：寫入收斂至 _bulk_upsert。
+        """
+        rows = _filter_valid_rows(rows)
         if not rows:
             return 0
         sql = """
@@ -395,9 +433,7 @@ class FinMindFetcher:
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
              :trade_count, :spread, :source)
         """
-        self.db.executemany(sql, rows)
-        self.db.commit()
-        return len(rows)
+        return _bulk_upsert(self.db, sql, rows)
 
     def fetch_and_save(self, stock_id, start_date, end_date):
         """串接 fetch_daily → _transform → save，回傳寫入列數"""
@@ -493,8 +529,11 @@ class TWSEFetcher:
         return rows
 
     def save(self, rows):
-        """INSERT OR REPLACE 寫入 stock_history"""
-        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        """INSERT OR REPLACE 寫入 stock_history
+
+        B4：過濾改走 _filter_valid_rows；D1+E2：寫入收斂至 _bulk_upsert。
+        """
+        rows = _filter_valid_rows(rows)
         if not rows:
             return 0
         sql = """
@@ -505,9 +544,7 @@ class TWSEFetcher:
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
              :trade_count, :spread, :source)
         """
-        self.db.executemany(sql, rows)
-        self.db.commit()
-        return len(rows)
+        return _bulk_upsert(self.db, sql, rows)
 
     def fetch_and_save(self, stock_id, start_date, end_date):
         """
@@ -631,8 +668,11 @@ class InstitutionalFetcher:
         return rows
 
     def save(self, rows):
-        """INSERT OR REPLACE 寫入 institutional_data"""
-        rows = [r for r in rows if r.get("stock_id") in _valid_stock_ids()]
+        """INSERT OR REPLACE 寫入 institutional_data
+
+        B4：過濾改走 _filter_valid_rows；D1+E2：寫入收斂至 _bulk_upsert。
+        """
+        rows = _filter_valid_rows(rows)
         if not rows:
             return 0
         sql = """
@@ -647,9 +687,7 @@ class InstitutionalFetcher:
              :dealer_buy, :dealer_sell, :dealer_net,
              :institutional_net, :source)
         """
-        self.db.executemany(sql, rows)
-        self.db.commit()
-        return len(rows)
+        return _bulk_upsert(self.db, sql, rows)
 
     def fetch_and_save(self, stock_id, start_date, end_date):
         """fetch_daily → _transform → save，回傳列數"""
@@ -667,7 +705,7 @@ class InstitutionalFetcher:
 class TDCCFetcher:
     """集保持股資料抓取器，計算大股東/散戶比例"""
 
-    BASE_URL = "https://smart.tdcc.com.tw/opendata/getOD.ashx?id=1-5"
+    BASE_URL = "https://smart.tdcc.com.tw/opendata/getOD.ashx"
 
     def __init__(self, db):
         self.db = db
@@ -677,6 +715,8 @@ class TDCCFetcher:
         呼叫 TDCC API，回傳 list of dict。
         date_str: 'YYYY-MM-DD' 格式，API 可能回傳多週資料。
         """
+        # 修正 B1：BASE_URL 不再含 query string，params 於此處統一傳遞，
+        # 避免 URL 串成 ?id=1-5&id=1-5 重複參數。
         params = {"id": "1-5"}
         r = requests.get(self.BASE_URL, params=params, timeout=30)
         r.raise_for_status()

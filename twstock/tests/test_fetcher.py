@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""test_fetcher.py — fetcher.py 覆蓋率測試。"""
+"""test_fetcher.py — historical_fetcher.py 覆蓋率測試。"""
 
 from __future__ import annotations
 
-from twstock.fetcher import (
+from twstock.market_data.historical_fetcher import (
     FinMindClient,
     FinMindFetcher,
     TWSEFetcher,

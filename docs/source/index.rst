@@ -36,7 +36,7 @@ TRINITY TWStock 是一個高效的台灣股市數據抓取與分析工具。
 API 參考
 --------
 
-.. automodule:: twstock.fetcher
+.. automodule:: twstock.market_data.historical_fetcher
    :members:
 
 .. automodule:: twstock.calculator

@@ -12,7 +12,7 @@ import pandas as pd
 
 from twstock.calculator import IndicatorEngine
 from twstock.db import get_connection
-from twstock.fetcher import DataFetcher
+from twstock.market_data.historical_fetcher import DataFetcher
 from twstock.terminal import console
 from twstock.utils import safe_float, safe_int
 

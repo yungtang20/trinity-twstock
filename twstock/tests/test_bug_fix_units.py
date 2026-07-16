@@ -1,15 +1,11 @@
 """Bug Fix: fetcher.py 不應轉換單位，DB 存原始值（股/元）"""
 
 import inspect
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 def test_fetch_history_price_does_not_convert_volume():
     """fetch_history_price 不應將 volume 除以 1000"""
-    from fetcher import DataFetcher
+    from twstock.market_data.historical_fetcher import DataFetcher
 
     source = inspect.getsource(DataFetcher.fetch_history_price)
     assert (
@@ -19,7 +15,7 @@ def test_fetch_history_price_does_not_convert_volume():
 
 def test_fetch_history_price_does_not_convert_amount():
     """fetch_history_price 不應將 amount 除以 1e7"""
-    from fetcher import DataFetcher
+    from twstock.market_data.historical_fetcher import DataFetcher
 
     source = inspect.getsource(DataFetcher.fetch_history_price)
     assert (
@@ -30,7 +26,7 @@ def test_fetch_history_price_does_not_convert_amount():
 
 def test_fetch_institutional_does_not_convert_units():
     """fetch_institutional 不應將法人買賣超除以 1000"""
-    from fetcher import DataFetcher
+    from twstock.market_data.historical_fetcher import DataFetcher
 
     source = inspect.getsource(DataFetcher.fetch_institutional)
     assert (

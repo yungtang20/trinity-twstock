@@ -52,8 +52,12 @@ class DataProcessor:
 
     # ================== Public Upsert Methods ==================
     @staticmethod
-    def _valid_stock_ids() -> set[str]:
-        """ponytail: 讀取 stock_meta 的 stock_id 集合, 第一次呼叫後 cache。O(n) hash lookup, process 只查一次 DB。"""
+    def _valid_stock_ids() -> set[str] | None:
+        """ponytail: 讀取 stock_meta 的 stock_id 集合, 第一次呼叫後 cache。O(n) hash lookup, process 只查一次 DB。
+
+        修正 B4：失敗時回傳 None（而非空 set），讓 caller 能區分「真無合法 id」與「查詢失敗」。
+        呼叫端若收到 None 應放行全部 rows 並 log warning。
+        """
         cache = getattr(DataProcessor, "_VALID_IDS_CACHE", None)
         if cache is not None:
             return cache
@@ -61,7 +65,8 @@ class DataProcessor:
             with get_connection(readonly=True) as conn:
                 cache = {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
         except Exception:
-            cache = set()
+            logger.warning("DataProcessor._valid_stock_ids query failed, caller will skip filter")
+            return None
         DataProcessor._VALID_IDS_CACHE = cache  # type: ignore[attr-defined]
         return cache
 
@@ -70,7 +75,10 @@ class DataProcessor:
         if df is None or df.empty:
             return 0
         valid = self._valid_stock_ids()
-        if valid and "stock_id" in df.columns:
+        if valid is None:
+            # DB 查詢失敗，放行全部 rows
+            pass
+        elif valid and "stock_id" in df.columns:
             df = df[df["stock_id"].isin(valid)]
         df_write = df.copy()
         if df_write.empty:
@@ -132,7 +140,10 @@ class DataProcessor:
         if df is None or df.empty:
             return 0
         valid = self._valid_stock_ids()
-        if valid and "stock_id" in df.columns:
+        if valid is None:
+            # DB 查詢失敗，放行全部 rows
+            pass
+        elif valid and "stock_id" in df.columns:
             df = df[df["stock_id"].isin(valid)]
         df_write = df.copy()
         if df_write.empty:
@@ -211,7 +222,10 @@ class DataProcessor:
         if df.empty:
             return
         valid = self._valid_stock_ids()
-        if valid and "stock_id" in df.columns:
+        if valid is None:
+            # DB 查詢失敗，放行全部 rows
+            pass
+        elif valid and "stock_id" in df.columns:
             df = df[df["stock_id"].isin(valid)]
         if df.empty:
             return
