@@ -1,3 +1,4 @@
+.pnpm-store/
 node_modules/
 build/
 dist/
@@ -41,4 +42,3 @@ test_history_query.cjs
 skills-lock.json
 .pre-commit-config.yaml
 TODO.md
-node_modules
