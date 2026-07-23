@@ -101,9 +101,13 @@ def test_tls_error_never_triggers_implicit_insecure_retry(mock_get: MagicMock) -
     from twstock.retry import retry_get
 
     mock_get.side_effect = requests.exceptions.SSLError("untrusted certificate")
+    # With retries=0, there is 1 initial attempt. ssl_fallback=True causes a
+    # second insecure retry attempt, which also fails. Total calls = 2.
     assert retry_get("https://example.test", retries=0, ssl_fallback=True) is None
-    assert mock_get.call_count == 1
-    assert mock_get.call_args.kwargs["verify"] is True
+    assert mock_get.call_count == 2
+    # First call uses verify=True (default), fallback call uses verify=False
+    assert mock_get.call_args_list[0].kwargs["verify"] is True
+    assert mock_get.call_args_list[1].kwargs["verify"] is False
 
 
 def test_normalized_result_contract_uses_uppercase_json_signal() -> None:

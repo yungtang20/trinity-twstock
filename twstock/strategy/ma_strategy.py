@@ -34,6 +34,7 @@ from twstock.strategy.result_contract import normalize_strategy_result
 from twstock.terminal import console
 
 _CACHE_TTL = 300  # 5 分鐘
+_MAX_CACHE_SIZE = 10000  # 防止記憶體耗盡的最大快取筆數
 
 _SCAN_CACHE: dict[str, Any] = {
     "date": None,
@@ -41,6 +42,7 @@ _SCAN_CACHE: dict[str, Any] = {
     "strat_choice": None,
     "results": None,
     "ts": 0,
+    "size": 0,  # 追蹤快取大小
 }
 from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]
 from twstock.strategy._utils import fetch_klines

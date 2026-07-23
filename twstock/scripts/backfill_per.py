@@ -64,7 +64,6 @@ def _fetch_per(fetcher: DataFetcher, stock_id: str, start: str, end: str):
     df = client.get("TaiwanStockPER", stock_id, start, end)
     if df is None or df.empty:
         return df
-    import numpy as np
     df = df.rename(columns={"PER": "per", "PBR": "pbr"}).copy()
     for col in ("per", "pbr"):
         if col in df.columns:

@@ -99,6 +99,7 @@ class TestGetBlockingKey:
 
 
 class TestFlushInputBuffer:
+    @patch("twstock.input_helper.HAS_MSVCRT", True)
     @patch("twstock.input_helper.msvcrt")
     def test_flushes_windows(self, mock_msvcrt):
         mock_msvcrt.kbhit.side_effect = [True, True, False]

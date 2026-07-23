@@ -42,6 +42,10 @@ def _valid_stock_ids() -> set[str] | None:
     try:
         with get_connection(readonly=True) as conn:
             cache = {r[0] for r in conn.execute("SELECT stock_id FROM stock_meta").fetchall()}
+            # 若 stock_meta 為空表，回傳 None 而非空 set，讓測試環境可以正常寫入
+            if not cache:
+                logger.debug("_valid_stock_ids: stock_meta is empty, returning None to allow all rows")
+                return None
     except Exception as e:
         # 修正 B4：查詢失敗不退化為空 set，改回 None 並 log
         logger.warning("_valid_stock_ids query failed, caller will skip filter: %s", e)

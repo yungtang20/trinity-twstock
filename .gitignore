@@ -1,92 +1,65 @@
-# Database files (large, should not be in repo)
-*.db
-*.db-wal
-*.db-shm
-taiwan_stock_unified*.db
-twstock.db
-*.sqlite*
-
-# Model files (large binary files)
-models/
-
-# Snapshot
-snapshot/
-
-# Temporary scripts
-_run_*.py
-_test_*.py
-patch.py
-
-# Lint/audit task reports
-task_*.txt
-
-# Virtual environment
-.venv/
-
-# Python cache
-__pycache__/
+```
+# Compiled Python files
 *.pyc
+__pycache__/
 
-# Node modules
+# Dependencies
+.venv/
+venv/
 node_modules/
 
-# Build artifacts
-build/
-dist/
-coverage/
-.coverage
-
-# IDE
-.DS_Store
+# Logs and temporary files
 *.log
-.claude/
-.agents/
-.harness-worktrees/
+*.tmp
+
+# Editors
 .vscode/
+.idea/
 
-# Project specific (monorepo sub-projects)
-kronos/
-superpowers_zh/
-superpowers_repo/
-prompt/
-twse-app/
-TWSEMCPServer-main/
-vibecoding-linear-framework-main/
-twse-anytara-temp/
-twsetwse-anytara-temp/
-src/
-股市/
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
 
-# Root-level scripts & temp files (one-off, not part of core codebase)
-paddleorc.py
-check_db.cjs
-check_db.*
-debug_server.js
-quick_check.py
-download_kronos.py
-fetch.cjs
-test_api.js
-test_history_query.cjs
-findings.json
-review-findings.json
-metadata.json
-schema.sql
-skills-lock.json
-.pre-commit-config.yaml
-.env.example
-api.env
-TODO.md
-_*.txt
-_*.bin
-_test*.txt
-_cov*.txt
-_coll.txt
-_f.txt
+# Python cache
+.mypy_cache/
+.pytest_cache/
 
-# Archives and outputs
+# Distribution artifacts
+dist/
+build/
+target/
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
 *.rar
-test-results/
-*.bak*
-archive/
-# Added by code-review-graph
-.code-review-graph/
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```

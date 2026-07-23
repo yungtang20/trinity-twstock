@@ -31,11 +31,13 @@ from twstock.strategy.base import BaseStrategy
 from twstock.terminal import rconsole
 
 _CACHE_TTL = 300  # 5 分鐘
+_MAX_CACHE_SIZE = 10000  # 防止記憶體耗盡的最大快取筆數
 _PATTERN_CACHE: dict[str, Any] = {
     "date": None,
     "min_volume": None,
     "results": None,
     "ts": 0,
+    "size": 0,  # 追蹤快取大小
 }
 
 # ── Module path ───────────────────────────────────────────

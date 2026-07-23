@@ -46,11 +46,13 @@ else:
 
 # [AI MOD] AI Prediction session scan cache to make switching sorting instantly fast
 _CACHE_TTL = 300  # 5 分鐘
+_MAX_CACHE_SIZE = 10000  # 防止記憶體耗盡的最大快取筆數
 _PRED_CACHE: dict[str, Any] = {
     "date": None,
     "min_volume": None,
     "results": None,
     "ts": 0,
+    "size": 0,  # 追蹤快取大小
 }
 
 # Import shared engine components to eliminate duplication
