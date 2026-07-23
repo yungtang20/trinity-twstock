@@ -1,0 +1,15 @@
+{
+  "include": ["."],
+  "exclude": [
+    ".venv",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "backups",
+    "vendor"
+  ],
+  "extraPaths": [".."],
+  "venvPath": ".",
+  "venv": ".venv"
+}

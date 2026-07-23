@@ -20,7 +20,10 @@ def execute(args) -> None:
     tdcc_weeks = getattr(args, "tdcc_weeks", None)
 
     if tdcc_weeks is not None:
-        console.print(f"[cyan]抓取最近 {tdcc_weeks} 週 TDCC 歷史資料...[/cyan]")
+        console.print(
+            "[yellow]TDCC 全市場 OpenAPI 不支援歷史週；"
+            "保留 --tdcc-weeks 相容性，但只更新最新一期。[/yellow]"
+        )
         update_tdcc_historical(tdcc_weeks)
         return
 

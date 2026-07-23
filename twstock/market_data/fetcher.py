@@ -7,19 +7,13 @@
 
 from __future__ import annotations
 
-import os
-import sys
+from math import isfinite
 import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
-# 確保 twstock 在 sys.path（讓 from utils import 能運作）
-_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _PKG_DIR not in sys.path:
-    sys.path.insert(0, _PKG_DIR)
-
 from twstock.retry import retry_get
-from twstock.utils import get_http_session, get_ssl_verify, safe_float  # noqa: E402
+from twstock.utils import get_http_session, get_ssl_verify, is_market_open, safe_float
 
 # ── **Public API** — 即時盤中指數抓取 ─────────────────
 # 此檔案的頂級函式（get_yahoo_market_volumes, get_realtime_mis_data,
@@ -86,7 +80,13 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
             return twse_vol, tpex_vol
         from twstock.utils import safe_http_get
 
-        response = safe_http_get(url, timeout=5, headers=headers)
+        response = safe_http_get(
+            url,
+            session=res,
+            timeout=5,
+            verify=get_ssl_verify(),
+            headers=headers,
+        )
         if not response:
             return twse_vol, tpex_vol
         soup = BeautifulSoup(response.text, "html.parser")
@@ -107,38 +107,14 @@ def get_yahoo_market_volumes() -> Tuple[str, str]:
 
 
 # ── TWSE MIS 即時指數 ───────────────────────────────────
-def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
-    """從 TWSE MIS 或 TWSE 官方 API 抓取大盤 / 櫃買即時指數。
+def _is_regular_market_open() -> bool:
+    """依系統時間與官方交易日曆判斷正常交易時段。"""
+    return is_market_open()
 
-    策略：優先嘗試 TWSE OpenAPI（多數環境可連線），失敗才用 MIS API。
-    """
+
+def _fetch_twse_mis(session, symbols=None) -> Dict[str, Any]:
+    """呼叫 TWSE MIS 即時服務，失敗時回傳空字典。"""
     from twstock.utils import get_ssl_verify, safe_http_get
-
-    session = get_http_session()
-    if session is None:
-        return {}
-
-    # 方法 1: TWSE 官方 MI_INDEX API（收盤後仍有數據）
-    try:
-        url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
-        # E4：改走快取，與 fetch_market_indices 尾段共用同一次 HTTP 回應
-        data = _fetch_mi_index_cached(session, url)
-        if data:
-            if data.get("tables"):
-                return _parse_twse_mi_index(data)
-    except Exception as e:
-        print(f"[{__name__}] get_realtime_mis_data MI_INDEX failed: {e}")
-
-    # 方法 2: MIS API（某些環境可能 DNS 無法解析）
-    try:
-        safe_http_get(
-            "https://mis.twstock.com.tw/stock/index.jsp",
-            session=session,
-            timeout=3,
-            verify=get_ssl_verify(),
-        )
-    except Exception as e:
-        print(f"[{__name__}] get_realtime_mis_data MIS preflight failed: {e}")
 
     ex_ch_list = ["tse_t00.tw", "otc_o00.tw"]
     if symbols:
@@ -147,15 +123,51 @@ def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
             ex_ch_list.append(f"otc_{s}.tw")
 
     api_url = (
-        "https://mis.twstock.com.tw/stock/api/getStockInfo.jsp"
+        "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
         f"?ex_ch={'|'.join(ex_ch_list)}&json=1&delay=0&_={int(time.time() * 1000)}"
     )
     try:
-        r = safe_http_get(api_url, session=session, timeout=3, verify=get_ssl_verify())
+        r = safe_http_get(
+            api_url,
+            session=session,
+            timeout=3,
+            verify=get_ssl_verify(),
+            headers={"Referer": "https://mis.twse.com.tw/stock/index.jsp"},
+        )
         if r:
-            return r.json()
+            payload = r.json()
+            return payload if isinstance(payload, dict) else {}
     except Exception as e:
         print(f"[{__name__}] get_realtime_mis_data MIS getStockInfo failed: {e}")
+    return {}
+
+
+def get_realtime_mis_data(symbols=None) -> Dict[str, Any]:
+    """從 TWSE 官方服務抓取大盤／櫃買指數。
+
+    正常交易時段優先使用 MIS 即時行情；MIS 無有效資料時才降級至
+    MI_INDEX。盤後則反向優先 MI_INDEX，避免不必要的即時端點請求。
+    """
+    session = get_http_session()
+    if session is None:
+        return {}
+
+    is_market_open = _is_regular_market_open()
+    if is_market_open:
+        live_data = _fetch_twse_mis(session, symbols)
+        if live_data.get("msgArray"):
+            return live_data
+
+    try:
+        url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?type=MS&response=json"
+        data = _fetch_mi_index_cached(session, url)
+        if data and data.get("tables"):
+            return _parse_twse_mi_index(data)
+    except Exception as e:
+        print(f"[{__name__}] get_realtime_mis_data MI_INDEX failed: {e}")
+
+    if not is_market_open:
+        return _fetch_twse_mis(session, symbols)
     return {}
 
 
@@ -173,15 +185,8 @@ def _parse_twse_mi_index(data: Dict[str, Any]) -> Dict[str, Any]:
     sys_date = data.get("date", "")
     if sys_date and len(sys_date) == 8:
         result["queryTime"]["sysDate"] = f"{sys_date[:4]}-{sys_date[4:6]}-{sys_date[6:]}"
-        # TWSE MI_INDEX 盤後 API 僅回傳日期、不含時間。若仍在盤中（09:00–13:30），
-        # 顯示當下時間供 UI 即時更新提示；盤後則用固定收盤時間 13:30:00。
-        from datetime import datetime as _dt
-
-        mins = _dt.now().hour * 60 + _dt.now().minute
-        if 540 <= mins < 810:
-            result["queryTime"]["sysTime"] = _dt.now().strftime("%H:%M:%S")
-        else:
-            result["queryTime"]["sysTime"] = "13:30:00"
+        # MI_INDEX 是日收盤統計；不可把目前系統時間套在舊交易日資料上。
+        result["queryTime"]["sysTime"] = "13:30:00"
 
     # 找包含「收盤指數」的表格（非「大盤統計資訊」）
     for table in data.get("tables", []):
@@ -278,7 +283,7 @@ def _get_tpex_highlight() -> Optional[Dict[str, Any]]:
         if cached is not None and now - _TPEX_HIGHLIGHT_CACHE.get("ts", 0.0) < _TPEX_HIGHLIGHT_TTL:
             return cached
     url = "https://www.tpex.org.tw/web/stock/aftertrading/market_highlight/highlight_result.php?l=zh-tw"
-    r = retry_get(url, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify())
+    r = retry_get(url, timeout=5, retries=3, backoff=1.0, verify=get_ssl_verify(), ssl_fallback=True)
     if r is None:
         return None
     try:
@@ -293,15 +298,45 @@ def _get_tpex_highlight() -> Optional[Dict[str, Any]]:
     return data
 
 
+def _market_amount_in_billions(value: object, field_name: object) -> float | None:
+    """Normalize an explicitly-labelled market amount to ``億`` for the TUI.
+
+    The TPEx highlight endpoint currently reports ``本日總成交值(佰萬元)``;
+    100 佰萬元（100 百萬元）才等於一億元。端點未提供單位時不猜測，
+    避免回傳看似合理但實際放大 100 倍的數字。
+    """
+    amount = safe_float(value, default=float("nan"))
+    if not isfinite(amount):
+        return None
+
+    unit = str(field_name).replace(" ", "")
+    if "億元" in unit or "億" in unit:
+        return amount
+    if "佰萬元" in unit or "百萬元" in unit:
+        return amount / 100.0
+    if "千元" in unit:
+        return amount / 100_000.0
+    if "萬元" in unit:
+        return amount / 10_000.0
+    if "元" in unit:
+        return amount / 100_000_000.0
+    return None
+
+
 # ── 整合入口 ─────────────────────────────────────────────
 def fetch_market_indices() -> Optional[Dict[str, Any]]:
-    """抓取 TAIEX + OTC 即時指數 + 成交量。失败回傳 None。"""
+    """抓取 TAIEX + OTC 指數與官方市場統計；失敗回傳 None。
+
+    盤中只採用 MIS 即時指數。免費 MIS 不提供全市場成交金額與漲跌家數，
+    因此不可拿前一交易日的盤後報表冒充今日即時統計。
+    """
+    market_open = is_market_open()
     results: Dict[str, Any] = {
         "TAIEX": {
             "price": 0,
             "change": 0,
             "pct": 0,
-            "amount": 0,
+            "amount": None,
             "up": None,
             "down": None,
             "flat": None,
@@ -312,7 +347,7 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             "price": 0,
             "change": 0,
             "pct": 0,
-            "amount": 0,
+            "amount": None,
             "up": None,
             "down": None,
             "flat": None,
@@ -344,6 +379,14 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"[{__name__}] fetch_market_indices parse msgArray failed: {e}")
 
+    # 官方免費 MIS 的 t00/o00 在盤中只有即時指數，沒有全市場成交金額、
+    # 漲跌家數。到此直接返回，避免後續 MI_INDEX / market_highlight 將
+    # 前一交易日盤後數字混入今日即時面板。
+    if market_open:
+        if results["TAIEX"]["price"] > 0 or results["OTC"]["price"] > 0:
+            return results
+        return None
+
     # OTC 指數：從 TPEx highlight API 補齊（get_realtime_mis_data 只提供 TAIEX）
     if results["OTC"]["price"] == 0:
         try:
@@ -352,15 +395,6 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 results["OTC"].update(otc_data)
         except Exception as e:
             print(f"[{__name__}] fetch_market_indices OTC fallback failed: {e}")
-
-    try:
-        twse_vol, tpex_vol = get_yahoo_market_volumes()
-        if twse_vol != "無資料":
-            results["TAIEX"]["amount"] = safe_float(twse_vol.replace(",", ""))
-        if tpex_vol != "無資料":
-            results["OTC"]["amount"] = safe_float(tpex_vol.replace(",", ""))
-    except Exception as e:
-        print(f"[{__name__}] fetch_market_indices Yahoo volume failed: {e}")
 
     try:
         import re as _re
@@ -419,14 +453,10 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
             )
             if t_total:
                 for row in t_total.get("data", []):
-                    if "總計" in row[0]:
+                    if row and "總計" in str(row[0]) and len(row) > 1:
                         amt_val = safe_float(row[1])
                         results["TAIEX"]["amount"] = round(amt_val / 1e8, 2)
 
-        url_otc = (
-            "https://www.tpex.org.tw/web/stock/aftertrading/"
-            "market_highlight/highlight_result.php?l=zh-tw"
-        )
         # 改走 _get_tpex_highlight 快取，與前段 _fetch_otc_from_tpex 共用同一次 HTTP 回應，
         # 消除 tail 自己再打一次 TPEx 的重複外部呼叫。
         r_otc_data = _get_tpex_highlight()
@@ -450,10 +480,18 @@ def fetch_market_indices() -> Optional[Dict[str, Any]]:
                 results["OTC"]["down"] = _safe_int_idx(field_idx.get("下跌家數"))
                 results["OTC"]["l_down"] = _safe_int_idx(field_idx.get("跌停家數"))
                 results["OTC"]["flat"] = _safe_int_idx(field_idx.get("平盤家數"))
-                if len(row) > 3:
-                    amt_str = row[3].replace(",", "")
-                    if amt_str.isdigit():
-                        results["OTC"]["amount"] = safe_float(amt_str) / 100.0
+                amount_idx = next(
+                    (
+                        idx
+                        for idx, field in enumerate(fields)
+                        if "成交值" in str(field) or "成交金額" in str(field)
+                    ),
+                    None,
+                )
+                if amount_idx is not None and amount_idx < len(row):
+                    amount = _market_amount_in_billions(row[amount_idx], fields[amount_idx])
+                    if amount is not None:
+                        results["OTC"]["amount"] = amount
     except Exception as e:
         print(f"[{__name__}] fetch_market_indices TWSE/TPEx table parse failed: {e}")
 

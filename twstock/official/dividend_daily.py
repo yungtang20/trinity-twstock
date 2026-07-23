@@ -9,17 +9,11 @@ Writes to: taiwan_stock_unified.db -> dividend_events
 """
 
 import logging
-import sys
 from datetime import date
-from pathlib import Path
 
 import pandas as pd
 
-_twstock_dir = str(Path(__file__).resolve().parent.parent)
-if _twstock_dir not in sys.path:
-    sys.path.insert(0, _twstock_dir)
-
-from official.dividend_crawler import fetch_dividend_events, upsert_dividend_events
+from .dividend_crawler import fetch_dividend_events, upsert_dividend_events
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +26,6 @@ def fetch_current_year_dividends() -> pd.DataFrame:
     end_date = today.strftime("%Y-%m-%d")
 
     logger.info(f"Scanning dividend events for {start_date} ~ {end_date}...")
-
-    import urllib3
-
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     try:
         df = fetch_dividend_events(start_date, end_date)

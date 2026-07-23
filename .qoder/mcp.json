@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "d:\\twse\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "code_review_graph",
+        "serve"
+      ],
+      "cwd": "D:\\twse",
+      "type": "stdio"
+    }
+  }
+}

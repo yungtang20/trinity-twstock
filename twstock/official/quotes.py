@@ -11,6 +11,27 @@ from .utils import safe_float, safe_int, _get_session
 SESSION = _get_session()
 
 
+def _get_valid_ohlc_rows(df: pd.DataFrame, market: str) -> pd.DataFrame:
+    """移除無成交占位列與不可能的 OHLC，避免寫成有效日 K。"""
+    if df.empty:
+        return df
+    valid = (
+        (df["open"] > 0)
+        & (df["high"] > 0)
+        & (df["low"] > 0)
+        & (df["close"] > 0)
+        & (df["high"] >= df["open"])
+        & (df["high"] >= df["close"])
+        & (df["high"] >= df["low"])
+        & (df["low"] <= df["open"])
+        & (df["low"] <= df["close"])
+    )
+    invalid_count = int((~valid).sum())
+    if invalid_count:
+        logging.warning("%s quotes dropped %d invalid/placeholder OHLC rows", market, invalid_count)
+    return df.loc[valid].copy()
+
+
 def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
     """抓取上市公司當日收盤行情（DB 存原始值：volume 股、amount 元）"""
     date_str = str(date_int)
@@ -74,7 +95,7 @@ def fetch_twse_quotes(date_int: int) -> pd.DataFrame:
     # [AI MOD] 只保留 4 碼純股票（排除 ETF、REITs、權證、期貨等衍生商品）
     df = df[df["stock_id"].astype(str).str.match(r"^\d{4}$")]
 
-    return df
+    return _get_valid_ohlc_rows(df, "TWSE")
 
 
 def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
@@ -89,6 +110,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         retries=3,
         backoff=1.0,
         verify=get_ssl_verify(),
+        ssl_fallback=True,
     )
     if resp is None:
         logging.error("TPEx quotes fetch failed for %s after retries", date_int)
@@ -115,9 +137,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
         return pd.DataFrame()
 
     if not raw_data or not fields:
-        logging.warning(
-            "TPEx quotes data or fields missing (old format detected), aborting to avoid index guess."
-        )
+        logging.warning("TPEx quotes data or fields missing (old format detected), aborting to avoid index guess.")
         return pd.DataFrame()
 
     df = pd.DataFrame(raw_data, columns=[f.strip() for f in fields])
@@ -154,7 +174,7 @@ def fetch_tpex_quotes(date_int: int) -> pd.DataFrame:
     # [AI MOD] 只保留 4 碼純股票（排除 ETF、REITs、權證等）
     df = df[df["stock_id"].astype(str).str.match(r"^\d{4}$")]
 
-    return df
+    return _get_valid_ohlc_rows(df, "TPEx")
 
 
 def update_stock_meta_from_df(df: pd.DataFrame):

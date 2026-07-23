@@ -1,72 +1,55 @@
-# DEPENDENCIES.md — TRINITY 相依套件版本
+# TRINITY 依賴與可重現環境
 
-> 記錄所有 Python 套件的最低版本要求，避免不同環境導致行為差異。
+支援 Python 3.12。依賴版本以專案根目錄的 requirements 檔為準，文件不再重複維護另一套版本表。
 
----
+| 檔案 | 用途 |
+|---|---|
+| `requirements.txt` | 核心執行環境：資料處理、HTTP、Rich、dotenv。 |
+| `requirements-dev.txt` | 核心環境加上 pytest、coverage、ruff、mypy。 |
+| `requirements-ai.txt` | 僅啟用 vendored Kronos 時所需的可選模型套件。 |
 
-## Python 版本
+## 建立環境
 
-| 套件 | 最低版本 | 說明 |
-|------|---------|------|
-| Python | 3.12 | 主要開發環境 |
-
----
-
-## 核心套件
-
-| 套件 | 最低版本 | 用途 |
-|------|---------|------|
-| pandas | 2.2.0 | DataFrame 運算 |
-| numpy | 1.26.0 | 數值計算 |
-| polars | 0.20.0 | 高效 DataFrame（可選，fallback 到 pandas） |
-| rich | 13.7.0 | TUI 畫面渲染 |
-| requests | 2.31.0 | HTTP 請求 |
-| beautifulsoup4 | 4.12.0 | HTML 解析（TDCC 爬蟲） |
-| python-dotenv | 1.0.0 | 環境變數載入 |
-| urllib3 | 2.1.0 | HTTP 連線（SSL 警告抑制） |
-| sqlite3 | 內建 | 資料庫（Python 3.12 內建） |
-
----
-
-## 可選套件
-
-| 套件 | 最低版本 | 用途 |
-|------|---------|------|
-| kronos（NeoQuasar） | 0.1.0 | AI 預測模型 |
-| torch | 2.1.0 | Kronos 模型依賴 |
-
----
-
-## 前端相關套件
-前端專案（twse-app / twse-anytara）為獨立 repo，其依賴版本請參考該專案自己的 package.json / DEPENDENCIES.md，不記錄在本文件。
-
----
-
-## 開發工具
-
-| 套件 | 最低版本 | 用途 |
-|------|---------|------|
-| pre-commit | 3.5.0 | Git hook |
-| black | 24.1.0 | 程式碼格式化 |
-| flake8 | 7.0.0 | Lint |
-| mypy | 1.8.0 | 型別檢查 |
-
----
-
-## 安裝指令
-
-```bash
-# Python 核心
-pip install pandas numpy rich requests beautifulsoup4 python-dotenv urllib3
-
-# 可選（polars 若未安裝會自動 fallback 到 pandas）
-pip install polars
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
 ```
 
----
+需要 Kronos 時，再安裝：
 
-## 版本同步規則
+```powershell
+python -m pip install -r requirements-ai.txt
+```
 
-1. 更新套件版本時，同步更新 `ARCHITECTURE.md` 的依賴章節
-2. 新增套件時，必須說明用途和最低版本
-3. 升級主要版本時，必須測試所有策略是否正常
+預設本機模型目錄：
+
+| Hugging Face repository | 本機目錄 |
+|---|---|
+| `NeoQuasar/Kronos-base` | `models/kronos-base` |
+| `NeoQuasar/Kronos-Tokenizer-base` | `models/kronos-tokenizer-base` |
+
+未設定 `KRONOS_DEVICE` 時會自動選擇 CUDA／MPS／CPU；若要強制 CPU，可設定
+`KRONOS_DEVICE=cpu`。全市場排行使用 Monte Carlo 快速初篩，只有指定個股才載入
+Kronos-base，避免對上千檔股票逐檔執行大型模型。
+
+`torch` 的 CPU／CUDA 安裝檔必須依作業系統、Python 版本與硬體選擇官方相容版本；因此它放在 optional requirements，而不是強制安裝於基本環境。
+
+## 驗證
+
+從專案根目錄執行：
+
+```powershell
+python -m pytest
+python -m ruff check .
+python -m mypy twstock
+```
+
+若從專案父目錄執行 package entry point：
+
+```powershell
+python -m twstock.main --help
+```
+
+本機憑證與 token 放在 `api.env`。先複製 `api.env.example`，填入新取得的值；`api.env` 已被 `.gitignore` 排除，且不應提交或貼到 issue／日誌。

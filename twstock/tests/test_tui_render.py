@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import os
 from unittest.mock import MagicMock, patch
 
 from twstock.tui import render
@@ -71,21 +72,67 @@ class TestRenderMarketPanel:
         render._render_market_panel(mock_layout, indices=indices)
         mock_layout.__getitem__.return_value.update.assert_called_once()
 
+    def test_open_market_hides_previous_close_statistics(self):
+        """盤中只顯示即時指數，不可顯示前一日成交額或漲跌家數。"""
+        layout = MagicMock()
+        stale = {
+            "TAIEX": {
+                "price": 44919.5,
+                "change": 686.63,
+                "pct": 1.55,
+                "amount": 8663,
+                "up": 870,
+                "down": 142,
+                "flat": 49,
+                "l_up": 44,
+                "l_down": 2,
+            },
+            "OTC": {
+                "price": 397.04,
+                "change": 15.08,
+                "pct": 3.95,
+                "amount": 1602,
+                "up": 674,
+                "down": 148,
+                "flat": 51,
+                "l_up": 29,
+                "l_down": 2,
+            },
+        }
+        with (
+            patch("twstock.tui.render.Table") as table_cls,
+            patch(
+                "twstock.tui.render.shutil.get_terminal_size",
+                return_value=os.terminal_size((120, 24)),
+            ),
+        ):
+            render._render_market_panel(layout, stale, market_mode="🟢 開盤")
+
+        taiex_group, otc_group = table_cls.return_value.add_row.call_args.args
+        for group in (taiex_group, otc_group):
+            details = [item.plain for item in group.renderables[1:]]
+            assert details == [" 成交金額：盤後公布", " 漲跌家數：盤後公布"]
+
+    def test_market_title_uses_system_clock(self):
+        """標題應使用目前系統時間，而非上一交易日 API 時間。"""
+        now = datetime(2026, 7, 22, 9, 5, 7)
+        title = render._build_market_title(now, "🟢 開盤")
+        assert title == "📊 市場: 115-07-22 09:05:07 🟢 開盤"
+
 
 class TestRenderHeader:
     """_render_header 處理日期與時間顯示。"""
 
     def test_with_indices_date(self):
-        """有 indices 日期時應使用該日期。"""
+        """標題應使用系統日期。"""
         mock_layout = MagicMock()
-        indices = {"date": "2026-07-02"}
-        render._render_header(mock_layout, indices, datetime.now(), True, 600)
+        render._render_header(mock_layout, datetime.now())
         mock_layout.__getitem__.return_value.update.assert_called_once()
 
     def test_without_indices_date(self):
         """無 indices 日期時應使用現在時間。"""
         mock_layout = MagicMock()
-        render._render_header(mock_layout, {}, datetime.now(), False, 1000)
+        render._render_header(mock_layout, datetime.now())
         mock_layout.__getitem__.return_value.update.assert_called_once()
 
 
@@ -111,7 +158,7 @@ class TestRenderStatus:
             "first": "20200101",
             "last": "20260702",
         }
-        render._render_status(mock_layout, info, "🟢 盤中")
+        render._render_status(mock_layout, info)
         mock_layout.__getitem__.return_value.update.assert_called_once()
 
 

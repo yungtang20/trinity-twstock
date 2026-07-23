@@ -3,9 +3,21 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from twstock.strategy import composites
+from twstock.strategy.strategies import STRATEGY_REGISTRY
+
+
+def test_composite_labels_match_registered_modules():
+    """綜合分析標題必須與相同 ID 實際執行的策略一致。"""
+    assert composites._STRATEGY_LABELS == [
+        (key, f"{key} ⚡ {STRATEGY_REGISTRY[key]['name']}")
+        for key in ("1", "2", "3", "4", "5")
+    ]
+    assert composites._STRATEGY_LABELS[3][1] == "4 ⚡ 幾何型態 (Chart Patterns)"
+    assert composites._STRATEGY_LABELS[4][1] == "5 ⚡ AI 預測 (Kronos Prediction)"
 
 
 class TestRunComposite:
@@ -34,10 +46,17 @@ class TestRunComposite:
         mock_conn.return_value.__exit__ = MagicMock(return_value=False)
         mock_input.return_value = ""
 
-        composites.run_composite("2330", mobile=False)
+        with patch("twstock.strategy.composites.is_market_open", return_value=True):
+            composites.run_composite("2330", mobile=False, allow_live_quote=True)
 
+        mock_quote.assert_called_once_with("2330")
         mock_render.assert_called_once()
         mock_strategies.assert_called_once_with("2330", False)
+        assert any(
+            "K 線圖 (Price/Volume)" in str(call.args[0])
+            for call in console_mock.print.call_args_list
+            if call.args
+        )
 
     @patch("twstock.strategy.composites.input")
     @patch("twstock.strategy.composites.console")
@@ -75,3 +94,28 @@ class TestFetchLiveQuote:
         mock_session.return_value = None
         result = composites._fetch_live_quote("2330")
         assert result == (None, None)
+
+    @patch("twstock.strategy.composites.safe_http_get")
+    @patch("twstock.strategy.composites.get_http_session")
+    def test_fetch_live_quote_uses_bid_when_last_trade_is_missing(self, mock_session, mock_get):
+        """MIS 的 z 暫缺時，仍可用即時最佳買價顯示，不應誤報無行情。"""
+        mock_session.return_value = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "msgArray": [
+                {
+                    "c": "3706",
+                    "d": datetime.now().strftime("%Y%m%d"),
+                    "z": "-",
+                    "b": "91.7000_91.6000_",
+                    "a": "91.8000_91.9000_",
+                    "v": "7021",
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        assert composites._fetch_live_quote("3706") == (91.7, 7_021_000)
+        assert mock_get.call_args.kwargs["headers"]["Referer"].startswith(
+            "https://mis.twse.com.tw/"
+        )

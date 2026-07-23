@@ -40,9 +40,23 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
         "外陸資賣出股數(不含外資自營商)": "foreign_sell",
         "投信買進股數": "trust_buy",
         "投信賣出股數": "trust_sell",
+        "自營商買進股數(自行買賣)": "dealer_proprietary_buy",
+        "自營商賣出股數(自行買賣)": "dealer_proprietary_sell",
+        "自營商買進股數(避險)": "dealer_hedge_buy",
+        "自營商賣出股數(避險)": "dealer_hedge_sell",
     }
     df = df.rename(columns=col_map)
-    req_cols = ["stock_id", "foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]
+    req_cols = [
+        "stock_id",
+        "foreign_buy",
+        "foreign_sell",
+        "trust_buy",
+        "trust_sell",
+        "dealer_proprietary_buy",
+        "dealer_proprietary_sell",
+        "dealer_hedge_buy",
+        "dealer_hedge_sell",
+    ]
     for c in req_cols:
         if c not in df.columns:
             logging.warning(f"TWSE institutional missing required column: {c}")
@@ -53,12 +67,24 @@ def fetch_twse_institutional(date_int: int) -> pd.DataFrame:
     df["market"] = "TWSE"
 
     # DB 存原始值（股），顯示層才轉換
-    for col in ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]:
+    for col in req_cols[1:]:
         df[col] = df[col].apply(safe_int)
 
-    df["dealer_buy"] = 0
-    df["dealer_sell"] = 0
-    return df
+    df["dealer_buy"] = df["dealer_proprietary_buy"] + df["dealer_hedge_buy"]
+    df["dealer_sell"] = df["dealer_proprietary_sell"] + df["dealer_hedge_sell"]
+    return df[
+        [
+            "stock_id",
+            "foreign_buy",
+            "foreign_sell",
+            "trust_buy",
+            "trust_sell",
+            "dealer_buy",
+            "dealer_sell",
+            "date",
+            "market",
+        ]
+    ]
 
 
 def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
@@ -72,6 +98,7 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
         timeout=10,
         retries=3,
         backoff=1.0,
+        ssl_fallback=True,
     )
     if resp is None:
         logging.error("TPEx institutional fetch failed for %s after retries", date_int)
@@ -128,25 +155,28 @@ def fetch_tpex_institutional(date_int: int) -> pd.DataFrame:
     ]:
         df[col] = df[col].apply(safe_int)
 
-    # TPEx → TWSE 欄位映射（讓 updater 能正確計算 net）
-    # g1 = 外資, g2 = 投信, g3+g4+g5 = 自營商（自行買賣 + 避險 + 造市）
+    # TPEx 固定欄位順序：g1 外資（不含外資自營商）、g2 外資自營商、
+    # g3 外資合計、g4 投信、g5 自營商合計、g6 自行買賣、g7 避險。
     df["foreign_buy"] = df["g1_buy"].fillna(0).astype(int)
     df["foreign_sell"] = df["g1_sell"].fillna(0).astype(int)
-    df["trust_buy"] = df["g2_buy"].fillna(0).astype(int)
-    df["trust_sell"] = df["g2_sell"].fillna(0).astype(int)
-    df["dealer_buy"] = (
-        df["g3_buy"].fillna(0) + df["g4_buy"].fillna(0) + df["g5_buy"].fillna(0)
-    ).astype(int)
-    df["dealer_sell"] = (
-        df["g3_sell"].fillna(0) + df["g4_sell"].fillna(0) + df["g5_sell"].fillna(0)
-    ).astype(int)
+    df["trust_buy"] = df["g4_buy"].fillna(0).astype(int)
+    df["trust_sell"] = df["g4_sell"].fillna(0).astype(int)
+    df["dealer_buy"] = df["g5_buy"].fillna(0).astype(int)
+    df["dealer_sell"] = df["g5_sell"].fillna(0).astype(int)
 
-    req_cols = (
-        ["stock_id", "name"]
-        + [f"g{i}_{typ}" for i in range(1, 8) for typ in ("buy", "sell", "net")]
-        + ["total_net"]
-    )
-    df = df[req_cols].copy()
+    # Return the same normalized columns as TWSE.  The previous projection
+    # kept only the raw g1..g7 columns and accidentally dropped every field
+    # consumed by the database writer, resulting in all-NULL TPEx flows.
+    output_cols = [
+        "stock_id",
+        "foreign_buy",
+        "foreign_sell",
+        "trust_buy",
+        "trust_sell",
+        "dealer_buy",
+        "dealer_sell",
+    ]
+    df = df[output_cols].copy()
     date_str = str(date_int)
     df["date"] = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
     df["market"] = "TPEx"

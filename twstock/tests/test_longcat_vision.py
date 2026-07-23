@@ -30,6 +30,12 @@ class TestGetApiKey:
         result = _get_api_key()
         assert result is None
 
+    @patch("twstock.longcat_vision.get_longcat_api_key", side_effect=ValueError("missing key"))
+    @patch("twstock.longcat_vision._ensure_loaded")
+    def test_missing_config_is_optional(self, mock_ensure, mock_get_key):
+        """未設定環境變數時，可選的 LongCat 功能不應中斷策略流程。"""
+        assert _get_api_key() is None
+
 
 class TestBuildKlineSummary:
     """_build_kline_summary K 線摘要。"""
@@ -120,3 +126,4 @@ class TestAnalyzeKlineWithLongcat:
             result = analyze_kline_with_longcat(df, "2330", "台積電")
             # 不應拋異常
             assert result is None or isinstance(result, str)
+            assert mock_post.call_args.kwargs["verify"] is not False

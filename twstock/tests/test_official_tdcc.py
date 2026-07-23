@@ -18,6 +18,11 @@ from twstock.official import tdcc
 
 def _json_response(status_code: int, payload) -> SimpleNamespace:
     """回傳一個具備 status_code / json() / text 屬性的假 response。"""
+    if isinstance(payload, list):
+        payload = [
+            ({**item, "資料日期": item.get("資料日期", "20260717")} if isinstance(item, dict) else item)
+            for item in payload
+        ]
     return SimpleNamespace(
         status_code=status_code,
         json=lambda: payload,
@@ -55,6 +60,8 @@ class TestFetchTdccHistorical:
         assert row["total_people"] == 500
         assert row["whale_shares"] == 200000
         assert row["whale_people"] == 30
+        assert row["date"] == "2026-07-17"
+        assert row["date_int"] == 20260717
         # whale_ratio = 200000 / 1000000 * 100 = 20.0
         assert row["whale_ratio"] == pytest.approx(20.0)
         # 欄位檢查
@@ -161,6 +168,40 @@ class TestFetchTdccHistorical:
 
         df = tdcc.fetch_tdcc_historical(weeks=1, retries=2)
         assert df.empty
+
+    @patch("twstock.official.tdcc.requests.get")
+    @patch("twstock.official.tdcc.time.sleep")
+    def test_missing_official_payload_date_is_rejected(self, _mock_sleep, mock_get):
+        """不得以本機星期六代替缺少的官方日期。"""
+        payload = [
+            {"證券代號": "2330", "持股分級": "17", "股數": "1000", "人數": "10"},
+            {"證券代號": "2330", "持股分級": "15", "股數": "200", "人數": "2"},
+        ]
+        mock_get.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: payload,
+            text=str(payload),
+        )
+
+        assert tdcc.fetch_tdcc_historical(weeks=1, retries=1).empty
+
+    @patch("twstock.official.tdcc.requests.get")
+    @patch("twstock.official.tdcc.time.sleep")
+    def test_bom_payload_date_is_authoritative(self, _mock_sleep, mock_get):
+        """即使請求期別不同，也只能使用 payload 內帶 BOM 的資料日期。"""
+        payload = [
+            {"﻿資料日期": "20260703", "證券代號": "2330", "持股分級": "17", "股數": "1000", "人數": "10"},
+            {"﻿資料日期": "20260703", "證券代號": "2330", "持股分級": "15", "股數": "200", "人數": "2"},
+        ]
+        mock_get.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: payload,
+            text=str(payload),
+        )
+
+        df = tdcc.fetch_tdcc_historical(weeks=1, retries=1)
+        assert df.iloc[0]["date"] == "2026-07-03"
+        assert df.iloc[0]["date_int"] == 20260703
 
 
 # ---------------------------------------------------------------------------

@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+import twstock.utils as utils
 
 # Ensure twstock is on path
 _DIR = "D:/twse"
@@ -150,6 +152,17 @@ class TestToken:
         with pytest.raises((ValueError, OSError)):
             get_token()
 
+    def test_environment_token_is_not_overridden_by_local_file(self, tmp_path, monkeypatch):
+        """An explicit deployment/CI token must win over a developer api.env."""
+        from twstock import utils
+
+        (tmp_path / "api.env").write_text("FINMIND_TOKEN=file-token\n", encoding="utf-8")
+        monkeypatch.setattr(utils, "_PKG_DIR", tmp_path)
+        monkeypatch.setattr(utils, "_api_env_loaded", False)
+        monkeypatch.setenv("FINMIND_TOKEN", "environment-token")
+
+        assert utils.get_finmind_token() == "environment-token"
+
 
 class TestGetMarketMode:
     """get_market_mode 覆蓋盤中/收盤後/假日分支。"""
@@ -286,3 +299,29 @@ class TestGetStockNameFromUtils:
     def test_returns_unknown_on_exception(self, mock_conn):
         mock_conn.side_effect = Exception("no db")
         assert get_stock_name("2330") == "未知"
+
+
+class TestMarketOpen:
+    def setup_method(self):
+        utils._TRADING_DAY_CACHE.clear()
+
+    def test_regular_session_uses_calendar(self):
+        mock_db = MagicMock()
+        mock_db.execute.return_value.fetchone.return_value = (1,)
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_db
+        with patch("twstock.utils.get_connection", return_value=mock_context):
+            assert utils.is_market_open(datetime(2026, 7, 22, 9, 0)) is True
+
+    def test_calendar_holiday_stays_closed(self):
+        mock_db = MagicMock()
+        mock_db.execute.return_value.fetchone.return_value = (0,)
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_db
+        with patch("twstock.utils.get_connection", return_value=mock_context):
+            assert utils.is_market_open(datetime(2026, 7, 23, 10, 0)) is False
+
+    def test_1330_is_after_hours_without_db_query(self):
+        with patch("twstock.utils.get_connection") as mock_connection:
+            assert utils.is_market_open(datetime(2026, 7, 22, 13, 30)) is False
+        mock_connection.assert_not_called()

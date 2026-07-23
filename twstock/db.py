@@ -1,49 +1,45 @@
 # -*- coding: utf-8 -*-
-# [AI MOD]
-"""
-Single entry point for database connections.
-All modules must retrieve database connections from this module instead of defining DB_PATH independently.
-"""
+"""Single, package-qualified entry point for SQLite connections."""
+
+from __future__ import annotations
 
 import os
 import sqlite3
 from pathlib import Path
 
-_DIR = Path(__file__).resolve().parent
-DB_PATH = str(_DIR / "taiwan_stock_unified.db")
+_PROJECT_DIR = Path(__file__).resolve().parent
+_DEFAULT_DB_PATH = _PROJECT_DIR / "taiwan_stock_unified.db"
+
+# The environment override makes isolated CLI/test runs possible without
+# monkeypatching a second, top-level ``db`` module.  Normal users keep the
+# project-local database path unchanged.
+DB_PATH = os.environ.get("TWSTOCK_DB_PATH", str(_DEFAULT_DB_PATH))
 
 
 def get_connection(readonly: bool = False) -> sqlite3.Connection:
-    """
-    Unified database connection factory.
+    """Open the configured SQLite database with consistent safety settings.
 
-    Args:
-        readonly: If True, opens connection in read-only (ro) immutable mode for safety.
-    Returns:
-        sqlite3.Connection with Row row_factory configured.
+    Read-only connections use SQLite's URI mode and never enable WAL.  Write
+    connections keep WAL for concurrent readers and use a bounded busy timeout.
     """
     if readonly:
-        uri = f"file:{DB_PATH}?mode=ro"
-        conn = sqlite3.connect(uri, uri=True, timeout=10)
+        database_uri = Path(DB_PATH).resolve().as_uri() + "?mode=ro"
+        connection = sqlite3.connect(database_uri, uri=True, timeout=10)
     else:
-        conn = sqlite3.connect(DB_PATH, timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
-    conn.execute("PRAGMA busy_timeout=5000;")
-    conn.row_factory = sqlite3.Row
-    return conn
+        connection = sqlite3.connect(DB_PATH, timeout=10)
+        connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA busy_timeout=5000")
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def get_path() -> str:
-    """
-    Returns the absolute path to the unified database file.
-    Useful for checking file existence or size.
-    """
-    return DB_PATH
+    """Return the absolute path to the active database file."""
+    return str(Path(DB_PATH).resolve())
 
 
 def file_size_mb() -> float:
-    """
-    Returns the file size of the unified database in Megabytes.
-    """
-    return os.path.getsize(DB_PATH) / (1024 * 1024) if os.path.exists(DB_PATH) else 0.0
+    """Return the active database file size in MiB, or zero when absent."""
+    database_path = Path(DB_PATH)
+    return database_path.stat().st_size / (1024 * 1024) if database_path.exists() else 0.0

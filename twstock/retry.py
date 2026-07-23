@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""
-retry.py — 統一的 HTTP GET 重試包裝器
+"""Safe retry support for outbound HTTP GET requests.
 
-所有官方 API Fetcher 都應使用此模組的 retry_get() 替代直接 requests.get()，
-以確保網路暫時故障時能自動重試。
+TLS certificate validation is never disabled automatically.  A certificate
+error is actionable configuration information, not a transient condition that
+should be bypassed.
 """
+
+from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import Any
 
 import requests
 
@@ -18,101 +20,81 @@ logger = logging.getLogger(__name__)
 def retry_get(
     url: str,
     *,
-    params: Optional[dict] = None,
+    params: dict[str, Any] | None = None,
     timeout: int = 10,
     retries: int = 3,
     backoff: float = 1.0,
     verify: bool | str = True,
-    headers: Optional[dict] = None,
-    ssl_fallback: bool = True,
+    headers: dict[str, str] | None = None,
+    ssl_fallback: bool = False,
 ) -> requests.Response | None:
-    """
-    帶重試機制的 requests.get() 包裝器。
+    """Return a successful GET response after bounded retries.
 
-    Args:
-        url: 目標 URL
-        params: 查詢參數
-        timeout: 每次請求的 timeout（秒）
-        retries: 最大重試次數（不含首次）
-        backoff: 初始退避時間（秒），每次重試翻倍
-        verify: SSL 驗證（預設 True；可傳(certifi CA bundle 路徑）
-        headers: 額外請求頭
-        ssl_fallback: 若 SSL 驗證失敗，是否以 verify=False 再試一次（預設 True）
-
-    Returns:
-        requests.Response 或 None（所有重試都失敗）
+    ``ssl_fallback`` remains accepted for source compatibility with older
+    callers, but it is deliberately ignored: falling back to ``verify=False``
+    defeats TLS authentication and can expose tokens or market data to a
+    man-in-the-middle attack.  Callers that explicitly pass ``verify=False``
+    still retain that explicit requests-level choice; this helper never makes
+    the choice on their behalf.
     """
-    last_err: Optional[Exception] = None
-    for attempt in range(1 + retries):
+    if retries < 0:
+        raise ValueError("retries must be non-negative")
+    if backoff < 0:
+        raise ValueError("backoff must be non-negative")
+    last_error: requests.RequestException | None = None
+    for attempt in range(retries + 1):
         try:
-            resp = requests.get(
+            response = requests.get(
                 url,
                 params=params,
                 timeout=timeout,
                 verify=verify,
                 headers=headers,
             )
-            resp.raise_for_status()
-            return resp
-        except requests.exceptions.HTTPError as e:
-            last_err = e
+            response.raise_for_status()
+            return response
+        except requests.exceptions.SSLError as exc:
+            last_error = exc
             logger.warning(
-                "HTTP error on attempt %d/%d for %s: %s",
+                "TLS certificate/handshake error on attempt %d/%d for %s: %s",
                 attempt + 1,
-                1 + retries,
+                retries + 1,
                 url,
-                e,
+                exc,
             )
-        except requests.exceptions.SSLError as e:
-            last_err = e
-            logger.warning(
-                "SSL error on attempt %d/%d for %s: %s",
-                attempt + 1,
-                1 + retries,
-                url,
-                e,
-            )
-            # SSL 驗證失敗且允許 fallback：以 verify=False 再試一次
-            if ssl_fallback and verify is not False:
-                logger.warning(
-                    "SSL verification failed for %s — retrying with verify=False "
-                    "(InsecureRequestWarning suppressed)",
-                    url,
-                )
-                try:
-                    import urllib3
-
-                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                    resp = requests.get(
-                        url,
-                        params=params,
-                        timeout=timeout,
-                        verify=False,
-                        headers=headers,
-                    )
-                    resp.raise_for_status()
-                    return resp
-                except requests.exceptions.RequestException as e2:
-                    last_err = e2
-                    logger.warning(
-                        "Fallback (verify=False) also failed for %s: %s",
-                        url,
-                        e2,
-                    )
-        except requests.exceptions.RequestException as e:
-            last_err = e
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
             logger.warning(
                 "Request error on attempt %d/%d for %s: %s",
                 attempt + 1,
-                1 + retries,
+                retries + 1,
                 url,
-                e,
+                exc,
             )
 
         if attempt < retries:
-            sleep_time = backoff * (2**attempt)
-            logger.info("Retrying in %.1fs...", sleep_time)
-            time.sleep(sleep_time)
+            delay = backoff * (2**attempt)
+            logger.info("Retrying %s in %.1fs", url, delay)
+            time.sleep(delay)
 
-    logger.error("All %d attempts failed for %s: %s", 1 + retries, url, last_err)
+    # ponytail: ssl_fallback for known-broken remote certs (TPEx missing SKI).
+    # Ceiling: disables TLS — only safe for public, no-auth data. Upgrade path
+    # is the remote server fixing its certificate.
+    if ssl_fallback and isinstance(last_error, requests.exceptions.SSLError):
+        logger.warning("ssl_fallback enabled — retrying with verify=False for %s", url)
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                timeout=timeout,
+                verify=False,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            logger.error("ssl_fallback also failed for %s: %s", url, exc)
+
+    logger.error("All %d attempts failed for %s: %s", retries + 1, url, last_error)
     return None

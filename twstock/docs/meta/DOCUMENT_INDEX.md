@@ -1,96 +1,50 @@
-# DOCUMENT_INDEX.md — TRINITY 文件索引
+# TRINITY 文件索引
 
-> 一頁導航所有文件。人和 AI 都能快速找到需要的內容。
+本索引是專案文件的入口。所有連結均以本檔案所在的 `docs/meta/` 為基準。
 
----
+## 開始前先讀
 
-## 快速導覽
+| 目的 | 文件 |
+|---|---|
+| Agent 工作範圍與禁止事項 | [AGENTS.md](../../AGENTS.md) |
+| 系統分層、資料流與匯入規則 | [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) |
+| 專案總覽圖 | [SYSTEM_OVERVIEW.md](../architecture/SYSTEM_OVERVIEW.md) |
+| 開發與相容性規範 | [PROJECT_RULES.md](../architecture/PROJECT_RULES.md) |
 
-| 你想做什麼 | 看哪份文件 | 行數 |
-|-----------|-----------|------|
-| **AI 啟動、工作守則** | `AGENTS.md`（根目錄） | ~70 |
-| **完整架構與規範** | [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) | ~450 |
-| **專案開發規範** | [`PROJECT_RULES.md`](architecture/PROJECT_RULES.md) | ~110 |
-| **新增功能流程** | [`DEVELOPMENT_GUIDE.md`](process/DEVELOPMENT_GUIDE.md) | ~160 |
-| **修改完成驗收** | [`AI_CHECKLIST.md`](process/AI_CHECKLIST.md) | ~50 |
-| **資料庫 Schema** | [`DB_SCHEMA.md`](specs/DB_SCHEMA.md) | ~140 |
-| **外部 API 規格** | [`API_SPEC.md`](specs/API_SPEC.md) | ~170 |
-| **系統架構圖** | [`SYSTEM_OVERVIEW.md`](architecture/SYSTEM_OVERVIEW.md) | ~60 |
-| **JSON 輸出合約** | [`JSON_CONTRACT.md`](specs/JSON_CONTRACT.md) | ~130 |
-| **效能規範** | [`PERFORMANCE_RULES.md`](specs/PERFORMANCE_RULES.md) | ~130 |
-| **測試資料規範** | [`TEST_DATA.md`](specs/TEST_DATA.md) | ~60 |
-| **策略開發模板** | [`strategy/templates/strategy_template.py`](strategy/templates/strategy_template.py) | ~160 |
-| **相依套件版本** | [`DEPENDENCIES.md`](meta/DEPENDENCIES.md) | ~70 |
-| **版本資訊** | [`VERSION.md`](meta/VERSION.md) | ~40 |
-| **變更歷史** | [`CHANGELOG.md`](meta/CHANGELOG.md) | ~50 |
+## 規格與開發流程
 
----
+| 主題 | 文件 |
+|---|---|
+| 開發流程 | [DEVELOPMENT_GUIDE.md](../process/DEVELOPMENT_GUIDE.md) |
+| AI／人工修改完成檢查 | [AI_CHECKLIST.md](../process/AI_CHECKLIST.md) |
+| SQLite schema、views 與單位 | [DB_SCHEMA.md](../specs/DB_SCHEMA.md) |
+| 外部資料來源 | [API_SPEC.md](../specs/API_SPEC.md) |
+| 穩定 JSON 輸出 | [JSON_CONTRACT.md](../specs/JSON_CONTRACT.md) |
+| 查詢、批次與記憶體規範 | [PERFORMANCE_RULES.md](../specs/PERFORMANCE_RULES.md) |
+| 測試資料規範 | [TEST_DATA.md](../specs/TEST_DATA.md) |
+| 新策略模板 | [strategy_template.py](../../strategy/templates/strategy_template.py) |
 
-## 文件分類
+## 環境與歷史
 
-### 啟動入口
-| 文件 | 用途 | 誰讀 |
-|------|------|------|
-| `AGENTS.md`（根目錄） | AI Agent 啟動時的第一份文件 | AI |
-| `DOCUMENT_INDEX.md` | 一頁導航所有文件 | 人 + AI |
+| 主題 | 文件 |
+|---|---|
+| 可重現依賴 | [DEPENDENCIES.md](DEPENDENCIES.md) |
+| 版本與契約版本 | [VERSION.md](VERSION.md) |
+| 變更紀錄 | [CHANGELOG.md](CHANGELOG.md) |
+| 目前專案上下文 | [CONTEXT.md](CONTEXT.md) |
 
-### 架構與規範
-| 文件 | 用途 |
-|------|------|
-| `architecture/ARCHITECTURE.md` | 完整架構與規範（母體文件） |
-| `architecture/PROJECT_RULES.md` | 專案級開發規範 |
-| `architecture/SYSTEM_OVERVIEW.md` | 系統架構圖（30 秒理解） |
+## 資料修復（需人工確認）
 
-### 開發指南
-| 文件 | 用途 |
-|------|------|
-| `process/DEVELOPMENT_GUIDE.md` | 新增功能流程 |
-| `process/AI_CHECKLIST.md` | 修改完成自我驗收 |
-| `specs/PERFORMANCE_RULES.md` | 效能規範 |
+`commands/data_repair.py` 僅處理已知且可判定的壞資料；它不下載、不推測、也不補造行情。先在已備份的資料庫上執行唯讀檢視：
 
-### 技術規格
-| 文件 | 用途 |
-|------|------|
-| `specs/DB_SCHEMA.md` | 資料庫完整規格 |
-| `specs/API_SPEC.md` | 外部 API 規格 |
-| `specs/JSON_CONTRACT.md` | JSON 輸出合約 |
-| `meta/DEPENDENCIES.md` | 相依套件版本 |
-
-### 開發資源
-| 文件 | 用途 |
-|------|------|
-| `strategy/templates/strategy_template.py` | 策略開發模板 |
-| `specs/TEST_DATA.md` | 測試資料規範 |
-
-### 版本管理
-| 文件 | 用途 |
-|------|------|
-| `meta/CHANGELOG.md` | 變更歷史 |
-| `meta/VERSION.md` | 規格版本資訊 |
-
----
-
-## 文件依賴關係
-
-```
-AGENTS.md（啟動入口）
-    ↓ 閱讀
-ARCHITECTURE.md（完整規範）
-    ↓ 引用
-PROJECT_RULES.md / DB_SCHEMA.md / API_SPEC.md / JSON_CONTRACT.md
-    ↓ 參考
-DEVELOPMENT_GUIDE.md / AI_CHECKLIST.md / PERFORMANCE_RULES.md
-    ↓ 資源
-strategy/templates/ / TEST_DATA.md / DEPENDENCIES.md
-    ↓ 管理
-CHANGELOG.md / VERSION.md
+```powershell
+python -m twstock.commands.data_repair
 ```
 
----
+確認統計結果後，才可對備份後的目標資料庫執行：
 
-## 版本資訊
+```powershell
+python -m twstock.commands.data_repair --apply
+```
 
-| 項目 | 值 |
-|------|-----|
-| 索引版本 | v1.0 |
-| 最後更新 | 2026-06-26 |
+修復後應重新從已驗證來源更新受影響的日線、法人或持股資料，再重算指標。

@@ -11,15 +11,18 @@ import sys
 from rich.console import Console
 
 
+def _needs_utf8_wrapper(stream) -> bool:
+    """Return whether a Windows text stream can be safely re-wrapped as UTF-8."""
+    encoding = getattr(stream, "encoding", "") or ""
+    return sys.platform == "win32" and encoding.lower() not in ("utf-8", "utf8") and hasattr(stream, "buffer")
+
+
 def _make_utf8_console(**kwargs) -> Console:
     """建立強制 UTF-8 輸出的 Console，相容 Windows cp950 終端"""
     # 明確指定 color_system，避免 TextIOWrapper 包裝後偵測不到終端顏色
     kwargs.setdefault("color_system", "truecolor")
     # 判斷是否為 Windows 且 stdout 非 UTF-8
-    if sys.platform == "win32" and getattr(sys.stdout, "encoding", "").lower() not in (
-        "utf-8",
-        "utf8",
-    ):
+    if _needs_utf8_wrapper(sys.stdout):
         utf8_file = io.TextIOWrapper(
             sys.stdout.buffer,
             encoding="utf-8",
@@ -35,10 +38,7 @@ def _make_utf8_console(**kwargs) -> Console:
 def _make_utf8_stderr_console(**kwargs) -> Console:
     """stderr 版本（給 rconsole 用）"""
     kwargs.setdefault("color_system", "truecolor")
-    if sys.platform == "win32" and getattr(sys.stderr, "encoding", "").lower() not in (
-        "utf-8",
-        "utf8",
-    ):
+    if _needs_utf8_wrapper(sys.stderr):
         utf8_file = io.TextIOWrapper(
             sys.stderr.buffer,
             encoding="utf-8",

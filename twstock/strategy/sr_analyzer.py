@@ -8,7 +8,6 @@
 """
 
 import logging
-import os
 import signal
 import sqlite3
 import sys
@@ -25,15 +24,11 @@ from rich.table import Table
 # ── Module path ───────────────────────────────────────────
 
 # ── Module path ───────────────────────────────────────────
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-_TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
-if _TWSTOCK_DIR not in sys.path:
-    sys.path.insert(0, _TWSTOCK_DIR)
-
 from twstock.db import get_connection
 from twstock.display import price_color, price_rich, vol_color, vol_fmt
 from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
 from twstock.strategy.base import BaseStrategy
+from twstock.strategy.result_contract import normalize_strategy_result
 
 
 def _to_date_int(val: Any) -> int:
@@ -57,9 +52,9 @@ _SR_CACHE: dict[str, Any] = {"date": None, "min_volume": None, "results": None, 
 from twstock.terminal import console
 
 try:
-    from twstock.input_helper import get_blocking_key
+    from twstock.input_helper import blocking_input, get_blocking_key
 except ImportError:
-    from input_helper import get_blocking_key  # type: ignore[no-redef]
+    from input_helper import blocking_input, get_blocking_key  # type: ignore[no-redef]
 
 FALLBACK_NAMES = {
     "2883": "凱基金",
@@ -171,10 +166,11 @@ class SupportResistanceEngine:
                     return {"date": _to_date_int(dates[i]), "price": float(arr[i])}
         if len(arr) >= 10:
             seg = arr[-10:]
-            idx = len(arr) - 10 + (np.argmax(seg) if mode == "high" else np.argmin(seg))
+            offset = int(np.argmax(seg) if mode == "high" else np.argmin(seg))
+            idx = len(arr) - 10 + offset
             return {
                 "date": _to_date_int(dates[idx]),
-                "price": float(seg[idx if mode == "high" else np.argmin(seg)]),
+                "price": float(seg[offset]),
             }
         return None
 
@@ -578,9 +574,9 @@ def _show_market_overview(data: dict[str, Any], df: pd.DataFrame) -> None:
 def _calc_levels(levels: list[float], is_resistance: bool, lc: float) -> tuple[float, float, float]:
     if levels:
         if is_resistance:
-            return levels[0], levels[1] if len(levels) >= 3 else levels[0], levels[-1]
+            return levels[0], levels[1] if len(levels) >= 2 else levels[0], levels[-1]
         else:
-            return levels[-1], levels[-2] if len(levels) >= 3 else levels[-1], levels[0]
+            return levels[-1], levels[-2] if len(levels) >= 2 else levels[-1], levels[0]
     else:
         if is_resistance:
             return lc * 1.02, lc * 1.05, lc * 1.15
@@ -664,7 +660,9 @@ def scan_market_stocks(
         except Exception as exc:
             logging.debug("name_map 載入失敗: %s", exc)
             name_map = {}
-        all_scored = _scan_with_progress_basic(conn, stocks, name_map, min_volume)
+        all_scored = _scan_with_progress_basic(
+            conn, stocks, name_map, min_volume, latest_date=latest_date
+        )
         _SR_CACHE["date"], _SR_CACHE["min_volume"], _SR_CACHE["results"], _SR_CACHE["ts"] = (
             latest_date,
             min_volume,
@@ -757,7 +755,7 @@ def _scan_with_progress_basic(
     stocks: list[str],
     name_map: dict[str, str],
     min_volume: int = StrategyConfig.DEFAULT_MIN_VOLUME,
-    latest_date: int = 0,
+    latest_date: str | int = 0,
 ) -> list[dict[str, Any]]:
     """全市場掃描（批次 SQL 向量版）。
 
@@ -1026,14 +1024,14 @@ def _handle_input(conn: sqlite3.Connection) -> None:
     _clear_screen()
     _render_header("📘 撐壓分析系統 v3.2")
     console.print("指令: [4碼]查詢 | [Enter]近支撐掃描 | [0]退出")
-    cmd = console.input("🔍 指令: ").strip()
+    cmd = blocking_input("🔍 指令: ").strip()
     if cmd == "0":
         sys.exit(0)
     elif not cmd:
-        vol_input = console.input("📊 最小量(預設500): ").strip()
+        vol_input = blocking_input("📊 最小量(預設500): ").strip()
         min_vol_zhang = int(vol_input) if vol_input.isdigit() else StrategyConfig.DEFAULT_MIN_VOLUME
         scan_market_stocks(conn, min_vol_zhang)
-        input("\n按Enter返回...")
+        blocking_input("\n按Enter返回...")
     elif len(cmd) == 4 and cmd.isdigit():
         df = _fetch_history(conn, cmd)
         if df.empty:
@@ -1043,7 +1041,7 @@ def _handle_input(conn: sqlite3.Connection) -> None:
         df = df.sort_values("date").reset_index(drop=True)
         name = get_stock_name(conn, cmd, FALLBACK_NAMES)
         display_stock_analysis(conn, cmd, name, df)
-        input("\n按Enter返回...")
+        blocking_input("\n按Enter返回...")
     else:
         console.print("[red]❌ 指令錯誤[/red]")
         time.sleep(1)
@@ -1090,40 +1088,77 @@ class SupportResistanceStrategy:
         try:
             df = _fetch_history(conn, stock_id)
             if df.empty:
-                return {
-                    "strategy": "sr",
-                    "stock_id": stock_id,
-                    "signal": "neutral",
-                    "reason": "無資料",
-                }
+                return normalize_strategy_result(
+                    {
+                        "strategy": "sr",
+                        "stock_id": stock_id,
+                        "signal": "neutral",
+                        "reason": "無資料",
+                    }
+                )
             engine = SupportResistanceEngine(df)
             result = engine.analyze()
 
-            # 根據最近支撐/壓力與現價的關係判斷信號
+            # ``nearest_resistance`` is strictly above the close and
+            # ``nearest_support`` is strictly below it.  The old inverse
+            # comparisons could therefore never be true.  Treat a close near
+            # support as a bullish setup and a close near resistance as a
+            # bearish setup, with an ATR-scaled proximity band.
             nearest_res = result.get("nearest_resistance")
             nearest_sup = result.get("nearest_support")
             last_close = float(df["close"].iloc[-1]) if not df.empty else 0
+            atr = float(result.get("atr14") or 0)
+            proximity = max(0.01, min(0.08, (atr / last_close * 1.5) if last_close > 0 else 0.02))
+            support_distance = (
+                (last_close - float(nearest_sup)) / last_close
+                if nearest_sup is not None and last_close > 0
+                else None
+            )
+            resistance_distance = (
+                (float(nearest_res) - last_close) / last_close
+                if nearest_res is not None and last_close > 0
+                else None
+            )
 
-            if nearest_res and last_close > nearest_res:
-                signal = "bullish"
-            elif nearest_sup and last_close < nearest_sup:
-                signal = "bearish"
+            if (
+                support_distance is not None
+                and 0 <= support_distance <= proximity
+                and (resistance_distance is None or support_distance <= resistance_distance)
+            ):
+                signal, summary = "bullish", "價格接近支撐，留意反彈條件。"
+            elif resistance_distance is not None and 0 <= resistance_distance <= proximity:
+                signal, summary = "bearish", "價格接近壓力，留意突破確認或回落風險。"
             else:
-                signal = "neutral"
+                signal, summary = "neutral", "目前不在支撐或壓力的有效接近區間。"
 
-            return {
-                "strategy": "sr",
-                "stock_id": stock_id,
-                "signal": signal,
-                "nearest_resistance": nearest_res,
-                "nearest_support": nearest_sup,
-            }
-        except Exception:
-            return {
-                "strategy": "sr",
-                "stock_id": stock_id,
-                "signal": "neutral",
-            }
+            return normalize_strategy_result(
+                {
+                    "strategy": "sr",
+                    "stock_id": stock_id,
+                    "signal": signal,
+                    "summary": summary,
+                    "nearest_resistance": nearest_res,
+                    "nearest_support": nearest_sup,
+                    "support_distance_pct": round(support_distance * 100, 2)
+                    if support_distance is not None
+                    else None,
+                    "resistance_distance_pct": round(resistance_distance * 100, 2)
+                    if resistance_distance is not None
+                    else None,
+                    "proximity_threshold_pct": round(proximity * 100, 2),
+                }
+            )
+        except Exception as exc:
+            logging.exception("Support/resistance analysis failed for %s", stock_id)
+            return normalize_strategy_result(
+                {
+                    "strategy": "sr",
+                    "stock_id": stock_id,
+                    "signal": "neutral",
+                    "error": str(exc),
+                    "summary": "撐壓分析失敗，未產生交易訊號。",
+                }
+            )
         finally:
             conn.close()
 

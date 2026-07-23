@@ -43,7 +43,7 @@ def test_bootstrap_creates_required_tables(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     objects = _list_objects(conn)
@@ -60,7 +60,7 @@ def test_bootstrap_creates_required_views(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     objects = _list_objects(conn)
@@ -77,7 +77,7 @@ def test_stock_history_has_no_adj_close(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     cols = {row[1] for row in conn.execute("PRAGMA table_info(stock_history)")}
@@ -94,7 +94,7 @@ def test_tdcc_shareholding_is_view(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     rows = conn.execute(
@@ -112,7 +112,7 @@ def test_stock_history_columns_match_schema(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     cols = {row[1] for row in conn.execute("PRAGMA table_info(stock_history)")}
@@ -144,7 +144,7 @@ def test_institutional_data_columns_match_schema(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     cols = {row[1] for row in conn.execute("PRAGMA table_info(institutional_data)")}
@@ -178,7 +178,7 @@ def test_shareholding_unified_columns_match_schema(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     cols = {row[1] for row in conn.execute("PRAGMA table_info(shareholding_unified)")}
@@ -210,7 +210,7 @@ def test_stock_indicators_columns_match_schema(patch_db_path):
 
     init_db()
 
-    import db
+    from twstock import db
 
     conn = db.get_connection()
     cols = {row[1] for row in conn.execute("PRAGMA table_info(stock_indicators)")}

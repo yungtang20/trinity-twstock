@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 _DIR = "D:/twse"
@@ -52,3 +53,20 @@ class TestTerminalInit:
                 _make_utf8_console()
                 _make_utf8_stderr_console()
                 assert MockConsole.call_count == 2
+
+    def test_windows_stream_without_encoding_or_buffer_falls_back_safely(self):
+        """Notebook/redirected streams may have neither a usable encoding nor buffer."""
+        with patch("twstock.terminal.sys") as mock_sys:
+            mock_sys.platform = "win32"
+            mock_sys.stdout = SimpleNamespace(encoding=None)
+            mock_sys.stderr = SimpleNamespace(encoding=None)
+
+            with patch("twstock.terminal.Console") as MockConsole:
+                MockConsole.return_value = MagicMock()
+                from twstock.terminal import _make_utf8_console, _make_utf8_stderr_console
+
+                _make_utf8_console()
+                _make_utf8_stderr_console()
+
+                assert MockConsole.call_count == 2
+                assert all("file" not in call.kwargs for call in MockConsole.call_args_list)

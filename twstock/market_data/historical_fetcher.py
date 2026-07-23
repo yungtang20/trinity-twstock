@@ -17,13 +17,14 @@ import threading
 import time
 from collections import deque
 from datetime import datetime
+from typing import Any
 
 import pandas as pd
 import requests
 
 from twstock.db import get_connection
 from twstock.utils import get_finmind_token
-from twstock.utils import safe_float as _safe_float
+from twstock.utils import get_ssl_verify
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,26 @@ def _filter_valid_rows(rows: list[dict]) -> list[dict]:
     return [r for r in rows if r.get("stock_id") in valid]
 
 
+def _mis_exchange_prefix(stock_id: str) -> str:
+    """Return the correct TWSE MIS exchange prefix for a known stock."""
+    try:
+        with get_connection(readonly=True) as conn:
+            row = conn.execute(
+                "SELECT market FROM stock_meta WHERE stock_id = ?", (str(stock_id),)
+            ).fetchone()
+    except Exception as exc:
+        logger.debug("Could not resolve MIS market for %s: %s", stock_id, exc)
+        return "tse"
+
+    if row is None:
+        return "tse"
+    market = row[0] if not hasattr(row, "keys") else row["market"]
+    normalized = str(market or "").strip().upper()
+    if normalized in {"OTC", "TPEX"} or "上櫃" in str(market):
+        return "otc"
+    return "tse"
+
+
 def _bulk_upsert(db, sql: str, rows: list[dict]) -> int:
     """D1：共通 INSERT OR REPLACE 寫入器。
 
@@ -89,7 +110,7 @@ class _RateLimiter:
     def __init__(self, max_calls=600, window=3600):
         self._max = max_calls
         self._window = window
-        self._q = deque()
+        self._q: deque[float] = deque()
         self._lock = threading.Lock()
 
     def acquire(self):
@@ -137,7 +158,7 @@ class FinMindClient:
         for attempt in range(retries):
             try:
                 _rate_limiter.acquire()
-                r = self._session.get(FINMIND_BASE_URL, params=params, timeout=30)
+                r = self._session.get(FINMIND_BASE_URL, params=params, timeout=30, verify=get_ssl_verify())
                 r.raise_for_status()
                 resp = r.json()
                 if resp.get("msg") == "success" and "data" in resp:
@@ -171,6 +192,271 @@ def _get_client(token=None):
     return FinMindClient(str(token))
 
 
+def _normalize_col(name: Any) -> str:
+    """Normalize column name for tolerant matching."""
+    return "".join(ch for ch in str(name).lower().strip() if ch.isalnum())
+
+
+def _first_present(norm_map: dict[str, str], names: list[str]) -> str | None:
+    """Return the first existing original column name for alias list."""
+    for alias in names:
+        k = _normalize_col(alias)
+        if k in norm_map:
+            return norm_map[k]
+    return None
+
+
+def _to_int_series(value) -> pd.Series:
+    """Convert input to integer series safely."""
+    return pd.to_numeric(pd.Series(value), errors="coerce").fillna(0).astype(int)
+
+
+def _normalize_institutional_long(df: pd.DataFrame) -> list[dict]:
+    """Normalize long-form three-party payload (name/buy/sell/net rows)."""
+    from collections import defaultdict
+
+    missing = [c for c in ("date", "name") if c not in df.columns]
+    if missing:
+        raise Exception(f"Missing required field: {', '.join(missing)}")
+
+    by_date = defaultdict(list)
+    for row in df.to_dict(orient="records"):
+        by_date[row["date"]].append(row)
+
+    rows: list[dict] = []
+    for date, entries in sorted(by_date.items()):
+        stock_id = entries[0].get("stock_id", "")
+        result = {
+            "stock_id": stock_id,
+            "date": date,
+            "foreign_buy": 0,
+            "foreign_sell": 0,
+            "foreign_net": 0,
+            "trust_buy": 0,
+            "trust_sell": 0,
+            "trust_net": 0,
+            "dealer_buy": 0,
+            "dealer_sell": 0,
+            "dealer_net": 0,
+            "source": "finmind",
+        }
+        for e in entries:
+            name = str(e.get("name") or "")
+            buy = int(_to_int_series([e.get("buy")]).iloc[0])
+            sell = int(_to_int_series([e.get("sell")]).iloc[0])
+            net = int(_to_int_series([e.get("net")]).iloc[0])
+            if "外資" in name:
+                result["foreign_buy"] = buy
+                result["foreign_sell"] = sell
+                result["foreign_net"] = net
+            elif name == "投信":
+                result["trust_buy"] = buy
+                result["trust_sell"] = sell
+                result["trust_net"] = net
+            elif "自營商" in name:
+                result["dealer_buy"] += buy
+                result["dealer_sell"] += sell
+                result["dealer_net"] += net
+
+        result["institutional_net"] = (
+            result["foreign_net"] + result["trust_net"] + result["dealer_net"]
+        )
+        rows.append(result)
+    return rows
+
+
+def _net_from_buy_sell(buy, sell, net) -> int:
+    if net is not None:
+        return int(_to_int_series([net]).iloc[0])
+    return int(_to_int_series([buy]).iloc[0]) - int(_to_int_series([sell]).iloc[0])
+
+
+def _normalize_institutional_wide(df: pd.DataFrame) -> list[dict]:
+    """Normalize wide-form payload (one row per stock-date)."""
+    norm_map = {_normalize_col(c): c for c in df.columns}
+    if "stock_id" not in df.columns or "date" not in df.columns:
+        raise Exception("Missing required field: stock_id or date")
+
+    # 外資買賣
+    foreign_buy = _first_present(
+        norm_map,
+        [
+            "Foreign_Investor_Buy",
+            "ForeignInvestorBuy",
+            "ForeignInvestor_Buy",
+            "Foreign_Investors_Buy",
+            "ForeignInvestorBuyStock",
+        ],
+    )
+    foreign_sell = _first_present(
+        norm_map,
+        [
+            "Foreign_Investor_Sell",
+            "ForeignInvestorSell",
+            "ForeignInvestor_Sell",
+            "Foreign_Investors_Sell",
+            "ForeignInvestorSellStock",
+        ],
+    )
+    foreign_net = _first_present(
+        norm_map, ["Foreign_Investor_Net", "ForeignInvestorNet", "ForeignInvestorNetStock"]
+    )
+
+    # 投信買賣
+    trust_buy = _first_present(
+        norm_map,
+        [
+            "Investment_Trust_Buy",
+            "InvestmentTrustBuy",
+            "InvestmentTrust_Buy",
+            "Trust_Buy",
+            "投信買進",
+            "trustBuy",
+        ],
+    )
+    trust_sell = _first_present(
+        norm_map,
+        [
+            "Investment_Trust_Sell",
+            "InvestmentTrustSell",
+            "InvestmentTrust_Sell",
+            "Trust_Sell",
+            "trustSell",
+        ],
+    )
+    trust_net = _first_present(
+        norm_map, ["Investment_Trust_Net", "InvestmentTrustNet", "Trust_Net", "trustNet"]
+    )
+
+    # 自營商（自行 + 避險）
+    dealer_self_buy = _first_present(
+        norm_map,
+        [
+            "Foreign_Dealer_Self_Buy",
+            "Dealer_Self_Buy",
+            "DealerSelf_Buy",
+            "DealerSelfBuy",
+            "DealerSelf",
+            "Dealer_Self",
+        ],
+    )
+    dealer_self_sell = _first_present(
+        norm_map,
+        [
+            "Foreign_Dealer_Self_Sell",
+            "Dealer_Self_Sell",
+            "DealerSelf_Sell",
+            "DealerSelfSell",
+            "Dealer_Self",
+            "DealerSelf",
+        ],
+    )
+    dealer_self_net = _first_present(
+        norm_map,
+        ["Foreign_Dealer_Self_Net", "Dealer_Self_Net", "DealerSelf_Net", "DealerSelfNet"],
+    )
+
+    dealer_hedge_buy = _first_present(
+        norm_map,
+        [
+            "Dealer_Hedging_Buy",
+            "DealerHedgingBuy",
+            "Dealer_Hedge_Buy",
+            "Foreign_Dealer_Hedging_Buy",
+        ],
+    )
+    dealer_hedge_sell = _first_present(
+        norm_map,
+        [
+            "Dealer_Hedging_Sell",
+            "DealerHedgingSell",
+            "Dealer_Hedge_Sell",
+            "Foreign_Dealer_Hedging_Sell",
+        ],
+    )
+    dealer_hedge_net = _first_present(
+        norm_map,
+        ["Dealer_Hedging_Net", "DealerHedgingNet", "Dealer_Hedge_Net", "Foreign_Dealer_Hedging_Net"],
+    )
+
+    rows: list[dict] = []
+    for row in df.to_dict(orient="records"):
+        foreign_buy_v = int(_to_int_series([row.get(foreign_buy, 0)]).iloc[0]) if foreign_buy else 0
+        foreign_sell_v = int(_to_int_series([row.get(foreign_sell, 0)]).iloc[0]) if foreign_sell else 0
+        foreign_net_v = (
+            _net_from_buy_sell(foreign_buy_v, foreign_sell_v, row.get(foreign_net))
+            if (foreign_buy or foreign_sell)
+            else 0
+        )
+
+        trust_buy_v = int(_to_int_series([row.get(trust_buy, 0)]).iloc[0]) if trust_buy else 0
+        trust_sell_v = int(_to_int_series([row.get(trust_sell, 0)]).iloc[0]) if trust_sell else 0
+        trust_net_v = (
+            _net_from_buy_sell(trust_buy_v, trust_sell_v, row.get(trust_net))
+            if (trust_buy or trust_sell)
+            else 0
+        )
+
+        dealer_self_buy_v = int(_to_int_series([row.get(dealer_self_buy, 0)]).iloc[0]) if dealer_self_buy else 0
+        dealer_self_sell_v = (
+            int(_to_int_series([row.get(dealer_self_sell, 0)]).iloc[0]) if dealer_self_sell else 0
+        )
+        dealer_self_net_v = (
+            _net_from_buy_sell(dealer_self_buy_v, dealer_self_sell_v, row.get(dealer_self_net))
+            if (dealer_self_buy or dealer_self_sell)
+            else 0
+        )
+
+        dealer_hedge_buy_v = (
+            int(_to_int_series([row.get(dealer_hedge_buy, 0)]).iloc[0]) if dealer_hedge_buy else 0
+        )
+        dealer_hedge_sell_v = (
+            int(_to_int_series([row.get(dealer_hedge_sell, 0)]).iloc[0]) if dealer_hedge_sell else 0
+        )
+        dealer_hedge_net_v = (
+            _net_from_buy_sell(dealer_hedge_buy_v, dealer_hedge_sell_v, row.get(dealer_hedge_net))
+            if (dealer_hedge_buy or dealer_hedge_sell)
+            else 0
+        )
+
+        result = {
+            "stock_id": row.get("stock_id"),
+            "date": row.get("date"),
+            "foreign_buy": foreign_buy_v,
+            "foreign_sell": foreign_sell_v,
+            "foreign_net": foreign_net_v,
+            "trust_buy": trust_buy_v,
+            "trust_sell": trust_sell_v,
+            "trust_net": trust_net_v,
+            "dealer_buy": dealer_self_buy_v + dealer_hedge_buy_v,
+            "dealer_sell": dealer_self_sell_v + dealer_hedge_sell_v,
+            "dealer_net": dealer_self_net_v + dealer_hedge_net_v,
+            "source": "finmind",
+        }
+        result["institutional_net"] = (
+            result["foreign_net"] + result["trust_net"] + result["dealer_net"]
+        )
+        rows.append(result)
+
+    return rows
+
+
+def _has_wide_institutional_columns(df: pd.DataFrame) -> bool:
+    """判斷 DataFrame 是否像 FinMind 寬表。"""
+    norm_map = {_normalize_col(c): c for c in df.columns}
+    hints = [
+        "foreigninvestorbuy",
+        "foreigninvestorsell",
+        "foreigninvestornet",
+        "investortrustbuy",
+        "investmenttrustbuy",
+        "foreigndealerselfbuy",
+        "foreigndealerhedgingbuy",
+        "dealerhedgingbuy",
+    ]
+    return any(h in norm_map for h in hints)
+
+
 # ============================================================================
 # DataFetcher 主類別
 # ============================================================================
@@ -189,11 +475,19 @@ class DataFetcher:
         return self._client
 
     def fetch_history_price(self, stock_id, start_date="", end_date=""):
-        """抓取歷史價格，回傳欄位: stock_id, date, open, high, low, close, volume(張), amount(千萬元)"""
+        """抓取歷史價格，回傳原始股／元單位的標準日線欄位。"""
         client = self._get_client()
         df = client.get("TaiwanStockPrice", stock_id, start_date, end_date)
         if df.empty:
             return df
+
+        # FinMind's documented names are max/min.  Some compatible clients
+        # already normalize them to high/low, so accept both without creating
+        # duplicate columns when both representations are present.
+        if "high" not in df.columns and "max" in df.columns:
+            df["high"] = df["max"]
+        if "low" not in df.columns and "min" in df.columns:
+            df["low"] = df["min"]
 
         # 欄位映射
         col_map = {
@@ -209,15 +503,19 @@ class DataFetcher:
         existing_cols = {k: v for k, v in col_map.items() if k in df.columns}
         df = df.rename(columns=existing_cols)
         required = ["stock_id", "date", "open", "high", "low", "close", "volume", "amount"]
-        for c in required:
-            if c not in df.columns:
-                df[c] = 0
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            logger.warning("FinMind price payload missing required columns: %s", ", ".join(missing))
+            return pd.DataFrame(columns=required + ["source"])
 
         df = df[required].copy()
         # 存原始值（股/元），顯示層才轉換
+        for col in ["open", "high", "low", "close"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
         df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0)
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+        df["source"] = "finmind"
         return df
 
     def fetch_institutional(self, stock_id, start_date="", end_date=""):
@@ -226,29 +524,34 @@ class DataFetcher:
         df = client.get("TaiwanStockInstitutionalInvestorsBuySell", stock_id, start_date, end_date)
         if df.empty:
             return df
+        # 允許兩種回傳形態：
+        # 1) 長表：每列為一法人（含 name / buy / sell / net）
+        # 2) 寬表：每列已是單日彙總欄位
+        if {"name", "buy", "sell"}.issubset(set(df.columns)):
+            rows = _normalize_institutional_long(df)
+        elif _has_wide_institutional_columns(df):
+            rows = _normalize_institutional_wide(df)
+        else:
+            raise Exception("Missing required field: name")
 
-        col_map = {
-            "stock_id": "stock_id",
-            "date": "date",
-            "Foreign_Investor_Buy": "foreign_buy",
-            "Foreign_Investor_Sell": "foreign_sell",
-            "Investment_Trust_Buy": "trust_buy",
-            "Investment_Trust_Sell": "trust_sell",
-        }
-        existing_cols = {k: v for k, v in col_map.items() if k in df.columns}
-        df = df.rename(columns=existing_cols)
-        required = ["stock_id", "date", "foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]
-        for c in required:
-            if c not in df.columns:
-                df[c] = 0
-
-        df = df[required].copy()
-        for col in ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-        df["dealer_buy"] = 0
-        df["dealer_sell"] = 0
-        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
-        return df
+        if not rows:
+            return pd.DataFrame()
+        result = pd.DataFrame(rows)
+        for col in [
+            "foreign_buy",
+            "foreign_sell",
+            "foreign_net",
+            "trust_buy",
+            "trust_sell",
+            "trust_net",
+            "dealer_buy",
+            "dealer_sell",
+            "dealer_net",
+            "institutional_net",
+        ]:
+            result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0).astype(int)
+        result["date"] = pd.to_datetime(result["date"]).dt.strftime("%Y-%m-%d")
+        return result
 
     def fetch_shareholding(self, stock_id, start_date="", end_date=""):
         """抓取外資持股，回傳欄位: stock_id, date, foreign_shares, foreign_ratio"""
@@ -279,7 +582,7 @@ class DataFetcher:
         return df
 
     def fetch_stock_meta(self):
-        """抓取全部股票基本資料，回傳欄位: stock_id, stock_name, industry_category, market, type"""
+        """抓取全部股票基本資料，回傳標準欄位（含資料來源）。"""
         client = self._get_client()
         df = client.get("TaiwanStockInfo")
         if df.empty:
@@ -298,27 +601,31 @@ class DataFetcher:
         for c in required:
             if c not in df.columns:
                 df[c] = ""
-        return df[required].copy()
+        df["source"] = "finmind"
+        return df[required + ["source"]].copy()
 
     def fetch_intraday_snapshot(self, stock_id):
         """抓取個股即時報價，回傳 dict: {o, h, l, z, v}，v 單位為張"""
         url = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
         params = {
-            "ex_ch": f"tse_{stock_id}.tw",
+            "ex_ch": f"{_mis_exchange_prefix(str(stock_id))}_{stock_id}.tw",
             "json": 1,
             "delay": 0,
         }
         try:
-            r = requests.get(url, params=params, timeout=10)
+            r = requests.get(url, params=params, timeout=10, verify=get_ssl_verify())
             r.raise_for_status()
             data = r.json()
             if data.get("msgArray") and len(data["msgArray"]) > 0:
                 item = data["msgArray"][0]
 
-                def _local_safe_float(val):
+                def _local_safe_float(val) -> float | None:
                     if val in ("-", "", None):
                         return None
-                    return _safe_float(val, default=None)
+                    try:
+                        return float(str(val).replace(",", ""))
+                    except (TypeError, ValueError):
+                        return None
 
                 return {
                     "o": _local_safe_float(item.get("o")),
@@ -368,7 +675,7 @@ class FinMindFetcher:
             "end_date": end_date,
             "token": self.api_token,
         }
-        r = requests.get(url, params=params, timeout=30)
+        r = requests.get(url, params=params, timeout=30, verify=get_ssl_verify())
         r.raise_for_status()
         resp = r.json()
         if resp.get("status") != 200:
@@ -426,12 +733,23 @@ class FinMindFetcher:
         if not rows:
             return 0
         sql = """
-        INSERT OR REPLACE INTO stock_history
+        INSERT INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
              trade_count, spread, source)
         VALUES
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
              :trade_count, :spread, :source)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            open = CASE WHEN excluded.open IS NOT NULL THEN excluded.open ELSE stock_history.open END,
+            high = CASE WHEN excluded.high IS NOT NULL THEN excluded.high ELSE stock_history.high END,
+            low = CASE WHEN excluded.low IS NOT NULL THEN excluded.low ELSE stock_history.low END,
+            close = CASE WHEN excluded.close IS NOT NULL THEN excluded.close ELSE stock_history.close END,
+            volume = CASE WHEN excluded.volume IS NOT NULL THEN excluded.volume ELSE stock_history.volume END,
+            amount = CASE WHEN excluded.amount IS NOT NULL THEN excluded.amount ELSE stock_history.amount END,
+            trade_count = CASE WHEN excluded.trade_count IS NOT NULL THEN excluded.trade_count ELSE stock_history.trade_count END,
+            spread = CASE WHEN excluded.spread IS NOT NULL THEN excluded.spread ELSE stock_history.spread END,
+            source = excluded.source,
+            updated_at = CURRENT_TIMESTAMP
         """
         return _bulk_upsert(self.db, sql, rows)
 
@@ -467,7 +785,7 @@ class TWSEFetcher:
             "date": date_str,
             "stockNo": stock_id,
         }
-        r = requests.get(self.BASE_URL, params=params, timeout=30)
+        r = requests.get(self.BASE_URL, params=params, timeout=30, verify=get_ssl_verify())
         r.raise_for_status()
         resp = r.json()
         if resp.get("stat") != "OK":
@@ -537,12 +855,23 @@ class TWSEFetcher:
         if not rows:
             return 0
         sql = """
-        INSERT OR REPLACE INTO stock_history
+        INSERT INTO stock_history
             (stock_id, date, open, high, low, close, volume, amount,
              trade_count, spread, source)
         VALUES
             (:stock_id, :date, :open, :high, :low, :close, :volume, :amount,
              :trade_count, :spread, :source)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            open = CASE WHEN excluded.open IS NOT NULL THEN excluded.open ELSE stock_history.open END,
+            high = CASE WHEN excluded.high IS NOT NULL THEN excluded.high ELSE stock_history.high END,
+            low = CASE WHEN excluded.low IS NOT NULL THEN excluded.low ELSE stock_history.low END,
+            close = CASE WHEN excluded.close IS NOT NULL THEN excluded.close ELSE stock_history.close END,
+            volume = CASE WHEN excluded.volume IS NOT NULL THEN excluded.volume ELSE stock_history.volume END,
+            amount = CASE WHEN excluded.amount IS NOT NULL THEN excluded.amount ELSE stock_history.amount END,
+            trade_count = CASE WHEN excluded.trade_count IS NOT NULL THEN excluded.trade_count ELSE stock_history.trade_count END,
+            spread = CASE WHEN excluded.spread IS NOT NULL THEN excluded.spread ELSE stock_history.spread END,
+            source = excluded.source,
+            updated_at = CURRENT_TIMESTAMP
         """
         return _bulk_upsert(self.db, sql, rows)
 
@@ -598,7 +927,7 @@ class InstitutionalFetcher:
             "end_date": end_date,
             "token": self.api_token,
         }
-        r = requests.get(url, params=params, timeout=30)
+        r = requests.get(url, params=params, timeout=30, verify=get_ssl_verify())
         r.raise_for_status()
         resp = r.json()
         if resp.get("status") != 200:
@@ -607,64 +936,29 @@ class InstitutionalFetcher:
 
     def _transform(self, raw):
         """
-        將多筆（每法人一筆）pivot 成一筆（一日一筆）。
+        將 FinMind 回應轉為一日一筆。相容以下兩種格式：
+        1) 長表（每法人一筆）：含欄位 name、buy、sell、net。
+        2) 寬表（單日一筆）：含外資/投信/自營商分別的 buy/sell 欄位。
         """
         if not raw.get("data"):
             raise Exception("Cannot transform empty data")
 
         data = raw["data"]
-        # 檢查每筆都有 name 欄位
-        for row in data:
-            if "name" not in row:
-                raise Exception("Missing required field: name")
+        if not isinstance(data, list):
+            raise Exception("Invalid payload format")
 
-        # 按日期分組
-        from collections import defaultdict
+        df = pd.DataFrame(data)
+        if df.empty:
+            raise Exception("Cannot transform empty data")
 
-        by_date = defaultdict(list)
-        for row in data:
-            by_date[row["date"]].append(row)
+        # 長表轉換
+        if {"name", "buy", "sell"}.issubset(set(df.columns)):
+            rows = _normalize_institutional_long(df)
+        elif _has_wide_institutional_columns(df):
+            rows = _normalize_institutional_wide(df)
+        else:
+            raise Exception("Missing required field: name")
 
-        rows = []
-        for date, entries in sorted(by_date.items()):
-            stock_id = entries[0]["stock_id"]
-            result = {
-                "stock_id": stock_id,
-                "date": date,
-                "foreign_buy": 0,
-                "foreign_sell": 0,
-                "foreign_net": 0,
-                "trust_buy": 0,
-                "trust_sell": 0,
-                "trust_net": 0,
-                "dealer_buy": 0,
-                "dealer_sell": 0,
-                "dealer_net": 0,
-                "source": "finmind",
-            }
-            for e in entries:
-                name = e["name"]
-                buy = e.get("buy", 0)
-                sell = e.get("sell", 0)
-                net = e.get("net", 0)
-                # 優先判斷外資（因為「外資及陸資(不含外資自營商)」同時含「自營商」）
-                if "外資" in name:
-                    result["foreign_buy"] = buy
-                    result["foreign_sell"] = sell
-                    result["foreign_net"] = net
-                elif name == "投信":
-                    result["trust_buy"] = buy
-                    result["trust_sell"] = sell
-                    result["trust_net"] = net
-                elif "自營商" in name:
-                    result["dealer_buy"] += buy
-                    result["dealer_sell"] += sell
-                    result["dealer_net"] += net
-
-            result["institutional_net"] = (
-                result["foreign_net"] + result["trust_net"] + result["dealer_net"]
-            )
-            rows.append(result)
         return rows
 
     def save(self, rows):
@@ -718,7 +1012,7 @@ class TDCCFetcher:
         # 修正 B1：BASE_URL 不再含 query string，params 於此處統一傳遞，
         # 避免 URL 串成 ?id=1-5&id=1-5 重複參數。
         params = {"id": "1-5"}
-        r = requests.get(self.BASE_URL, params=params, timeout=30)
+        r = requests.get(self.BASE_URL, params=params, timeout=30, verify=get_ssl_verify())
         r.raise_for_status()
         data = r.json()
         # 過濾指定日期
@@ -840,7 +1134,7 @@ class DividendFetcher:
             "end_date": end_date,
             "token": self.api_token,
         }
-        r = requests.get(url, params=params, timeout=30)
+        r = requests.get(url, params=params, timeout=30, verify=get_ssl_verify())
         r.raise_for_status()
         resp = r.json()
         if resp.get("status") != 200:

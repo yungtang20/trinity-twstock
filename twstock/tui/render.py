@@ -32,6 +32,16 @@ def fetch_market_indices_cached():
     return _market_cache.get()
 
 
+def warmup_market_cache():
+    """進入主循環時觸發一次非阻塞市場行情更新。"""
+    _market_cache.warmup()
+
+
+def wait_for_market_cache() -> bool:
+    """等待首次背景行情完成，讓首頁在顯示提示後做一次重畫。"""
+    return _market_cache.wait_for_fetch()
+
+
 # ══════════════════════════════════════════════════════════════
 # Layout
 # ══════════════════════════════════════════════════════════════
@@ -62,19 +72,15 @@ def render_dashboard() -> None:
     """渲染完整 TUI dashboard（含市場行情、狀態、選單、提示）。"""
     info = get_sys_info()
     now = datetime.now()
-    current_minutes = now.hour * 60 + now.minute
-    is_live = 9 * 60 <= current_minutes <= 13 * 60 + 30
-
-    # [AI MOD] 改以資料異動判斷盤中/盤後,不再依賴時間範圍(避免週末/颱風假誤判)
-    market_mode = _market_cache.get_market_mode()
 
     layout = make_layout()
     indices = fetch_market_indices_cached()
+    market_mode = _market_cache.get_market_mode()
 
-    _render_market_panel(layout, indices, market_mode)
-    _render_header(layout, indices, now, is_live, current_minutes)
+    _render_market_panel(layout, indices, market_mode, now)
+    _render_header(layout, now)
     _render_menu(layout)
-    _render_status(layout, info, market_mode)
+    _render_status(layout, info)
     _render_footer(layout)
 
     try:
@@ -95,15 +101,20 @@ def render_dashboard() -> None:
 
 
 # ── panel helpers ──────────────────────────────────────────
-def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> None:
+def _render_market_panel(
+    layout, indices, market_mode: str = "🔴 盤後", now: datetime | None = None
+) -> None:
+    display_now = now or datetime.now()
+    market_title = _build_market_title(display_now, market_mode)
     # 嘗試從 cache 取得資料（即使 background fetch 尚未完全結束）
     if not indices:
         indices = _market_cache.get()
 
-    if not indices or (
-        indices.get("TAIEX", {}).get("price", 0) == 0
-        and indices.get("OTC", {}).get("price", 0) == 0
-    ):
+    taiex = indices.get("TAIEX") if isinstance(indices, dict) else None
+    otc = indices.get("OTC") if isinstance(indices, dict) else None
+    has_taiex = isinstance(taiex, dict) and bool(taiex.get("price", 0))
+    has_otc = isinstance(otc, dict) and bool(otc.get("price", 0))
+    if not indices or not (has_taiex or has_otc):
         # 資料尚未到達或全部失敗
         status = _market_cache.get_status()
         if status["is_fetching"]:
@@ -115,7 +126,7 @@ def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> N
         layout["market"].update(
             Panel(
                 Align.left(Text(msg, style="dim")),
-                title=" 市場行情 ",
+                title=market_title,
             )
         )
         return
@@ -128,27 +139,36 @@ def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> N
             (f" {data['price']:,.2f} ", f"bold {color}"),
             (f"({change_sign}{abs(data['change']):,.0f}、{data['pct']:+.2f}%)", color),
         )
-        amount = Text.assemble(
-            (" 成交金額: ", "white"),
-            (f"{data['amount']:,.0f} 億", "white"),
-        )
+        is_live_session = "開盤" in market_mode
+        if is_live_session:
+            amount = Text(" 成交金額：盤後公布", style="dim")
+        elif data.get("amount") is None:
+            amount = Text(" 成交金額：暫無資料", style="dim")
+        else:
+            amount = Text.assemble(
+                (" 成交金額: ", "white"),
+                (f"{data['amount']:,.0f} 億", "white"),
+            )
 
         def _f(v):
             return f"{v}" if v is not None else "-"
 
-        b_text = Text.assemble(
-            ("漲停", "white on red"),
-            (f"{_f(data['l_up'])}", "white on red"),
-            (" ", "white"),
-            (f"上漲{_f(data['up'])}", "red"),
-            (" ", "white"),
-            (f"平盤{_f(data['flat'])}", "white"),
-            (" ", "white"),
-            (f"下跌{_f(data['down'])}", "green"),
-            (" ", "white"),
-            ("跌停", "white on green"),
-            (f"{_f(data['l_down'])}", "white on green"),
-        )
+        if is_live_session:
+            b_text = Text(" 漲跌家數：盤後公布", style="dim")
+        else:
+            b_text = Text.assemble(
+                ("漲停", "white on red"),
+                (f"{_f(data['l_up'])}", "white on red"),
+                (" ", "white"),
+                (f"上漲{_f(data['up'])}", "red"),
+                (" ", "white"),
+                (f"平盤{_f(data['flat'])}", "white"),
+                (" ", "white"),
+                (f"下跌{_f(data['down'])}", "green"),
+                (" ", "white"),
+                ("跌停", "white on green"),
+                (f"{_f(data['l_down'])}", "white on green"),
+            )
         return Group(title, amount, b_text)
 
     m_grid = Table(box=None, show_header=False, expand=True, padding=(0, 1))
@@ -159,30 +179,19 @@ def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> N
 
     if term_width < 75:
         m_grid.add_column("Index", justify="left")
-        m_grid.add_row(_get_market_text(indices["TAIEX"], "加權指數"))
-        m_grid.add_row("")
-        m_grid.add_row(_get_market_text(indices["OTC"], "櫃買指數"))
+        if has_taiex:
+            m_grid.add_row(_get_market_text(taiex, "加權指數"))
+        if has_taiex and has_otc:
+            m_grid.add_row("")
+        if has_otc:
+            m_grid.add_row(_get_market_text(otc, "櫃買指數"))
     else:
         m_grid.add_column("T", justify="left", ratio=1)
         m_grid.add_column("O", justify="left", ratio=1)
         m_grid.add_row(
-            _get_market_text(indices["TAIEX"], "加權指數"),
-            _get_market_text(indices["OTC"], "櫃買指數"),
+            _get_market_text(taiex, "加權指數") if has_taiex else Text("加權指數暫無資料", style="dim"),
+            _get_market_text(otc, "櫃買指數") if has_otc else Text("櫃買指數暫無資料", style="dim"),
         )
-    # [AI MOD] 市場行情標題顯示日期、時間與盤中/盤後標記(ROC 民國年, hyphen 連接)。
-    # 格式範例: "📊 市場: 115-07-09 13:30:00 🟢 盤中"。純文字 + emoji,避 Rich Markup。
-    # 時間來源: fetcher _parse_twse_mi_index 補上 sysTime 定制(13:30:00) 或 MIS 真實 sysTime。
-    # 若時間仍為空(極端未取到資料)則不顯示時間欄位,避免誤導性的 00:00:00。
-    api_date = indices.get("date")
-    if api_date:
-        # to_roc_date 輸出 slash 形式(115/07/09),依需求轉為 hyphen(115-07-09)
-        roc_date = to_roc_date(api_date).replace("/", "-")
-        api_time = indices.get("time", "")
-        time_part = f" {api_time}" if api_time else ""
-        market_title = f"📊 市場: {roc_date}{time_part} {market_mode}"
-    else:
-        market_title = "📊 市場: 即時行情(尚無日期)"
-
     layout["market"].update(
         Panel(
             m_grid,
@@ -194,7 +203,13 @@ def _render_market_panel(layout, indices, market_mode: str = "🔴 盤後") -> N
     )
 
 
-def _render_header(layout, indices, now, is_live, current_minutes) -> None:
+def _build_market_title(now: datetime, market_mode: str) -> str:
+    """以系統時鐘建立市場標題；行情資料時間不再冒充目前時間。"""
+    roc_date = to_roc_date(now.strftime("%Y%m%d")).replace("/", "-")
+    return f"📊 市場: {roc_date} {now:%H:%M:%S} {market_mode}"
+
+
+def _render_header(layout, now) -> None:
     # [AI MOD] 日期/時間一律使用系統時鐘,避免休市日 API 回傳最後一次交易日舊日期造成誤解。
     date_str = to_roc_date(now.strftime("%Y%m%d"))
     time_display = now.strftime("%H:%M:%S")
@@ -218,15 +233,15 @@ def _render_menu(layout) -> None:
     )
     menu_table.add_row(
         "[bold cyan][2][/] 歷史資料更新",
-        "[dim]同步多個歷史交易日、集保與除權息/還原價[/]",
+        "[dim]檢查價量/法人缺口、指定重抓、TDCC、除權息與唯讀品質報告[/]",
     )
     menu_table.add_row(
         "[bold cyan][3][/] 策略分析中心",
         "[dim]綜合分析、均線交叉、籌碼動能、型態與 AI 預測[/]",
     )
     menu_table.add_row(
-        "[bold cyan][4][/] 資料庫維護",
-        "[dim]物理整理與收縮 SQLite 資料庫結構 (VACUUM) 壓縮最佳化[/]",
+        "[bold cyan][4][/] 資料庫健檢與最佳化",
+        "[dim]先做唯讀檢查；有足夠可回收空間才允許備份後壓縮[/]",
     )
     menu_table.add_row("", "")
     menu_table.add_row("[bold grey70][0][/] 退出系統", "")
@@ -242,7 +257,7 @@ def _render_menu(layout) -> None:
     )
 
 
-def _render_status(layout, info, market_mode) -> None:
+def _render_status(layout, info) -> None:
     status_table = Table(box=None, show_header=False, expand=True)
     status_table.add_column("label", width=15)
     status_table.add_column("value")

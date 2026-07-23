@@ -313,6 +313,54 @@ class TestFetchDividendEvents:
         assert "event_date" not in df.columns
         assert len(df) == 1
 
+    @patch("twstock.official.dividend_crawler.get_finmind_token", return_value="token")
+    @patch("twstock.official.dividend_crawler.DividendFetcher")
+    @patch("twstock.official.dividend_crawler.DataFetcher")
+    @patch("twstock.official.dividend_crawler.fetch_tpex_dividend_events")
+    @patch("twstock.official.dividend_crawler.fetch_twse_dividend_events")
+    def test_finmind_fallback_uses_dividend_fetcher(
+        self, mock_twse, mock_tpex, mock_data_cls, mock_dividend_cls, _mock_token
+    ):
+        """Regression: DataFetcher has no fetch_dividend method."""
+        mock_twse.return_value = pd.DataFrame()
+        mock_tpex.return_value = pd.DataFrame()
+        mock_data_cls.return_value.fetch_stock_meta.return_value = pd.DataFrame(
+            [{"stock_id": "2330"}, {"stock_id": "2317"}]
+        )
+        dividend = mock_dividend_cls.return_value
+        dividend.fetch_dividend.side_effect = [
+            {
+                "data": [
+                    {
+                        "stock_id": "2330",
+                        "date": "2026-07-01",
+                        "beforeDividend": 100,
+                        "afterDividend": 95,
+                        "reference": 95,
+                        "CashDividend": 5,
+                        "StockDividend": 0,
+                    }
+                ]
+            },
+            {"data": []},
+        ]
+        dividend._transform.return_value = [
+            {
+                "stock_id": "2330",
+                "date": "2026-07-01",
+                "cash_dividend": 5.0,
+                "stock_dividend": 0.0,
+                "source": "finmind",
+            }
+        ]
+
+        with patch.object(dividend_crawler, "FINMIND_AVAILABLE", True):
+            result = dividend_crawler.fetch_dividend_events("2026-01-01", "2026-07-01")
+
+        assert len(result) == 1
+        assert result.iloc[0]["stock_id"] == "2330"
+        assert dividend.fetch_dividend.call_count == 2
+
 
 # ---------------------------------------------------------------------------
 # upsert_dividend_events

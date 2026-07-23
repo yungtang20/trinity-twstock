@@ -139,8 +139,22 @@ class TestJsonWriter:
 
         output = stream.getvalue()
         parsed = json.loads(output.strip())
-        assert "error" in parsed
-        assert parsed["error"] == "資料不足"
+        assert parsed == {"error": True, "message": "資料不足"}
+
+    def test_write_result_normalizes_strategy_contract(self):
+        stream = io.StringIO()
+        writer = JsonWriter(output_stream=stream)
+
+        writer.write_result(
+            {"strategy": "ma", "stockId": "2330", "signal": "bullish", "score": 0.85}
+        )
+
+        parsed = json.loads(stream.getvalue())
+        assert parsed["stock_id"] == "2330"
+        assert parsed["signal"] == "BUY"
+        assert parsed["score"] == 85
+        assert parsed["confidence"] == 0
+        assert isinstance(parsed["details"], dict)
 
     def test_write_result_multiple_calls(self):
         """多次寫入應產生多行 JSON。"""

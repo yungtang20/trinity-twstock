@@ -17,15 +17,19 @@ from twstock.utils import (
     get_longcat_api_key,
     get_longcat_api_url,
     get_longcat_model,
+    get_ssl_verify,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def _get_api_key() -> Optional[str]:
-    """取得 LongCat API Key（統一由 utils 兩段式 dotenv 載入）。"""
+    """取得 LongCat API Key；未設定時讓可選 AI 功能安靜停用。"""
     _ensure_loaded()
-    return get_longcat_api_key()
+    try:
+        return get_longcat_api_key()
+    except ValueError:
+        return None
 
 
 def _build_kline_summary(df: pd.DataFrame, stock_id: str, stock_name: str) -> str:
@@ -73,7 +77,7 @@ def analyze_kline_with_longcat(
     """
     _ensure_loaded()
 
-    api_key = get_longcat_api_key()
+    api_key = _get_api_key()
     if not api_key:
         logger.debug("LONGCAT_API_KEY 未設定，跳過 LongCat 分析")
         return None
@@ -116,6 +120,7 @@ def analyze_kline_with_longcat(
                 "temperature": 0.7,
             },
             timeout=30,
+            verify=get_ssl_verify(),
         )
         response.raise_for_status()
         data = response.json()

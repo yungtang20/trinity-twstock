@@ -58,31 +58,67 @@ class TestMarketCache:
 
     def test_is_market_open_before_market(self):
         """開盤前應回傳 False。"""
-        with patch("twstock.market_data.cache.datetime") as mock_dt:
-            mock_now = MagicMock()
-            mock_now.hour = 8
-            mock_now.minute = 0
-            mock_dt.now.return_value = mock_now
+        with patch("twstock.market_data.cache.is_market_session_open", return_value=False):
             assert MarketCache._is_market_open() is False
 
     def test_is_market_open_during_market(self):
         """盤中應回傳 True。"""
-        with patch("twstock.market_data.cache.datetime") as mock_dt:
-            mock_now = MagicMock()
-            mock_now.hour = 10
-            mock_now.minute = 30
-            mock_dt.now.return_value = mock_now
+        with patch("twstock.market_data.cache.is_market_session_open", return_value=True):
             assert MarketCache._is_market_open() is True
 
     def test_is_market_open_after_market(self):
         """收盤後應回傳 False。"""
-        with patch("twstock.market_data.cache.datetime") as mock_dt:
-            mock_now = MagicMock()
-            mock_now.hour = 14
-            mock_now.minute = 0
-            mock_dt.now.return_value = mock_now
+        with patch("twstock.market_data.cache.is_market_session_open", return_value=False):
             assert MarketCache._is_market_open() is False
 
+    def test_market_closes_at_1330(self):
+        """13:30:00 起應顯示盤後。"""
+        with patch("twstock.market_data.cache.is_market_session_open", return_value=False):
+            assert MarketCache._is_market_open() is False
 
-# Avoid "MagicMock not imported" warning
-from unittest.mock import MagicMock
+    def test_market_mode_uses_clock_not_price_change(self):
+        """盤中行情沒跳動時仍應顯示開盤。"""
+        cache = MarketCache()
+        cache._data = {"TAIEX": {"price": 22000}}
+        with patch.object(cache, "_is_market_open", return_value=True):
+            assert cache.get_market_mode() == "🟢 開盤"
+
+    @patch("twstock.market_data.cache.threading.Thread")
+    def test_open_transition_fetches_immediately(self, mock_thread):
+        """從盤後跨到開盤時，不應沿用一小時的盤後 TTL。"""
+        cache = MarketCache()
+        cache._last_market_open = False
+        cache._last_fetch = time.time()
+        cache._data = {"TAIEX": {"price": 22000}}
+        with patch.object(cache, "_is_market_open", return_value=True):
+            cache.get()
+        mock_thread.assert_called_once()
+        mock_thread.return_value.start.assert_called_once()
+
+    @patch("twstock.market_data.cache.threading.Thread")
+    def test_warmup_starts_background_fetch_without_running_worker_inline(self, mock_thread):
+        """進入主頁只排程更新，不可在 UI thread 同步執行網路請求。"""
+        cache = MarketCache()
+
+        cache.warmup()
+
+        mock_thread.assert_called_once_with(target=cache._async_fetch_worker, daemon=True)
+        mock_thread.return_value.start.assert_called_once()
+        assert cache._is_fetching is True
+
+    @patch("twstock.market_data.cache.threading.Thread")
+    def test_repeated_warmup_does_not_duplicate_inflight_fetch(self, mock_thread):
+        """使用者快速返回主頁時，不應疊加多組行情 API 請求。"""
+        cache = MarketCache()
+
+        cache.warmup()
+        cache.warmup()
+
+        mock_thread.assert_called_once()
+
+    @patch("twstock.market_data.cache.threading.Thread")
+    def test_wait_for_fetch_reports_existing_data(self, mock_thread):
+        cache = MarketCache()
+        cache._data = {"TAIEX": {"price": 22000}}
+
+        assert cache.wait_for_fetch(timeout=0) is True

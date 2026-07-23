@@ -3,19 +3,21 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 import threading
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from twstock.utils import is_market_open as is_market_session_open
+
 from .fetcher import fetch_market_indices
 
 logger = logging.getLogger(__name__)
 
-# 整體抓取逾時（秒）：避免單一請求卡住導致 TUI 永久顯示「正在獲取即時數據...」
-_FETCH_TIMEOUT = 10.0
+# 整體抓取逾時（秒）。公開端點依序有多個短 timeout；實測完整成功回應
+# 可能超過 10 秒，因此背景工作保留 30 秒，但不再阻塞 TUI。
+_FETCH_TIMEOUT = 30.0
 
 
 class MarketCache:
@@ -28,12 +30,13 @@ class MarketCache:
 
     def __init__(self):
         self._data: Optional[Dict[str, Any]] = None
-        self._prev_data: Optional[Dict[str, Any]] = (
-            None  # [AI MOD] 上一次快取快照,用於判斷市場是否有異動
-        )
         self._last_fetch: float = 0.0
         self._is_fetching: bool = False
         self._last_error: Optional[str] = None  # 最後一次抓取錯誤訊息
+        self._last_market_open: Optional[bool] = None
+        self._state_lock = threading.Lock()
+        self._fetch_done = threading.Event()
+        self._fetch_done.set()
 
     # ── public ─────────────────────────────────────────────
     def get(self) -> Optional[Dict[str, Any]]:
@@ -46,13 +49,18 @@ class MarketCache:
         is_market_open = self._is_market_open()
         refresh_interval = 15 if is_market_open else 3600
 
+        # 開盤／收盤邊界立即更新，不沿用上一個時段的 TTL。
+        market_state_changed = (
+            self._last_market_open is not None
+            and self._last_market_open != is_market_open
+        )
+        self._last_market_open = is_market_open
+
         never_attempted = self._last_fetch == 0.0
         data_expired = now - self._last_fetch > refresh_interval
 
-        if (never_attempted or data_expired) and not self._is_fetching:
-            self._is_fetching = True
-            self._last_error = None
-            threading.Thread(target=self._async_fetch_worker, daemon=True).start()
+        if never_attempted or data_expired or market_state_changed:
+            self._start_background_fetch()
 
         return self._data
 
@@ -64,51 +72,50 @@ class MarketCache:
             "has_data": self._data is not None,
         }
 
+    def wait_for_fetch(self, timeout: float = _FETCH_TIMEOUT + 1.0) -> bool:
+        """等待目前這一次背景更新結束；只供首次首頁的一次性重畫使用。"""
+        self._fetch_done.wait(timeout=max(0.0, timeout))
+        return self._data is not None
+
     def invalidate(self) -> None:
         """清除快取（下次 get() 會重新抓取）。"""
         self._data = None
-        self._prev_data = None  # [AI MOD] 清除快照避免下一次比對誤判
         self._last_fetch = 0.0
         self._last_error = None
+        self._last_market_open = None
 
     def get_market_mode(self) -> str:
-        """依資料異動判斷「盤中」或「盤後」.
+        """依台灣股市交易時段回傳「開盤」或「盤後」。
 
-        若與前一次抓取的任何一欄不同即為盤中；若全部相同或首次無可比判則為盤後。
+        行情短暫沒有跳動不代表收盤，因此狀態只使用系統日期與時間判斷。
         """
-        return "🟢 盤中" if self._is_data_changed() else "🔴 盤後"
+        return "🟢 開盤" if self._is_market_open() else "🔴 盤後"
 
     # ── internal ──────────────────────────────────────────
     @staticmethod
     def _is_market_open() -> bool:
-        now = datetime.now()
-        mins = now.hour * 60 + now.minute
-        return 9 * 60 <= mins <= 13 * 60 + 35
+        return is_market_session_open(datetime.now())
 
-    def _is_data_changed(self) -> bool:
-        """[AI MOD] 比對這一次和上一次的 6 個市場欄位;若任一不同即為盤中."""
-        if self._prev_data is None:
-            return False
-        if not self._data:
-            return False
-        # (群組, 欄位) — 6 個欄位全部比對,任一變動即為盤中
-        compare_keys = [
-            ("TAIEX", "price"),
-            ("OTC", "price"),
-            ("TAIEX", "amount"),
-            ("OTC", "amount"),
-            ("TAIEX", "l_up"),
-            ("OTC", "l_up"),
-        ]
-        for group, field in compare_keys:
-            prev_val = self._prev_data.get(group, {}).get(field)
-            curr_val = self._data.get(group, {}).get(field)
-            # None 標準化為 0,避免 None != 0 造成誤判
-            prev_norm = 0 if prev_val is None else prev_val
-            curr_norm = 0 if curr_val is None else curr_val
-            if prev_norm != curr_norm:
-                return True
-        return False
+    def warmup(self) -> None:
+        """要求更新行情但不阻塞 TUI。
+
+        主頁每次進入都會呼叫此方法。舊實作在 UI thread 同步等待外部 API，
+        最壞會令主頁空白停住 10 秒；現在保留上一份可用快取並在背景更新。
+        """
+        with self._state_lock:
+            self._last_fetch = 0.0
+        self._start_background_fetch()
+
+    def _start_background_fetch(self) -> bool:
+        """若目前沒有抓取工作，啟動一個背景更新並立即返回。"""
+        with self._state_lock:
+            if self._is_fetching:
+                return False
+            self._is_fetching = True
+            self._last_error = None
+            self._fetch_done.clear()
+        threading.Thread(target=self._async_fetch_worker, daemon=True).start()
+        return True
 
     def _async_fetch_worker(self) -> None:
         """背景抓取，帶整體逾時。"""
@@ -134,8 +141,6 @@ class MarketCache:
             self._last_error = f"抓取逾時（>{_FETCH_TIMEOUT:.0f}s）"
             logger.warning("MarketCache: %s", self._last_error)
         elif result:
-            # [AI MOD] 先保留舊快照再覆寫 _data,供下次 _is_data_changed 比對
-            self._prev_data = copy.deepcopy(self._data)
             self._data = result
             self._last_error = None
         else:
@@ -145,5 +150,7 @@ class MarketCache:
 
         # 無論成功失敗，都更新 _last_fetch 以防止 TUI 每次 render 都重試
         # 盤中 15 秒後允许重試，盤後 1 小時後允許重試
-        self._last_fetch = time.time()
-        self._is_fetching = False
+        with self._state_lock:
+            self._last_fetch = time.time()
+            self._is_fetching = False
+            self._fetch_done.set()

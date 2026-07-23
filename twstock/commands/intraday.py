@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import isfinite
 
 # Forward declaration for type hint only
 from typing import TYPE_CHECKING
@@ -36,8 +37,28 @@ def execute(args) -> None:
         engine = IndicatorEngine(stock_id, limit=300)
 
     intra = fetcher.fetch_intraday_snapshot(stock_id)
-    if not intra or intra.get("z") == "-":
+    if not intra:
         console.print("[red]❌ 無法取得即時報價 (非交易時段或無資料)[/red]")
+        return
+
+    # ``fetch_intraday_snapshot`` represents unavailable MIS fields as None,
+    # while safe_float's public default is 0.  Treat an incomplete quote as
+    # unavailable instead of appending a zero-price bar and later displaying
+    # yesterday's close as if it were live data.
+    price_fields = ("o", "h", "l", "z")
+    quote = {field: safe_float(intra.get(field), default=float("nan")) for field in price_fields}
+    if not all(isfinite(value) and value > 0 for value in quote.values()):
+        console.print("[red]❌ 即時報價資料不完整，請於成交後再試[/red]")
+        return
+    if quote["h"] < max(quote["o"], quote["z"]) or quote["l"] > min(quote["o"], quote["z"]):
+        console.print("[red]❌ 即時報價資料不合理，已略過[/red]")
+        return
+
+    # The documented MIS ``v`` field is in lots (張); all stored/calculated
+    # volume in TRINITY is raw shares (股), so normalize at this boundary.
+    volume_lots = safe_int(intra.get("v"), default=-1)
+    if volume_lots < 0:
+        console.print("[red]❌ 即時成交量資料不完整，已略過[/red]")
         return
 
     today_str = datetime.today().strftime("%Y-%m-%d")
@@ -52,11 +73,11 @@ def execute(args) -> None:
 
     intra_row = {
         "date": pd.Timestamp.now(),
-        "open": safe_float(intra.get("o")),
-        "high": safe_float(intra.get("h")),
-        "low": safe_float(intra.get("l")),
-        "close": safe_float(intra.get("z")),
-        "volume": safe_int(intra.get("v")),
+        "open": quote["o"],
+        "high": quote["h"],
+        "low": quote["l"],
+        "close": quote["z"],
+        "volume": volume_lots * 1000,
     }
     df_intra = pd.DataFrame([intra_row])
     engine.df = pd.concat([engine.df, df_intra], ignore_index=True)

@@ -1,7 +1,20 @@
 import sqlite3
 from datetime import date, timedelta
 
+import pytest
+
 from twstock.strategy import ma_strategy
+
+
+@pytest.fixture(autouse=True)
+def _clear_scan_cache():
+    ma_strategy._SCAN_CACHE.update(
+        {"date": None, "min_volume": None, "strat_choice": None, "results": None, "ts": 0}
+    )
+    yield
+    ma_strategy._SCAN_CACHE.update(
+        {"date": None, "min_volume": None, "strat_choice": None, "results": None, "ts": 0}
+    )
 
 
 def _create_schema(conn: sqlite3.Connection):
@@ -94,3 +107,40 @@ def test_scan_excludes_below_min_volume():
     codes = {r["code"] for r in captured[0]}
     assert b in codes, f"stock {b} should be present for min_volume=500"
     assert a not in codes, f"stock {a} should NOT be present (below min_volume)"
+
+
+def test_scan_is_read_only_and_does_not_require_indicator_rows():
+    """Market scan computes MA in memory and must not populate stock_indicators."""
+    conn = sqlite3.connect(":memory:")
+    _create_schema(conn)
+    start = date(2025, 1, 1)
+    dates = [(start + timedelta(days=i)).isoformat() for i in range(205)]
+    closes = [1.0] * 204 + [200.0]
+    volumes = [600_000] * 204 + [700_000]
+    for d, close, volume in zip(dates, closes, volumes, strict=True):
+        conn.execute(
+            "INSERT INTO stock_history "
+            "(stock_id, date, open, high, low, close, volume, amount) "
+            "VALUES ('9003', ?, ?, ?, ?, ?, ?, ?)",
+            (d, close, close, close, close, volume, int(close * volume)),
+        )
+    conn.commit()
+
+    writes: list[str] = []
+    conn.set_trace_callback(
+        lambda sql: writes.append(sql)
+        if sql.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE", "REPLACE"))
+        else None
+    )
+    captured: list[list[dict]] = []
+    original = ma_strategy._display_scan_results
+    ma_strategy._display_scan_results = lambda results, *_args: captured.append(results)
+    try:
+        ma_strategy.scan_market_stocks(conn, 500, "1", "1")
+    finally:
+        ma_strategy._display_scan_results = original
+        conn.set_trace_callback(None)
+        conn.close()
+
+    assert not writes, f"策略掃描不應寫入資料庫，實際 SQL: {writes[:3]}"
+    assert captured and {row["code"] for row in captured[0]} == {"9003"}

@@ -1,39 +1,16 @@
-# VERSION.md — TRINITY 版本資訊
+# TRINITY 版本資訊
 
-> 記錄各規格文件的版本，避免文件之間不同步。
+| 項目 | 目前版本 |
+|---|---|
+| 應用程式 | v3.3.0 |
+| SQLite schema | v3 |
+| JSON contract | v2 |
+| 文件整理日期 | 2026-07-22 |
 
----
+## 版本原則
 
-## 總版本
+- 修補錯誤或補齊文件：patch。
+- 向後相容的新功能、欄位或 view：minor。
+- 移除 public API、CLI 參數、既有 JSON 欄位或 table 契約：major；目前不允許未經明確 migration 的破壞性變更。
 
-| 項目 | 值 |
-|------|-----|
-| 專案版本 | v3.3 |
-| 規範版本 | v2.0 |
-| 最後更新 | 2026-06-26 |
-
----
-
-## 規格版本
-
-| 規格 | 版本 | 最後更新 | 檔案 |
-|------|------|---------|------|
-| Architecture | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| Database Schema | v2.0 | 2026-06-26 | `DB_SCHEMA.md` |
-| API Specification | v1.0 | 2026-06-26 | `API_SPEC.md` |
-| Strategy Interface | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| CLI | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| Coding Rules | v1.0 | 2026-06-26 | `PROJECT_RULES.md` |
-| Naming Rules | v1.0 | 2026-06-26 | `PROJECT_RULES.md` |
-| Error Policy | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| DB Operation Rules | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-| Unit Conversion | v1.0 | 2026-06-26 | `ARCHITECTURE.md` |
-
----
-
-## 版本同步規則
-
-1. 修改任何規格時，必須同步更新此表的版本號
-2. 如果修改 backward incompatible，版本號 +1
-3. 如果修改 backward compatible，版本號 +0.1
-4. 如果只修正錯字，不更新版本號
+文件版本以各文件標題為準；資料庫 schema 的可執行來源是 `db_admin.py`。

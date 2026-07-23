@@ -63,6 +63,7 @@ class TestIntradayExecute:
 
         mock_fetcher.fetch_intraday_snapshot.assert_called_once_with("2330")
         assert populated_engine.build.called
+        assert populated_engine.df.iloc[-1]["volume"] == 1_000_000
 
     @patch("twstock.commands.intraday.get_connection")
     @patch("twstock.commands.intraday.DataFetcher")
@@ -136,6 +137,28 @@ class TestIntradayExecute:
 
         intraday_mod.execute(Namespace(stock_id="2330"))
         mock_console.print.assert_any_call("[red]❌ 無法取得即時報價 (非交易時段或無資料)[/red]")
+
+    @patch("twstock.commands.intraday.DataFetcher")
+    @patch("twstock.commands.intraday.IndicatorEngine")
+    @patch("twstock.commands.intraday.console")
+    def test_incomplete_quote_is_not_appended_as_zero(
+        self, mock_console, MockEngine, MockFetcher, populated_engine
+    ):
+        """Missing MIS prices must not fall back to a stale daily close."""
+        MockEngine.return_value = populated_engine
+        MockFetcher.return_value.fetch_intraday_snapshot.return_value = {
+            "o": "100",
+            "h": "110",
+            "l": "95",
+            "z": None,
+            "v": "1000",
+        }
+
+        intraday_mod.execute(Namespace(stock_id="2330"))
+
+        assert not populated_engine.build.called
+        printed = " ".join(str(call) for call in mock_console.print.call_args_list)
+        assert "不完整" in printed
 
     @patch("twstock.commands.intraday.get_connection")
     @patch("twstock.commands.intraday.DataFetcher")

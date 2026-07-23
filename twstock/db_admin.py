@@ -154,6 +154,7 @@ SCHEMA_SQL = [
     """,
     # ── Indexes ────────────────────────────────────────────────────────────
     "CREATE INDEX IF NOT EXISTS idx_stock_history_stock_date ON stock_history(stock_id, date)",
+    "CREATE INDEX IF NOT EXISTS idx_stock_history_date ON stock_history(date)",
     "CREATE INDEX IF NOT EXISTS idx_dividend_events_stock_date ON dividend_events(stock_id, date)",
     "CREATE INDEX IF NOT EXISTS idx_institutional_stock_date ON institutional_data(stock_id, date)",
     "CREATE INDEX IF NOT EXISTS idx_shareholding_unified_stock_date ON shareholding_unified(stock_id, date)",
@@ -172,6 +173,15 @@ VIEWS_SQL = [
            source, updated_at
     FROM shareholding_unified
     WHERE source = 'tdcc'
+    """,
+    # Backward-compatible read-only projection for older consumers.  New code
+    # must write shareholding_unified directly because source participates in
+    # its primary key.
+    """
+    CREATE VIEW IF NOT EXISTS shareholding_data AS
+    SELECT stock_id, date, foreign_shares, foreign_ratio, source, updated_at
+    FROM shareholding_unified
+    WHERE foreign_shares IS NOT NULL OR foreign_ratio IS NOT NULL
     """,
     # ── klines（日 K）──────────────────────────────────────────────────────
     """
@@ -205,21 +215,23 @@ VIEWS_SQL = [
 ]
 
 
-def create_tables(conn: sqlite3.Connection) -> None:
+def create_tables(conn: sqlite3.Connection, *, commit: bool = True) -> None:
     """建立所有資料表（若不存在）。可重複執行（idempotent）。"""
     cursor = conn.cursor()
     for sql in SCHEMA_SQL:
         cursor.execute(sql)
     _ensure_institutional_schema(conn)
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
-def create_views(conn: sqlite3.Connection) -> None:
+def create_views(conn: sqlite3.Connection, *, commit: bool = True) -> None:
     """建立 / 重建所有 VIEW。可重複執行（idempotent）。"""
     cursor = conn.cursor()
     for sql in VIEWS_SQL:
         cursor.execute(sql)
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def init_db() -> None:
@@ -251,10 +263,11 @@ def _ensure_institutional_schema(conn: sqlite3.Connection) -> None:
 
 
 def migrate_db() -> None:
-    """Migrate existing database schema for institutional_data."""
+    """Apply idempotent additive indexes, columns, and compatibility views."""
     conn = get_connection()
     try:
-        _ensure_institutional_schema(conn)
+        create_tables(conn, commit=False)
+        create_views(conn, commit=False)
         conn.commit()
     finally:
         conn.close()

@@ -9,7 +9,17 @@ test_strategy_output_contract.py — 策略輸出格式契約測試
 from __future__ import annotations
 
 # 策略輸出最小共同格式
-REQUIRED_KEYS = {"strategy", "stock_id", "signal"}
+REQUIRED_KEYS = {
+    "strategy",
+    "stock_id",
+    "stock_name",
+    "date",
+    "score",
+    "signal",
+    "confidence",
+    "summary",
+    "details",
+}
 
 
 def assert_strategy_contract(result: dict, stock_id: str = "2330"):
@@ -19,11 +29,12 @@ def assert_strategy_contract(result: dict, stock_id: str = "2330"):
         result.keys()
     ), f"策略輸出缺少必要欄位。需要 {REQUIRED_KEYS}，實際 {set(result.keys())}"
     assert result["stock_id"] == stock_id, f"stock_id 應為 {stock_id}，實際 {result['stock_id']}"
-    assert result["signal"] in (
-        "bullish",
-        "bearish",
-        "neutral",
-    ), f"signal 必須是 bullish/bearish/neutral，實際 {result['signal']}"
+    assert result["signal"] in ("BUY", "HOLD", "SELL", "UNKNOWN"), (
+        f"signal 必須是 JSON 契約的 BUY/HOLD/SELL/UNKNOWN，實際 {result['signal']}"
+    )
+    assert 0 <= result["score"] <= 100
+    assert 0 <= result["confidence"] <= 100
+    assert isinstance(result["details"], dict)
 
 
 def _seed_chip_data(db_conn):

@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_quotes_py_has_no_divide_1000_for_volume():
     """quotes.py 不應在寫入前對 volume/amount 做除法轉換。"""
-    content = Path("twstock/official/quotes.py").read_text(encoding="utf-8")
+    content = (PROJECT_ROOT / "official/quotes.py").read_text(encoding="utf-8")
 
     # 確認不存在「safe_int(x) // 1000」或「/ 10000000」這種寫入前轉換
     assert "safe_int(x) // 1000" not in content, "quotes.py 仍在寫入前將 volume 除以 1000（轉張）"
@@ -22,7 +24,7 @@ def test_quotes_py_has_no_divide_1000_for_volume():
 
 def test_institutional_py_has_no_divide_1000_for_shares():
     """institutional.py 不應在寫入前對買賣超股數做除法轉換。"""
-    content = Path("twstock/official/institutional.py").read_text(encoding="utf-8")
+    content = (PROJECT_ROOT / "official/institutional.py").read_text(encoding="utf-8")
 
     # 確認不存在「safe_int(x) // 1000」這種寫入前轉換
     assert (

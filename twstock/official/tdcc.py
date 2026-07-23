@@ -10,15 +10,32 @@ from typing import Optional
 
 import pandas as pd
 import requests
-import urllib3
 from bs4 import BeautifulSoup
 
 from twstock.utils import get_ssl_verify
 
 from .utils import safe_float, safe_int
 
-# Suppress insecure SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def _normalize_payload_date(value: object) -> str | None:
+    """將 TDCC payload 的公式資料日期轉為 ISO 日期。"""
+    digits = "".join(char for char in str(value or "") if char.isdigit())
+    if len(digits) == 7:  # 民國年 YYYMMDD
+        digits = f"{int(digits[:3]) + 1911:04d}{digits[3:]}"
+    if len(digits) != 8:
+        return None
+    try:
+        return datetime.strptime(digits, "%Y%m%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _get_payload_date(item: dict) -> str | None:
+    """取得 payload 中可能含 BOM 的「資料日期」欄位。"""
+    for key, value in item.items():
+        if str(key).lstrip("\ufeff").strip() == "資料日期":
+            return _normalize_payload_date(value)
+    return None
 
 
 def fetch_single_stock_tdcc_from_portal(
@@ -43,9 +60,7 @@ def fetch_single_stock_tdcc_from_portal(
 
     try:
         # 1. 取得查詢頁面以擷取 CSRF Token 與下拉選單日期
-        r_get = session.get(
-            "https://www.tdcc.com.tw/portal/zh/smWeb/qryStock", verify=get_ssl_verify(), timeout=15
-        )
+        r_get = session.get("https://www.tdcc.com.tw/portal/zh/smWeb/qryStock", verify=get_ssl_verify(), timeout=15)
         if r_get.status_code != 200:
             return None
 
@@ -60,9 +75,7 @@ def fetch_single_stock_tdcc_from_portal(
         if not select_date:
             return None
 
-        available_dates = [
-            opt["value"] for opt in select_date.find_all("option") if opt.get("value")
-        ]
+        available_dates = [opt["value"] for opt in select_date.find_all("option") if opt.get("value")]
         if not available_dates:
             return None
 
@@ -127,9 +140,7 @@ def fetch_single_stock_tdcc_from_portal(
             shares_val = safe_float(cols[3])
             ratio_val = safe_float(cols[4])
 
-            if (
-                desc_cleaned == "合計"
-            ):  # [AI MOD] Match description to support stocks with 15/16/17 levels robustly
+            if desc_cleaned == "合計":  # [AI MOD] Match description to support stocks with 15/16/17 levels robustly
                 total_shares = int(shares_val)
                 total_people = people_val
             elif level == 15:  # 大股東 (1000張以上)
@@ -159,8 +170,10 @@ def fetch_single_stock_tdcc_from_portal(
 
 def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
     """
-    抓取最近 weeks 週的 TDCC 集保資料（從本週六往前推）
-    [AI MOD] 修改以避免過去的日期調用 OpenAPI 導致重複資料。OpenAPI 僅能提供最新一週。
+    抓取 TDCC OpenAPI 最新一期快照。
+
+    OpenAPI 的 ``date`` query 參數不會切換歷史期別，因此日期必須只採信
+    payload 的「資料日期」，不得以本機星期六或請求參數代替。
     """
     today = datetime.now()
     all_results = []
@@ -180,12 +193,14 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
             )
             continue
 
-        print(f"  → 嘗試 TDCC 日期: {date_str} (第 {week_offset+1}/{weeks} 週)", flush=True)
+        print("  → 讀取 TDCC OpenAPI 最新快照...", flush=True)
 
         for attempt in range(retries):
             try:
                 resp = requests.get(
-                    f"https://openapi.tdcc.com.tw/v1/opendata/1-5?date={date_str}", timeout=30
+                    "https://openapi.tdcc.com.tw/v1/opendata/1-5",
+                    timeout=30,
+                    verify=get_ssl_verify(),
                 )
                 if resp.status_code != 200:
                     print(f"      HTTP {resp.status_code}，重試 {attempt+1}/{retries}", flush=True)
@@ -196,6 +211,22 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
                 if not data or not isinstance(data, list):
                     print("      回應不是 JSON 陣列或為空，跳過", flush=True)
                     break
+
+                official_dates = {
+                    official_date
+                    for item in data
+                    if isinstance(item, dict)
+                    for official_date in [_get_payload_date(item)]
+                    if official_date is not None
+                }
+                if len(official_dates) != 1:
+                    print(
+                        "      回應缺少唯一可驗證的官方資料日期，拒絕寫入",
+                        flush=True,
+                    )
+                    break
+                official_date = official_dates.pop()
+                official_date_int = int(official_date.replace("-", ""))
 
                 stock_levels: dict[str, dict[int, dict[str, float]]] = {}
                 for item in data:
@@ -232,9 +263,15 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
                     results.append(
                         {
                             "stock_id": code,
-                            "date_int": int(target.strftime("%Y%m%d")),
+                            # Keep the legacy integer date for callers that
+                            # consume it, while also emitting the database
+                            # contract's ISO date and source.
+                            "date": official_date,
+                            "date_int": official_date_int,
+                            "source": "tdcc",
                             "total_shares": int(total_shares),
                             "whale_ratio": whale_ratio,
+                            "retail_ratio": round(100.0 - whale_ratio, 2),
                             "total_people": int(total_people),
                             "whale_shares": int(whale_shares),
                             "whale_people": int(whale_people),  # [AI MOD]
@@ -242,7 +279,10 @@ def fetch_tdcc_historical(weeks: int = 1, retries: int = 2) -> pd.DataFrame:
                     )
 
                 if results:
-                    print(f"      ✅ 成功抓取 {len(results)} 筆資料", flush=True)
+                    print(
+                        f"      ✅ 官方資料日期 {official_date}，" f"成功解析 {len(results)} 筆",
+                        flush=True,
+                    )
                     all_results.extend(results)
                 else:
                     print("      該日期無有效資料，跳過", flush=True)

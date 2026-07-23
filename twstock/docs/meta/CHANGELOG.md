@@ -1,83 +1,35 @@
-# CHANGELOG.md — TRINITY 變更日誌
+# TRINITY 變更紀錄
 
-> 每次重大修改都必須更新此文件。格式遵循 Keep a Changelog。
+## Unreleased
 
----
+### Fixed
 
-## 2026-07-15
+- 主選單、四碼股號及子選單統一為完整輸入後按 Enter 才執行，移除延遲單鍵判斷與四碼自動送出造成的誤判。
+- 歷史更新改用日期索引批次檢查最近 N 個交易日的價量與法人完整性，可單獨補抓法人缺口並提供指定區間強制重抓。
+- TDCC 選單與完成訊息改為如實標示「只更新最新一期」，不再把 OpenAPI 不支援的歷史週顯示成已補齊。
+- 零量價檢查不再用今天的停牌名單分類昨日資料，異常列只讀呈現且不自動刪除。
+- 資料庫維護改為先執行 `quick_check`、可回收空間及已知資料品質檢查；僅達門檻時允許備份後 `VACUUM`。
+- 新增 `pyrightconfig.json` 的父目錄搜尋路徑，讓以 `twstock/` 為工作區時可解析 `twstock.*` package import。
+- 主畫面市場標題改用系統時間與官方交易日曆判斷開盤狀態；僅在首次進入或從功能返回首頁時重新抓取，等待輸入期間不自動刷新。
+- 交易時段的市場指數改為優先使用 TWSE MIS 即時服務，失敗才降級至 MI_INDEX 盤後統計。
+- 修正 TPEx 市場成交值「佰萬元」轉為「億元」時放大 100 倍的顯示錯誤。
+- 綜合分析首頁明確啟用 TWSE MIS 個股即時報價，並與 LongCat 外部分析權限拆分；請求增加官方 Referer、拒絕非當日回應，成交價暫缺時沿用最佳買賣價降級。
+- 日線指標載入改為取得最新限制筆數並保留時間正序。
+- 補正 IndicatorEngine 的法人與持股 schema join，並避免同日多來源持股造成重複日線。
+- MA、ATR、VWAP 全市場刷新改為分批讀取、`executemany()` 寫入與單一交易 commit。
+- 新資料庫 bootstrap 增加日期索引與外資持股舊讀取端相容 view。
+- 移除 HTTP retry 的自動 TLS 驗證降級。
+- 修正 direct package 啟動與 pytest 的 cwd／DB fixture 隔離風險。
 
-### Refactor
-- `get_single_key_input` 收斂至 `input_helper.py`（原 chips_strategy/strategies 兩份逐字相同的 3 行 wrapper）
-- `_get_session` 收斂至 `official/utils.py`（原 quotes/institutional 兩份逐字相同，保留原截斷版 UA 與嚴格 raise 行為，不 swap 到 utils.py 的 get_http_session）
+### Security
 
-### Chore
-- `dependency_graph.json` 用 AST 重建，舊版 61% 模組有漏列
-- 新版：60 模組 / 120 依賴邊，可作為後續代碼重構的安全網
-- 模組路徑改用標準 Python 慣例（`twstock.commands.__init__` → `twstock.commands`）
+- 移除本機設定檔中的實際 LongCat key，新增 `.gitignore` 與可複製的 `api.env.example`。
 
-### Notes
-- 先前 merge message（7ba0ae2）提及的「19 .md 歸位」**已執行**（commit 79acb10）:17 個根目錄 .md 歸位到 `docs/{architecture,specs,process,meta,archive}/`，`AGENTS.md` 留根目錄作為 AI 入口；同步更新 test_docs_contract.py 9 處路徑與 AGENTS/DOCUMENT_INDEX/README 交叉引用。實際搬移數 17（非 merge message 所稱 19）
-- 「合併三份規則 / 新增 README」**仍未執行**，待後續獨立處理
-- 階段 2 掃描報告中 P1（死代碼）/ P2（命名衝突 rename）/ P3（fetcher 模板重構）**未處理**，需獨立評估
-- 階段 4（代碼分包 `core/` `ingest/` `ui/`）未啟動，有可信依賴圖後可安全推進
+### Documentation
 
----
+- 重寫架構、schema、JSON、依賴與 API 文件，使其對應目前模組與 schema。
+- 補齊文件索引的相對連結與安全資料修復指引。
 
-## [Unreleased]
+## v3.3.0
 
-### 新增
-- Task 001 FinMind fetcher — `fetch_stock_price`, `fetch_institutional`, `fetch_shareholding`, `fetch_stock_info` 模組層級函式
-- TC5 API key 缺失測試
-- DoD 模組層級 alias 函式
-
-### 修正
-- `fetcher.py` institutional col_map 大小寫（`Foreign_Investor_Buy/Sell`, `Investment_Trust_Buy/Sell`）
-- `processor.py` `upsert_history` 不關閉外部 connection
-- `API_SPEC.md` institutional 欄位名稱大小寫
-- 移除文件中已過時的「前復權 / adj_factor」規格描述（ARCHITECTURE.md、DB_SCHEMA.md、VERSION.md）。功能本身已在稍早的版本中從程式碼移除，這次只是把文件同步更新，避免與現況（stock_history 無 adj_factor 欄位、klines VIEW 無復權欄位）不一致。
-- `sync_to_supabase.py` 移除 `adj_factor` 殘留欄位寫入（本地 SQLite 已無此欄位，繼續寫入只會產生 `None` 值）；Supabase 端 `stock_price.adj_factor` 若仍存在，將維持 null 值。
-
-### 新增（前期）
-- AGENTS.md — AI Agent 啟動入口
-- ARCHITECTURE.md — 完整架構與規範
-- PROJECT_RULES.md — 專案開發規範
-- DEVELOPMENT_GUIDE.md — 新增功能流程指南
-- AI_CHECKLIST.md — 修改完成自我驗收清單
-- DB_SCHEMA.md — 資料庫完整規格
-- API_SPEC.md — 外部 API 規格
-
-### 修改
-- 策略統一介面（analyze / run_strategy / scan_market）
-- DB 操作規範（executemany / Index）
-- 單位換算規範（DB 內一律為張）
-
----
-
-## v3.3.0 (2026-06-26)
-
-### 新增
-- ARCHITECTURE.md（系統架構規範）
-- DB_SCHEMA.md（資料庫 Schema）
-- API_SPEC.md（外部 API 規格）
-- PROJECT_RULES.md（專案開發規範）
-- DEVELOPMENT_GUIDE.md（新功能開發流程）
-- AI_CHECKLIST.md（自我驗收清單）
-
-### 修正
-- TDCC 更新流程（避免歷史日期重複寫入）
-- 前復權計算邏輯（確認累乘方向正確）
-- Windows encoding fix（統一加入）
-
----
-
-## v3.2.0 (2026-06-25)
-
-### 新增
-- 統一資料庫架構（taiwan_stock_unified.db）
-- 五大策略統一輸出器（strategy_runner.py）
-- 除權息每日掃描（official/dividend_daily.py）
-- 處置股票檢查（official/suspended.py）
-
----
-
-*每次更新此文件時，將 [Unreleased] 改為新版本號，並標記日期。*
+- 建立日 K 決策輔助系統的 CLI／TUI、SQLite 儲存、官方資料來源與策略模組基礎。

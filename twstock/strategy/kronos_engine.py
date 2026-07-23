@@ -29,9 +29,10 @@ DEFAULT_CONFIG = {
     "confidence_threshold": 0.55,
     "volatility_lookback": 20,
     "min_volume": 500,
-    "results": None,
     "kronos_model_path": "models/kronos-base",
     "kronos_tokenizer_path": "models/kronos-tokenizer-base",
+    # 官方範例使用 1；5 組在 CPU 上兼顧隨機取樣穩定度與互動延遲。
+    "kronos_samples": 5,
 }
 
 
@@ -112,14 +113,20 @@ def load_kronos(
 
     tokenizer = KronosTokenizer.from_pretrained(resolved_tokenizer)
     model = Kronos.from_pretrained(resolved_model)
-    predictor = KronosPredictor(model, tokenizer, device="cpu", max_context=512)
+    # PyTorch module 預設是 training mode；Kronos-base 的 dropout=0.2，若未切換
+    # eval 會讓相同輸入產生額外隨機性，也平白增加推論成本。
+    tokenizer.eval()
+    model.eval()
+    # 未指定 KRONOS_DEVICE 時交由官方 Predictor 自動選 CUDA / MPS / CPU。
+    device = os.environ.get("KRONOS_DEVICE", "").strip() or None
+    predictor = KronosPredictor(model, tokenizer, device=device, max_context=512)
     return tokenizer, model, predictor
 
 
 class KronosRealEngine:
     """
     完整 Kronos 預測引擎
-    使用 NeoQuasar/Kronos-base 模型進行 5 日 OHLCV 預測
+     使用本機 shiyu-coder/Kronos 模型進行 5 日 OHLCV 預測
     """
 
     def __init__(
@@ -130,7 +137,7 @@ class KronosRealEngine:
         self.model_path = model_path
         self.tokenizer_path = tokenizer_path
         self._predictor = None
-        self._load_error = None
+        self._load_error: Exception | None = None
 
     def _ensure_loaded(self):
         """延遲載入，只載入一次（單例）"""
@@ -206,13 +213,12 @@ class KronosRealEngine:
             # 如果 index 不是 datetime，用整數模擬
             x_timestamp = pd.Series(pd.RangeIndex(len(work)), name="timestamps")
 
-        # 產生未來 pred_days 個預測日（用日曆日）
+        # 日 K 預測至少跳過週末；國定休市日由未來實際資料驗證時再對齊。
         last_ts = work.index[-1]
         if isinstance(last_ts, pd.Timestamp) or hasattr(last_ts, "freq"):
-            future_index = pd.date_range(
+            future_index = pd.bdate_range(
                 start=pd.Timestamp(last_ts) + pd.Timedelta(days=1),
                 periods=pred_days,
-                freq="D",
             )
         else:
             future_index = pd.RangeIndex(len(work), len(work) + pred_days)
@@ -223,6 +229,7 @@ class KronosRealEngine:
                 f"Kronos model unexpectedly None after ready=True: {self._load_error}"
             )
 
+        sample_count = config.get("kronos_samples", 5)
         pred = self._predictor.predict(
             df=x_df,
             x_timestamp=x_timestamp,
@@ -230,28 +237,27 @@ class KronosRealEngine:
             pred_len=pred_days,
             T=1.0,
             top_p=0.9,
-            sample_count=1,
+            sample_count=sample_count,
             verbose=False,
         )
 
-        pred_closes = pred["close"].values.astype(float).tolist()
-        benchmark = pred_closes[-1] if pred_closes else float(work["close"].iloc[-1])
+        pred_arr = pred["close"].values.astype(float)
+        if pred_arr.ndim == 1:
+            pred_arr = pred_arr[np.newaxis, :]
+        batch_avg = pred_arr.mean(axis=0)
+        benchmark = float(batch_avg[-1])
         current = float(work["close"].iloc[-1])
         drift = (benchmark - current) / current if current > 0 else 0.0
 
-        # 信心度：預測方向的樣本一致性（以 drift 方向為主）
-        if drift > 0:
-            confidence = float(np.mean(np.array(pred_closes) > current))
-        elif drift < 0:
-            confidence = float(np.mean(np.array(pred_closes) < current))
-        else:
-            confidence = 0.5
+        # 官方 Predictor 會先把 sample_count 條路徑平均後才回傳 DataFrame，
+        # 呼叫端拿不到個別樣本分布，不能把單一平均值冒充方向命中率。
+        confidence = 0.0
 
         return PredictionResult(
             benchmark=round(benchmark, 2),
             confidence=round(confidence, 4),
             drift=round(drift, 4),
-            pred_series=[round(x, 2) for x in pred_closes],
+            pred_series=[round(x, 2) for x in batch_avg],
         )
 
 

@@ -295,6 +295,16 @@ class TestRenderKline:
         assert "2330" in result
         assert "台積電" in result
         assert "█" in result  # K 線主體
+        assert "01-01" in result and "01-10" in result
+        assert "圖例：○開盤" in result
+        assert "最近 10 個交易日逐日 K 線" in result
+        assert "開盤→收盤" in result
+        assert "成交量（張）" in result
+        assert "[white on red] 漲停 [/]" in result
+        assert "[bright_red]漲／買[/]" in result
+        assert "[white]平[/]" in result
+        assert "[bright_green]跌／賣[/]" in result
+        assert "[white on green] 跌停 [/]" in result
 
     def test_without_stock_name(self):
         """無股票名稱仍應運作。"""
@@ -325,6 +335,8 @@ class TestRenderKline:
         )
         result = render_kline(df, "2330", "台積電", days=10)
         assert "2330" in result
+        assert "2026-01-21" in result
+        assert "2026-01-20" not in result
 
     def test_flat_prices(self):
         """所有價格相同時不應崩潰（price_range=0）。"""
@@ -340,3 +352,19 @@ class TestRenderKline:
         )
         result = render_kline(df, "2330", "台積電")
         assert "2330" in result
+
+    def test_k_color_uses_open_close_not_previous_close(self):
+        """紅K/綠K 依收盤與開盤，較昨收漲跌應獨立著色。"""
+        df = pd.DataFrame(
+            {
+                "date": ["2026-01-01", "2026-01-02"],
+                "open": [100.0, 95.0],
+                "high": [102.0, 99.0],
+                "low": [98.0, 94.0],
+                "close": [100.0, 98.0],
+                "volume": [1_000_000, 2_000_000],
+            }
+        )
+        result = render_kline(df, "2330", "台積電")
+        assert "[bright_red]紅K" in result  # 98 > 95，是紅 K
+        assert "[bright_green]▼" in result  # 98 < 前收 100，當日仍下跌

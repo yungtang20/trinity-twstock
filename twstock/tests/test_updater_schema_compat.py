@@ -9,6 +9,10 @@ test_updater_schema_compat.py — updater.py 與 schema 相容性測試
 
 from __future__ import annotations
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_stock_history_has_no_adj_close_column(db_conn, patch_db_path):
     """stock_history 表不應有 adj_close/adj_open/adj_high/adj_low 欄位。"""
@@ -69,9 +73,7 @@ def test_save_stock_history_does_not_write_adj_close(db_conn, patch_db_path):
 
 def test_updater_does_not_reference_adj_close_in_schema():
     """updater.py 的 stock_history 寫入路徑不應引用 adj_close 等不存在欄位。"""
-    from pathlib import Path
-
-    src = Path("twstock/official/updater.py").read_text(encoding="utf-8")
+    src = (PROJECT_ROOT / "official/updater.py").read_text(encoding="utf-8")
 
     # 不應在 required 清單中出現 adj_close
     # 檢查 stock_history 區塊的 required 清單
@@ -97,9 +99,7 @@ def test_updater_does_not_reference_adj_close_in_schema():
 
 def test_updater_does_not_query_tdcc_shareholding_view_for_max_date():
     """updater.py 不應從 tdcc_shareholding VIEW 查 MAX(date)，應查 shareholding_unified。"""
-    from pathlib import Path
-
-    src = Path("twstock/official/updater.py").read_text(encoding="utf-8")
+    src = (PROJECT_ROOT / "official/updater.py").read_text(encoding="utf-8")
 
     # 不應出現 SELECT MAX(date) FROM tdcc_shareholding
     assert (
@@ -109,9 +109,7 @@ def test_updater_does_not_query_tdcc_shareholding_view_for_max_date():
 
 def test_updater_does_not_insert_into_tdcc_shareholding_view():
     """updater.py 不應呼叫 upsert_dataframe('tdcc_shareholding', ...)，因為它是 VIEW。"""
-    from pathlib import Path
-
-    src = Path("twstock/official/updater.py").read_text(encoding="utf-8")
+    src = (PROJECT_ROOT / "official/updater.py").read_text(encoding="utf-8")
 
     # 不應有 tdcc_shareholding 作為 upsert_dataframe 的 table_name 參數
     assert (

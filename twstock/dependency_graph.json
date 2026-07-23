@@ -1,56 +1,35 @@
 {
   "twstock": [],
-  "twstock.api_config": [],
-  "twstock.calculator": [
-    "twstock.db",
-    "twstock.db_admin"
-  ],
+  "twstock.calculator": ["twstock.db", "twstock.db_admin"],
   "twstock.commands": [],
-  "twstock.commands.dividend": [
-    "twstock.official",
-    "twstock.terminal"
-  ],
-  "twstock.commands.indicators": [
-    "twstock.db",
-    "twstock.terminal",
-    "twstock.utils"
-  ],
+  "twstock.commands.data_repair": ["twstock.db"],
+  "twstock.commands.dividend": ["twstock.official", "twstock.terminal"],
+  "twstock.commands.indicators": ["twstock.db", "twstock.terminal", "twstock.utils"],
   "twstock.commands.intraday": [
     "twstock.calculator",
     "twstock.commands.update",
     "twstock.db",
-    "twstock.fetcher",
+    "twstock.market_data.historical_fetcher",
     "twstock.terminal",
     "twstock.utils"
   ],
-  "twstock.commands.official": [
-    "twstock.official",
-    "twstock.terminal"
-  ],
-  "twstock.commands.strategy": [
-    "twstock.strategy.strategies"
-  ],
+  "twstock.commands.official": ["twstock.official", "twstock.terminal"],
+  "twstock.commands.strategy": ["twstock.strategy.strategies"],
   "twstock.commands.update": [
-    "twstock.fetcher",
+    "twstock.core.processor",
+    "twstock.market_data.historical_fetcher",
     "twstock.official",
-    "twstock.processor",
     "twstock.terminal"
   ],
   "twstock.conftest": [],
+  "twstock.core": [],
+  "twstock.core.processor": ["twstock.db"],
   "twstock.db": [],
-  "twstock.db_admin": [
-    "twstock.db"
-  ],
+  "twstock.db_admin": ["twstock.db"],
+  "twstock.db_maintenance": ["twstock.commands.data_repair", "twstock.db"],
   "twstock.display": [],
-  "twstock.fetcher": [
-    "twstock.api_config",
-    "twstock.db",
-    "twstock.utils"
-  ],
   "twstock.input_helper": [],
-  "twstock.longcat_vision": [
-    "twstock.api_config"
-  ],
+  "twstock.longcat_vision": ["twstock.utils"],
   "twstock.main": [
     "twstock.db",
     "twstock.db_admin",
@@ -58,60 +37,56 @@
     "twstock.tui.app",
     "twstock.utils"
   ],
-  "twstock.market_data": [],
-  "twstock.market_data.cache": [],
-  "twstock.market_data.fetcher": [
-    "twstock.retry",
-    "twstock.utils"
+  "twstock.market_data": ["twstock.market_data.cache", "twstock.market_data.fetcher"],
+  "twstock.market_data.cache": ["twstock.market_data.fetcher", "twstock.utils"],
+  "twstock.market_data.fetcher": ["twstock.retry", "twstock.utils"],
+  "twstock.market_data.historical_fetcher": ["twstock.db", "twstock.utils"],
+  "twstock.official": [
+    "twstock.official.dividend_crawler",
+    "twstock.official.dividend_daily",
+    "twstock.official.suspended",
+    "twstock.official.tdcc",
+    "twstock.official.trading_calendar",
+    "twstock.official.updater"
   ],
-  "twstock.official": [],
   "twstock.official.dividend_crawler": [
+    "twstock.core.processor",
+    "twstock.market_data.historical_fetcher",
+    "twstock.official.utils",
     "twstock.retry",
     "twstock.utils"
   ],
-  "twstock.official.dividend_daily": [],
-  "twstock.official.institutional": [
-    "twstock.retry"
-  ],
+  "twstock.official.dividend_daily": ["twstock.official.dividend_crawler"],
+  "twstock.official.institutional": ["twstock.official.utils", "twstock.retry"],
   "twstock.official.quotes": [
-    "twstock.processor",
+    "twstock.core.processor",
+    "twstock.official.utils",
     "twstock.retry",
     "twstock.utils"
   ],
   "twstock.official.suspended": [],
-  "twstock.official.tdcc": [
-    "twstock.utils"
-  ],
-  "twstock.official.trading_calendar": [
+  "twstock.official.tdcc": ["twstock.official.utils", "twstock.utils"],
+  "twstock.official.trading_calendar": ["twstock.db", "twstock.retry", "twstock.utils"],
+  "twstock.official.updater": [
+    "twstock.core.processor",
     "twstock.db",
-    "twstock.retry",
-    "twstock.utils"
+    "twstock.official.dividend_crawler",
+    "twstock.official.institutional",
+    "twstock.official.quotes",
+    "twstock.official.tdcc",
+    "twstock.official.trading_calendar"
   ],
-  "twstock.official.updater": [],
-  "twstock.official.utils": [
-    "twstock.utils"
-  ],
-  "twstock.output_writer": [
-    "twstock.terminal"
-  ],
-  "twstock.processor": [
-    "twstock.db"
-  ],
+  "twstock.official.utils": ["twstock.utils"],
   "twstock.retry": [],
   "twstock.strategy": [],
-  "twstock.strategy._utils": [
-    "twstock.input_helper"
-  ],
-  "twstock.strategy.base": [
-    "twstock.db",
-    "twstock.strategy._utils",
-    "twstock.utils"
-  ],
+  "twstock.strategy._utils": ["twstock.input_helper"],
+  "twstock.strategy.base": ["twstock.db", "twstock.strategy._utils", "twstock.utils"],
   "twstock.strategy.chips_strategy": [
     "twstock.db",
     "twstock.display",
     "twstock.input_helper",
     "twstock.strategy._utils",
+    "twstock.strategy.result_contract",
     "twstock.terminal"
   ],
   "twstock.strategy.composites": [
@@ -123,13 +98,8 @@
     "twstock.terminal",
     "twstock.utils"
   ],
-  "twstock.strategy.indicators": [
-    "twstock.calculator",
-    "twstock.db"
-  ],
-  "twstock.strategy.kronos_engine": [
-    "twstock.vendor.kronos"
-  ],
+  "twstock.strategy.indicators": ["twstock.calculator", "twstock.db"],
+  "twstock.strategy.kronos_engine": ["twstock.vendor.kronos"],
   "twstock.strategy.ma_strategy": [
     "twstock.db",
     "twstock.display",
@@ -137,15 +107,18 @@
     "twstock.strategy._utils",
     "twstock.strategy.base",
     "twstock.strategy.indicators",
+    "twstock.strategy.result_contract",
     "twstock.terminal"
   ],
   "twstock.strategy.patterns_strategy": [
     "twstock.db",
     "twstock.display",
     "twstock.input_helper",
+    "twstock.longcat_vision",
     "twstock.strategy._utils",
     "twstock.strategy.base",
     "twstock.strategy.kronos_engine",
+    "twstock.strategy.result_contract",
     "twstock.terminal"
   ],
   "twstock.strategy.prediction_strategy": [
@@ -158,30 +131,27 @@
     "twstock.strategy.patterns_strategy",
     "twstock.terminal"
   ],
+  "twstock.strategy.result_contract": [],
   "twstock.strategy.sr_analyzer": [
     "twstock.db",
     "twstock.display",
     "twstock.input_helper",
     "twstock.strategy._utils",
     "twstock.strategy.base",
+    "twstock.strategy.result_contract",
     "twstock.terminal"
   ],
-  "twstock.strategy.strategies": [
-    "twstock.input_helper",
-    "twstock.strategy",
-    "twstock.terminal"
-  ],
-  "twstock.strategy.templates.strategy_template": [
-    "twstock.db"
-  ],
+  "twstock.strategy.strategies": ["twstock.input_helper", "twstock.strategy", "twstock.terminal"],
+  "twstock.strategy.templates.strategy_template": ["twstock.db"],
   "twstock.strategy_runner": [
     "twstock.db",
-    "twstock.output_writer",
     "twstock.strategy._utils",
     "twstock.strategy.chips_strategy",
     "twstock.strategy.ma_strategy",
     "twstock.strategy.patterns_strategy",
-    "twstock.strategy.sr_analyzer"
+    "twstock.strategy.result_contract",
+    "twstock.strategy.sr_analyzer",
+    "twstock.ui.output_writer"
   ],
   "twstock.terminal": [],
   "twstock.tui": [],
@@ -189,6 +159,7 @@
     "twstock.input_helper",
     "twstock.strategy.composites",
     "twstock.strategy.strategies",
+    "twstock.terminal",
     "twstock.tui.menu",
     "twstock.tui.render",
     "twstock.tui.state_machine",
@@ -197,23 +168,18 @@
   "twstock.tui.input_provider": [],
   "twstock.tui.menu": [
     "twstock.db",
+    "twstock.db_maintenance",
     "twstock.input_helper",
     "twstock.official",
     "twstock.terminal"
   ],
-  "twstock.tui.render": [
-    "twstock.market_data.cache",
-    "twstock.terminal",
-    "twstock.utils"
-  ],
+  "twstock.tui.render": ["twstock.market_data.cache", "twstock.terminal", "twstock.utils"],
   "twstock.tui.state_machine": [],
-  "twstock.utils": [
-    "twstock.api_config",
-    "twstock.db",
-    "twstock.strategy._utils"
-  ],
+  "twstock.ui": [],
+  "twstock.ui.output_writer": ["twstock.strategy.result_contract", "twstock.terminal"],
+  "twstock.utils": ["twstock.db", "twstock.strategy._utils"],
   "twstock.vendor": [],
-  "twstock.vendor.kronos": [],
-  "twstock.vendor.kronos.kronos": [],
+  "twstock.vendor.kronos": ["twstock.vendor.kronos.kronos"],
+  "twstock.vendor.kronos.kronos": ["twstock.vendor.kronos.module"],
   "twstock.vendor.kronos.module": []
 }

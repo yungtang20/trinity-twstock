@@ -11,6 +11,8 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 # _strategy模組列表 — 每個策略對應的 (module_name, class_name)
 # 注意：這些類別可能不存在，測試會驗證它們是否存在且有 analyze()
 STRATEGY_CLASSES = [
@@ -23,7 +25,7 @@ STRATEGY_CLASSES = [
 
 def test_all_strategies_expose_analyze():
     """所有策略類別應有 callable 的 analyze() 方法。"""
-    src = Path("twstock/strategy_runner.py").read_text(encoding="utf-8")
+    src = (PROJECT_ROOT / "strategy_runner.py").read_text(encoding="utf-8")
 
     for module_name, class_name in STRATEGY_CLASSES:
         try:
@@ -44,7 +46,7 @@ def test_all_strategies_expose_analyze():
 
 def test_strategy_runner_adapters_exist():
     """strategy_runner.py 應為所有策略提供 adapter 或 direct reference。"""
-    src = Path("twstock/strategy_runner.py").read_text(encoding="utf-8")
+    src = (PROJECT_ROOT / "strategy_runner.py").read_text(encoding="utf-8")
 
     # 至少引用了這些策略模組的適配
     assert "chips_strategy" in src, "應引用 chips_strategy"

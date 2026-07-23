@@ -132,6 +132,43 @@ def fetcher(db, monkeypatch, raw_institutional_2days):
     return f
 
 
+@pytest.fixture
+def raw_institutional_wide_2days():
+    """
+    模擬新版 FinMind 寬表欄位（每日單列）。
+    """
+    return {
+        "msg": "success",
+        "status": 200,
+        "data": [
+            {
+                "date": "2024-01-02",
+                "stock_id": "2330",
+                "Foreign_Investor_Buy": 15000000,
+                "Foreign_Investor_Sell": 8000000,
+                "Investment_Trust_Buy": 2000000,
+                "Investment_Trust_Sell": 1000000,
+                "Foreign_Dealer_Self_Buy": 3000000,
+                "Foreign_Dealer_Self_Sell": 2500000,
+                "Dealer_Hedging_Buy": 500000,
+                "Dealer_Hedging_Sell": 300000,
+            },
+            {
+                "date": "2024-01-03",
+                "stock_id": "2330",
+                "Foreign_Investor_Buy": 12000000,
+                "Foreign_Investor_Sell": 9000000,
+                "Investment_Trust_Buy": 1500000,
+                "Investment_Trust_Sell": 800000,
+                "Foreign_Dealer_Self_Buy": 2000000,
+                "Foreign_Dealer_Self_Sell": 1800000,
+                "Dealer_Hedging_Buy": 300000,
+                "Dealer_Hedging_Sell": 200000,
+            },
+        ],
+    }
+
+
 class TestTC1Pivot:
     """TC1: 多筆 pivot 成每日一筆"""
 
@@ -281,3 +318,24 @@ class TestTC10Integration:
         assert row[1] == 3500000, f"dealer_buy 錯：{row[1]}"
         assert row[2] == 8700000, f"institutional_net 錯：{row[2]}"
         assert row[3] == "finmind", f"source 錯：{row[3]}"
+
+
+class TestTC11WidePayload:
+    """TC11: 寬表欄位可正常解析"""
+
+    def test_wide_output_row_count(self, db, raw_institutional_wide_2days, monkeypatch):
+        f = InstitutionalFetcher(api_token="fake-token", db=db)
+        monkeypatch.setattr(f, "fetch_daily", lambda *a, **k: raw_institutional_wide_2days)
+        rows = f._transform(raw_institutional_wide_2days)
+        assert len(rows) == 2, f"預期 2 列，實際 {len(rows)}"
+
+    def test_wide_values(self, db, raw_institutional_wide_2days, monkeypatch):
+        f = InstitutionalFetcher(api_token="fake-token", db=db)
+        monkeypatch.setattr(f, "fetch_daily", lambda *a, **k: raw_institutional_wide_2days)
+        rows = f._transform(raw_institutional_wide_2days)
+        first = next(r for r in rows if r["date"] == "2024-01-02")
+        assert first["foreign_buy"] == 15000000
+        assert first["foreign_sell"] == 8000000
+        assert first["trust_buy"] == 2000000
+        assert first["dealer_buy"] == 3500000
+        assert first["institutional_net"] == 8700000

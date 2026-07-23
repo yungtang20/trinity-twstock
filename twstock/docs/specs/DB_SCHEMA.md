@@ -1,252 +1,111 @@
-# DB_SCHEMA.md — TRINITY 資料庫規格 v3.0
+# TRINITY SQLite Schema v3
 
-> 資料庫檔案：taiwan_stock_unified.db（661MB，2,626,403 筆 stock_history）
-> 所有日期格式：YYYY-MM-DD
-> 原則：DB 存原始值，顯示層才轉換
+資料庫檔為 `taiwan_stock_unified.db`。日期一律使用 ISO `YYYY-MM-DD`。以下是 `db_admin.py` 建立及 migration 維護的正式契約；既有資料量、日期範圍不是 schema 的一部分。
 
----
+## 單位與資料來源
 
-## stock_meta — 股票基本資料（2,042 筆）
+- `stock_history.volume`：原始成交股數（股），不可在 ETL 除以 1,000。
+- `stock_history.amount`：原始成交金額（元），不可在 ETL 除以億元。
+- 法人買賣超、持股數量：原始股數（股）。
+- 比率欄位：百分比數值，例如 `12.5` 表示 12.5%。
+- 每筆 ingestion 必須保留 `source`；顯示層才可轉換成張、千張或億元。
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| stock_name | TEXT | NO | | 股票名稱 |
-| industry_category | TEXT | YES | | 產業類別 |
-| market | TEXT | NO | | TSE / OTC |
-| type | TEXT | NO | | COMMON / INDEX |
-| source | TEXT | YES | | 資料來源 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
+## Tables
 
----
+### `stock_meta`
 
-## stock_trading_calendar — 交易日曆（7,059 筆）
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `stock_id` | TEXT PK | 股票代號 |
+| `stock_name` | TEXT NOT NULL | 股票名稱 |
+| `industry_category` | TEXT | 產業分類 |
+| `market` | TEXT | TSE、OTC 或其他來源標示 |
+| `type` | TEXT | 證券類型，保留來源原值 |
+| `source` | TEXT | 資料來源 |
+| `updated_at` | TEXT | 更新時間 |
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| date | TEXT | NO | PK | YYYY-MM-DD |
-| is_open | INTEGER | NO | | 1=開市, 0=休市 |
-| description | TEXT | YES | | 來源說明 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
+### `stock_trading_calendar`
 
----
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `date` | TEXT PK | 日期 |
+| `is_open` | INTEGER NOT NULL | 1 為開市、0 為休市 |
+| `description` | TEXT | 來源說明或休市原因 |
+| `updated_at` | TEXT | 更新時間 |
 
-## stock_history — 日 K 線（2,626,403 筆，核心表）
+### `stock_history`
 
-日期範圍：2018-05-21 ~ 2026-06-26，涵蓋 6,445 檔股票
+主鍵為 `(stock_id, date)`。
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | YYYY-MM-DD |
-| open | REAL | NO | | 開盤價 |
-| high | REAL | NO | | 最高價 |
-| low | REAL | NO | | 最低價 |
-| close | REAL | NO | | 收盤價 |
-| volume | INTEGER | NO | | 成交量（股，非張） |
-| amount | INTEGER | NO | | 成交金額（元，非千萬元） |
-| trade_count | INTEGER | YES | | 成交筆數 |
-| spread | REAL | YES | | 差價 |
-| source | TEXT | YES | | 資料來源 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `stock_id` | TEXT NOT NULL | 股票代號 |
+| `date` | TEXT NOT NULL | 日 K 日期 |
+| `open`, `high`, `low`, `close` | REAL NOT NULL | 原始價格（元） |
+| `volume` | INTEGER NOT NULL | 原始成交量（股） |
+| `amount` | INTEGER NOT NULL | 原始成交額（元） |
+| `trade_count` | INTEGER | 成交筆數 |
+| `spread` | REAL | 漲跌價差 |
+| `source` | TEXT | 資料來源 |
+| `updated_at` | TEXT | 更新時間 |
 
-**去重**：INSERT OR REPLACE，唯一鍵 (stock_id, date)
+### `dividend_events`
 
-**索引**：idx_stock_history_stock_date ON (stock_id, date)
+主鍵為 `(stock_id, date)`；包含 `before_price`、`after_price`、`reference_price`、`cash_dividend`、`stock_dividend`、`source`、`updated_at`。
 
-**實際樣本**：
-```
-('9962', '2026-06-26', 9.67, 9.75, 9.5, 9.68, 108, 103446, None, None, 1.0, 'official', '2026-06-26 11:10:18')
-('9960', '2026-06-26', 32.0, 32.4, 31.9, 32.0, 73, 233630, None, None, 1.0, 'official', '2026-06-26 11:10:18')
-```
-注意 volume=108 是股數，amount=103446 是金額（元）
+### `institutional_data`
 
----
+主鍵為 `(stock_id, date)`。
 
-## dividend_events — 除權息事件（10,538 筆）
+| 欄位群組 | 欄位 |
+|---|---|
+| 識別 | `stock_id`、`date`、`source`、`updated_at` |
+| 淨買賣超 | `foreign_net`、`trust_net`、`dealer_net`、`institutional_net` |
+| 買賣明細 | `foreign_buy`、`foreign_sell`、`trust_buy`、`trust_sell`、`dealer_buy`、`dealer_sell` |
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | 除權息日期 |
-| before_price | REAL | YES | | 前收盤價 |
-| after_price | REAL | YES | | 後收盤價 |
-| reference_price | REAL | YES | | 參考價 |
-| cash_dividend | REAL | YES | DEFAULT 0 | 現金股利（元） |
-| stock_dividend | REAL | YES | DEFAULT 0 | 股票股利 |
-| source | TEXT | YES | | 資料來源 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
+### `shareholding_unified`
 
----
+主鍵為 `(stock_id, date, source)`。`source` 是主鍵的一部分，TDCC 與外資持股資料可以在同一天並存。
 
-## institutional_data — 三大法人（989,562 筆）
+| 欄位群組 | 欄位 |
+|---|---|
+| 識別 | `stock_id`、`date`、`source`、`updated_at` |
+| TDCC／集中度 | `total_shares`、`whale_ratio`、`retail_ratio`、`total_people`、`whale_shares`、`whale_people` |
+| 外資持股 | `foreign_shares`、`foreign_ratio` |
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | 日期 |
-| foreign_net | INTEGER | YES | DEFAULT 0 | 外資買賣超淨額（股） |
-| trust_net | INTEGER | YES | DEFAULT 0 | 投信買賣超淨額（股） |
-| dealer_net | INTEGER | YES | DEFAULT 0 | 自營商買賣超淨額（股） |
-| institutional_net | INTEGER | YES | DEFAULT 0 | 三大法人合計（股） |
-| source | TEXT | YES | | 資料來源 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
-| foreign_buy | INTEGER | YES | DEFAULT 0 | 外資買進（股） |
-| foreign_sell | INTEGER | YES | DEFAULT 0 | 外資賣出（股） |
-| trust_buy | INTEGER | YES | DEFAULT 0 | 投信買進（股） |
-| trust_sell | INTEGER | YES | DEFAULT 0 | 投信賣出（股） |
-| dealer_buy | INTEGER | YES | DEFAULT 0 | 自營商買進（股） |
-| dealer_sell | INTEGER | YES | DEFAULT 0 | 自營商賣出（股） |
+### `per_data`
 
----
+主鍵為 `(stock_id, date)`；包含 `per`、`pbr`、`pe_ratio`、`pb_ratio`、`dividend_yield`、`source`、`updated_at`。
 
-## shareholding_unified — 集保+外資合併表（30,923 筆）
+### `stock_indicators`
 
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | 日期 |
-| source | TEXT | NO | PK | 'tdcc' 或 'twse' |
-| total_shares | INTEGER | YES | | 總股數 |
-| whale_ratio | REAL | YES | | 大股東持股比例（%） |
-| retail_ratio | REAL | YES | | 散戶持股比例（%） |
-| foreign_shares | INTEGER | YES | | 外資持股數 |
-| foreign_ratio | REAL | YES | | 外資持股比例（%） |
-| total_people | INTEGER | YES | | 總持有人數 |
-| whale_shares | INTEGER | YES | | 大股東持股數 |
-| whale_people | INTEGER | YES | | 大股東持有人數 |
-| updated_at | TEXT | YES | | datetime('now','localtime') |
+主鍵為 `(stock_id, date)`。保存 `ma5`、`ma20`、`ma25`、`ma60`、`ma200`、三種成交量均線、三種乖離率、`atr14`、`vwap` 與 `updated_at`。它是衍生資料，日線更正後必須重算。
 
-**主鍵**：(stock_id, date, source) 三欄組合鍵
+### `audit_log`
 
----
+包含自增 `log_id`、`stock_id`、`action`、`status`、`detail`、`timestamp`。資料修復與重要批次作業應留下可追溯紀錄。
 
-## tdcc_shareholding — VIEW（不是 TABLE）
+## Views
 
-```
-CREATE VIEW tdcc_shareholding AS
-SELECT stock_id, date, total_shares, whale_ratio, retail_ratio,
-       source, updated_at
-FROM shareholding_unified
-WHERE source = 'tdcc';
-```
+Each object below is a SQLite `VIEW` and is read-only from application code.
 
-不能 INSERT INTO VIEW，寫入請用 INSERT INTO shareholding_unified 並設 source='tdcc'
+所有 views 都是 read-only projection：
 
----
+| View | 用途 |
+|---|---|
+| `tdcc_shareholding` | `shareholding_unified` 中 `source = 'tdcc'` 的 TDCC projection。 |
+| `shareholding_data` | 舊讀取端相容性 projection，提供有外資持股值的 `stock_id`、`date`、`foreign_shares`、`foreign_ratio`。新程式不得寫入此 view。 |
+| `klines` | 日線 OHLCV 的型別一致 projection。 |
+| `klines_indicators` | `klines` 左連接 `stock_indicators`。 |
+| `institutional_daily` | `institutional_data` 的相容性 projection。 |
 
-## Views（向後相容層）
+## Indexes
 
-### klines — 日 K（原始價，無復權）
+- `idx_stock_history_stock_date (stock_id, date)`
+- `idx_stock_history_date (date)`
+- `idx_dividend_events_stock_date (stock_id, date)`
+- `idx_institutional_stock_date (stock_id, date)`
+- `idx_shareholding_unified_stock_date (stock_id, date)`
+- `idx_stock_indicators_stock_date (stock_id, date)`
 
-```
-CREATE VIEW klines AS
-SELECT
-    stock_id, date,
-    open, high, low, close,
-    CAST(volume AS REAL) AS volume,
-    CAST(amount AS REAL) AS amount
-FROM stock_history
-```
-
-### klines_indicators — 日 K + 技術指標
-
-```
-CREATE VIEW klines_indicators AS
-SELECT
-    k.stock_id, k.date,
-    k.open, k.high, k.low, k.close, k.volume, k.amount,
-    i.ma5, i.ma20, i.ma25, i.ma60, i.ma200,
-    i.vol_ma5, i.vol_ma20, i.vol_ma60,
-    i.bias_ma25, i.bias_ma60, i.bias_ma200,
-    i.atr14, i.vwap
-FROM klines k
-LEFT JOIN stock_indicators i
-    ON k.stock_id = i.stock_id AND k.date = i.date
-```
-
-### institutional_daily — 向後相容（同 institutional_data）
-
-```
-CREATE VIEW institutional_daily AS
-SELECT * FROM institutional_data
-```
-
----
-
-## per_data — 本益比（1,545 筆）
-
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | 日期 |
-| per | REAL | YES | | 本益比 |
-| pbr | REAL | YES | | 股價淨值比 |
-| pe_ratio | REAL | YES | | 本益比 |
-| pb_ratio | REAL | YES | | 股價淨值比 |
-| dividend_yield | REAL | YES | | 殖利率（%） |
-| source | TEXT | YES | | 資料來源 |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
-
----
-
-## audit_log — 稽核日誌（3,323 筆）
-
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| log_id | INTEGER | NO | PK AI | 日誌 ID |
-| stock_id | TEXT | YES | | 股票代號 |
-| action | TEXT | YES | | 動作 |
-| status | TEXT | YES | | 狀態 |
-| detail | TEXT | YES | | 詳細資訊 |
-| timestamp | TEXT | YES | | datetime('now','localtime') |
-
----
-
-## stock_indicators — 技術指標（預計算快取）
-
-| 欄位 | 型別 | Null | Key | 說明 |
-|------|------|------|-----|------|
-| stock_id | TEXT | NO | PK | 股票代號 |
-| date | TEXT | NO | PK | 日期 |
-| ma5 | REAL | YES | | 5 日均線 |
-| ma20 | REAL | YES | | 20 日均線 |
-| ma25 | REAL | YES | | 25 日均線 |
-| ma60 | REAL | YES | | 60 日均線 |
-| ma200 | REAL | YES | | 200 日均線 |
-| vol_ma5 | REAL | YES | | 5 日量均 |
-| vol_ma20 | REAL | YES | | 20 日量均 |
-| vol_ma60 | REAL | YES | | 60 日量均 |
-| bias_ma25 | REAL | YES | | 乖離率 (close-ma25)/ma25*100 |
-| bias_ma60 | REAL | YES | | 乖離率 (close-ma60)/ma60*100 |
-| bias_ma200 | REAL | YES | | 乖離率 (close-ma200)/ma200*100 |
-| atr14 | REAL | YES | | 14 日 ATR（Wilder's EMA）|
-| vwap | REAL | YES | | 日 VWAP = amount / volume |
-| updated_at | DATETIME | YES | | CURRENT_TIMESTAMP |
-
-**主鍵**：(stock_id, date)
-
-**寫入方式**：UPSERT（INSERT ... ON CONFLICT DO UPDATE SET），各計算器只更新自己負責的欄位，不覆蓋其他欄位
-
-**依賴**：stock_history（需先有日 K 線資料才能計算）
-
----
-
-## FinMind 欄位對應
-
-| stock_history 欄位 | FinMind 欄位 | 換算 |
-|--------------------|--------------|------|
-| stock_id | stock_id | 直接 |
-| date | date | 直接 |
-| open | open | 直接 |
-| high | max | 欄位名不同 |
-| low | min | 欄位名不同 |
-| close | close | 直接 |
-| volume | Trading_Volume | 直接存（股） |
-| amount | Trading_money | 直接存（元） |
-| trade_count | Trading_turnover | 直接 |
-| spread | spread | 直接 |
-| source | — | 寫死 'finmind' |
-
-> FinMind Trading_Volume 單位是股，跟 DB 一致，不做換算
-> FinMind Trading_money 單位是元，跟 DB 一致，不做換算
+`db_admin.init_db()` 建立新資料庫；`migrate_db()` 只做可重複、向後相容的欄位、索引與 view 補齊，不重寫既有市場資料。

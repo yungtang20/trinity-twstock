@@ -1,19 +1,17 @@
-def test_no_hardcoded_windows_path():
-    import os
+from pathlib import Path
 
-    fpath = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "backfill_indicators.py")
-    with open(fpath, "r", encoding="utf-8") as f:
-        content = f.read()
+
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "backfill_indicators.py"
+
+
+def test_no_hardcoded_windows_path():
+    content = SCRIPT_PATH.read_text(encoding="utf-8")
     assert "D:\\twse" not in content
     assert "D:/twse" not in content
 
 
 def test_no_undefined_elapsed1():
-    import os
-
-    fpath = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "backfill_indicators.py")
-    with open(fpath, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+    lines = SCRIPT_PATH.read_text(encoding="utf-8").splitlines()
     for i, line in enumerate(lines):
         if "total_elapsed" in line and "elapsed1" in line:
             defined = any("elapsed1 =" in src_line for src_line in lines[:i])
@@ -21,10 +19,6 @@ def test_no_undefined_elapsed1():
 
 
 def test_backfill_uses_get_connection():
-    import os
-
-    fpath = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "backfill_indicators.py")
-    with open(fpath, "r", encoding="utf-8") as f:
-        content = f.read()
+    content = SCRIPT_PATH.read_text(encoding="utf-8")
     assert "get_connection" in content
     assert "sqlite3.connect(" not in content

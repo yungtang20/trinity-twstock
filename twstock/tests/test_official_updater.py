@@ -11,6 +11,31 @@ import pandas as pd
 from twstock.official import updater
 
 
+def test_institutional_completeness_requires_both_markets_and_mapped_activity():
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.executescript("""
+        CREATE TABLE stock_meta (stock_id TEXT PRIMARY KEY, market TEXT);
+        CREATE TABLE institutional_data (
+            stock_id TEXT, date TEXT, trust_buy INTEGER, trust_sell INTEGER,
+            dealer_buy INTEGER, dealer_sell INTEGER
+        );
+        INSERT INTO stock_meta VALUES ('2330', 'TSE'), ('6488', 'OTC');
+        INSERT INTO institutional_data VALUES
+            ('2330', '2026-07-21', 0, 0, 100, 20),
+            ('6488', '2026-07-21', 50, 10, 0, 0);
+    """)
+    try:
+        assert updater._is_institutional_complete(conn, "2026-07-21")
+        conn.execute("UPDATE institutional_data SET trust_buy=0, trust_sell=0 WHERE stock_id='6488'")
+        assert not updater._is_institutional_complete(conn, "2026-07-21")
+        conn.execute("DELETE FROM institutional_data WHERE stock_id='6488'")
+        assert not updater._is_institutional_complete(conn, "2026-07-21")
+    finally:
+        conn.close()
+
+
 class TestUpsertDataframe:
     """upsert_dataframe tests."""
 
@@ -99,15 +124,22 @@ class TestUpsertDataframe:
         df = pd.DataFrame(
             {
                 "stock_id": ["2330"],
-                "date": ["2026-07-02"],
+                "date_int": [20260702],
                 "total_shares": [1000000],
                 "whale_ratio": [0.8],
                 "total_people": [50000],
                 "whale_shares": [800000],
             }
         )
-        updater.upsert_dataframe("shareholding_unified", df)
-        mock_proc.return_value.upsert_shareholding.assert_called_once()
+        # Keep this routing test independent of the local production DB's
+        # stock_meta cache.
+        with patch.object(updater, "_filter_valid_stocks", side_effect=lambda frame: frame):
+            updater.upsert_dataframe("shareholding_unified", df)
+        mock_proc.return_value.upsert_tdcc.assert_called_once()
+        mock_proc.return_value.upsert_shareholding.assert_not_called()
+        called_df = mock_proc.return_value.upsert_tdcc.call_args[0][0]
+        assert called_df["date"].iloc[0] == "2026-07-02"
+        assert called_df["source"].iloc[0] == "tdcc"
 
     def test_unknown_table(self):
         df = pd.DataFrame({"test": [1]})
@@ -144,9 +176,7 @@ class TestUpsertDataframeEdgeCases:
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
     @patch("twstock.official.updater.DataProcessor")
     def test_date_int_becomes_date(self, mock_proc):
-        df = pd.DataFrame(
-            {"stock_id": ["2330"], "date_int": [20260702], "open": [100], "close": [102]}
-        )
+        df = pd.DataFrame({"stock_id": ["2330"], "date_int": [20260702], "open": [100], "close": [102]})
         updater.upsert_dataframe("stock_history", df)
         called_df = mock_proc.return_value.upsert_history.call_args[0][0]
         assert "date" in called_df.columns
@@ -177,9 +207,7 @@ class TestUpsertDataframeEdgeCases:
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", False)
     def test_unavailable_returns_none(self):
-        df = pd.DataFrame(
-            {"stock_id": ["2330"], "date": ["2026-07-02"], "open": [100], "close": [102]}
-        )
+        df = pd.DataFrame({"stock_id": ["2330"], "date": ["2026-07-02"], "open": [100], "close": [102]})
         assert updater.upsert_dataframe("stock_history", df) is None
 
 
@@ -219,44 +247,16 @@ class TestUpdateDividendEvents:
 
 class TestAutoUpdateTdcc:
     @patch("twstock.official.updater.update_tdcc_weekly")
-    @patch("twstock.official.updater.get_connection")
-    def test_stale(self, mock_conn, mock_weekly):
-        cursor = MagicMock()
-        cursor.fetchone.return_value = ["2026-06-01"]
-        conn = MagicMock()
-        conn.cursor.return_value = cursor
-        mock_conn.return_value = conn
+    def test_always_checks_official_snapshot(self, mock_weekly):
+        """不使用可被未來值污染的 MAX(date) 略過檢查。"""
         updater._auto_update_tdcc()
         mock_weekly.assert_called_once()
 
     @patch("twstock.official.updater.update_tdcc_weekly")
-    @patch("twstock.official.updater.get_connection")
-    def test_fresh(self, mock_conn, mock_weekly):
-        cursor = MagicMock()
-        cursor.fetchone.return_value = ["2099-12-31"]
-        conn = MagicMock()
-        conn.cursor.return_value = cursor
-        mock_conn.return_value = conn
-        updater._auto_update_tdcc()
-        mock_weekly.assert_not_called()
-
-    @patch("twstock.official.updater.update_tdcc_weekly")
-    @patch("twstock.official.updater.get_connection")
-    def test_none(self, mock_conn, mock_weekly):
-        cursor = MagicMock()
-        cursor.fetchone.return_value = [None]
-        conn = MagicMock()
-        conn.cursor.return_value = cursor
-        mock_conn.return_value = conn
+    def test_exception(self, mock_weekly):
+        mock_weekly.side_effect = RuntimeError("boom")
         updater._auto_update_tdcc()
         mock_weekly.assert_called_once()
-
-    @patch("twstock.official.updater.update_tdcc_weekly")
-    @patch("twstock.official.updater.get_connection")
-    def test_exception(self, mock_conn, mock_weekly):
-        mock_conn.side_effect = RuntimeError("boom")
-        updater._auto_update_tdcc()
-        mock_weekly.assert_not_called()
 
 
 class TestUpdateTdcc:
@@ -284,7 +284,7 @@ class TestUpdateTdcc:
         fake = pd.DataFrame({"stock_id": ["2330"], "date": ["2026-07-02"]})
         mock_fetch.return_value = fake
         updater.update_tdcc_historical(weeks=4)
-        mock_fetch.assert_called_once_with(weeks=4)
+        mock_fetch.assert_called_once_with(weeks=1)
         mock_upsert.assert_called_once_with("shareholding_unified", fake)
 
     @patch("twstock.official.updater.upsert_dataframe")
@@ -292,7 +292,7 @@ class TestUpdateTdcc:
     def test_empty(self, mock_fetch, mock_upsert):
         mock_fetch.return_value = pd.DataFrame()
         updater.update_tdcc_historical(weeks=2)
-        mock_fetch.assert_called_once_with(weeks=2)
+        mock_fetch.assert_called_once_with(weeks=1)
         mock_upsert.assert_not_called()
 
 

@@ -149,3 +149,27 @@ def test_indicators_dependency_on_stock_history(db_conn, patch_db_path):
     calc = MACalculator(db=db_conn)
     result = calc.calculate("2330")
     assert result == 0, f"沒資料應回傳 0，實際 {result}"
+
+
+def test_short_history_with_null_ma200_is_not_refreshed_forever(db_conn, patch_db_path):
+    """A valid latest indicator row may have NULL ma200 when history is short."""
+    from twstock.db_admin import init_db
+    from twstock.strategy.indicators import ensure_indicators_all
+
+    init_db()
+    for i in range(1, 31):
+        db_conn.execute(
+            "INSERT INTO stock_history "
+            "(stock_id, date, open, high, low, close, volume, amount) "
+            "VALUES ('2330', ?, 100, 105, 95, 102, 1000000, 100000000)",
+            (f"2026-06-{i:02d}",),
+        )
+    db_conn.commit()
+
+    assert ensure_indicators_all(db_conn) == 1
+    latest = db_conn.execute(
+        "SELECT ma5, ma200 FROM stock_indicators "
+        "WHERE stock_id='2330' AND date='2026-06-30'"
+    ).fetchone()
+    assert latest is not None and latest[0] is not None and latest[1] is None
+    assert ensure_indicators_all(db_conn) == 0

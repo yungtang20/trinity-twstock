@@ -81,6 +81,11 @@ class TestGetYahooMarketVolumes:
 class TestGetRealtimeMisData:
     """get_realtime_mis_data 測試。"""
 
+    @pytest.fixture(autouse=True)
+    def _market_is_open(self):
+        with patch("twstock.market_data.fetcher._is_regular_market_open", return_value=True):
+            yield
+
     def test_returns_dict(self):
         """應回傳 dict（safe_http_get 在函數內部导入，改 mock session.get）。"""
         mock_session = MagicMock()
@@ -130,10 +135,28 @@ class TestGetRealtimeMisData:
             "queryTime": {"sysTime": "10:00:00", "sysDate": "2026/07/03"},
         }
 
-        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=cached_payload):
+        with (
+            patch("twstock.market_data.fetcher._is_regular_market_open", return_value=False),
+            patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=cached_payload),
+        ):
             result = fetcher.get_realtime_mis_data()
         assert isinstance(result, dict)
         assert result.get("queryTime") is not None
+
+    @patch("twstock.market_data.fetcher._fetch_mi_index_cached")
+    @patch("twstock.market_data.fetcher._fetch_twse_mis")
+    @patch("twstock.market_data.fetcher._is_regular_market_open", return_value=True)
+    @patch("twstock.market_data.fetcher.get_http_session")
+    def test_market_hours_prioritize_official_mis(
+        self, mock_session, _mock_open, mock_mis, mock_mi_index
+    ):
+        """正常交易時段應優先採用 TWSE MIS 即時資料。"""
+        mock_session.return_value = MagicMock()
+        payload = {"msgArray": [{"c": "t00", "z": "22000", "y": "21900"}]}
+        mock_mis.return_value = payload
+
+        assert fetcher.get_realtime_mis_data() == payload
+        mock_mi_index.assert_not_called()
 
 
 # ── fetch_market_indices ──────────────────────────────────
@@ -185,13 +208,9 @@ class TestFetchMarketIndices:
 # ════════════════════════════════════════════════════════════════
 # NEW TESTS — append-only, patch correct targets
 #   - session:  patch("twstock.market_data.fetcher.get_http_session")
-#   - safe_get: patch("utils.safe_http_get")
-#               because fetcher.py uses `from utils import safe_http_get`
-#               inside each function, and sys.modules has BOTH
-#               "utils" and "twstock.utils" pointing to the same file
-#               but as DIFFERENT module objects (due to _PKG_DIR insert).
-#               fetcher's `from utils import` resolves to sys.modules["utils"],
-#               so we patch "utils.safe_http_get" (not twstock.utils).
+#   - safe_get: patch("twstock.utils.safe_http_get")
+#               fetcher only imports through the canonical package name, so
+#               tests and production code share one module identity.
 # ════════════════════════════════════════════════════════════════
 from types import SimpleNamespace
 
@@ -214,6 +233,7 @@ class TestGetYahooMarketVolumesBranches:
         mock_sess.return_value = MagicMock()
         mock_get.return_value = None
         assert fetcher.get_yahoo_market_volumes() == ("無資料", "無資料")
+        assert mock_get.call_args.kwargs["session"] is mock_sess.return_value
 
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
@@ -273,6 +293,11 @@ class TestGetYahooMarketVolumesBranches:
 class TestGetRealtimeMisDataBranches:
     """Branch coverage for get_realtime_mis_data."""
 
+    @pytest.fixture(autouse=True)
+    def _market_is_open(self):
+        with patch("twstock.market_data.fetcher._is_regular_market_open", return_value=True):
+            yield
+
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_session_none_returns_empty(self, mock_sess):
         mock_sess.return_value = None
@@ -280,56 +305,34 @@ class TestGetRealtimeMisDataBranches:
 
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
-    def test_warmup_raises_swallowed(self, mock_sess, mock_get):
-        """Warmup safe_http_get is allowed to raise; main call returns None."""
-
-        def side(url, *a, **k):
-            if "index.jsp" in url:
-                raise RuntimeError("warmup down")
-            return None
-
+    def test_request_raises_swallowed(self, mock_sess, mock_get):
+        """MIS request failure is swallowed and returns an empty mapping."""
         mock_sess.return_value = MagicMock()
-        mock_get.side_effect = side
+        mock_get.side_effect = RuntimeError("MIS down")
         assert fetcher.get_realtime_mis_data() == {}
 
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_main_returns_none(self, mock_sess, mock_get):
-        def side(url, *a, **k):
-            if "index.jsp" in url:
-                return SimpleNamespace()
-            return None
-
         mock_sess.return_value = MagicMock()
-        mock_get.side_effect = side
+        mock_get.return_value = None
         assert fetcher.get_realtime_mis_data() == {}
 
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_json_value_error_returns_empty(self, mock_sess, mock_get):
-        def side(url, *a, **k):
-            if "index.jsp" in url:
-                return SimpleNamespace()
-            bad = MagicMock()
-            bad.json.side_effect = ValueError("bad json")
-            return bad
-
+        bad = MagicMock()
+        bad.json.side_effect = ValueError("bad json")
         mock_sess.return_value = MagicMock()
-        mock_get.side_effect = side
+        mock_get.return_value = bad
         assert fetcher.get_realtime_mis_data() == {}
 
     @patch("twstock.utils.safe_http_get")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_success_returns_dict(self, mock_sess, mock_get):
         payload = {"msgArray": [{"c": "t00", "z": "22000"}]}
-
-        def side(url, *a, **k):
-            if "index.jsp" in url:
-                return SimpleNamespace()
-            return SimpleNamespace(json=lambda: payload)
-
         mock_sess.return_value = MagicMock()
-        mock_get.side_effect = side
+        mock_get.return_value = SimpleNamespace(json=lambda: payload)
         assert fetcher.get_realtime_mis_data() == payload
 
     @patch("twstock.utils.safe_http_get")
@@ -338,8 +341,7 @@ class TestGetRealtimeMisDataBranches:
         """symbols passed → extra ex_ch args added to URL."""
 
         def side(url, *a, **k):
-            if "index.jsp" in url:
-                return SimpleNamespace()
+            assert url.startswith("https://mis.twse.com.tw/")
             assert "tse_2330.tw" in url
             assert "otc_2330.tw" in url
             return SimpleNamespace(json=lambda: {"msgArray": []})
@@ -355,6 +357,36 @@ class TestGetRealtimeMisDataBranches:
 
 class TestFetchMarketIndicesBranches:
     """Branch coverage for fetch_market_indices orchestrator."""
+
+    @patch("twstock.market_data.fetcher._get_tpex_highlight")
+    @patch("twstock.market_data.fetcher._fetch_mi_index_cached")
+    @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
+    @patch("twstock.market_data.fetcher.get_realtime_mis_data")
+    @patch("twstock.market_data.fetcher.is_market_open", return_value=True)
+    def test_open_market_returns_only_live_indices(
+        self, _mock_open, mock_mis, mock_yahoo, mock_mi_index, mock_tpex
+    ):
+        """盤中不可呼叫或混入 Yahoo／前一交易日官方盤後統計。"""
+        mock_mis.return_value = {
+            "msgArray": [
+                {"c": "t00", "z": "44919.50", "y": "44232.87"},
+                {"c": "o00", "z": "397.04", "y": "381.96"},
+            ],
+            "queryTime": {"sysDate": "20260722", "sysTime": "11:18:32"},
+        }
+
+        result = fetcher.fetch_market_indices()
+
+        assert result is not None
+        assert result["TAIEX"]["price"] == 44919.5
+        assert result["OTC"]["price"] == 397.04
+        for market in ("TAIEX", "OTC"):
+            assert result[market]["amount"] is None
+            assert result[market]["up"] is None
+            assert result[market]["down"] is None
+        mock_yahoo.assert_not_called()
+        mock_mi_index.assert_not_called()
+        mock_tpex.assert_not_called()
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -377,7 +409,11 @@ class TestFetchMarketIndicesBranches:
                 {"c": "t00", "z": "0", "y": "21900"},
             ],
         }
-        assert fetcher.fetch_market_indices() is None
+        result = fetcher.fetch_market_indices()
+        assert result is not None
+        assert result["TAIEX"]["price"] == 21900
+        assert result["TAIEX"]["pct"] == 0
+        mock_yahoo.assert_not_called()
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -391,7 +427,11 @@ class TestFetchMarketIndicesBranches:
                 {"c": "o00", "z": "230", "y": "0"},
             ],
         }
-        assert fetcher.fetch_market_indices() is None
+        result = fetcher.fetch_market_indices()
+        assert result is not None
+        assert result["OTC"]["price"] == 230
+        assert result["OTC"]["pct"] == 0
+        mock_yahoo.assert_not_called()
 
     @patch("twstock.market_data.fetcher.retry_get")
     @patch("twstock.utils.safe_http_get")
@@ -470,7 +510,13 @@ class TestFetchMarketIndicesBranches:
         mock_get.side_effect = side
         mock_retry.side_effect = side
 
-        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value=mi_index_payload):
+        with (
+            patch("twstock.market_data.fetcher.is_market_open", return_value=False),
+            patch(
+                "twstock.market_data.fetcher._fetch_mi_index_cached",
+                return_value=mi_index_payload,
+            ),
+        ):
             r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
         # TAIEX breadth (uses 股票 column, excludes ETF/warrants/etc.)
@@ -498,7 +544,7 @@ class TestFetchMarketIndicesBranches:
     def test_tpex_data_with_digit_amount(
         self, mock_mis, mock_yahoo, mock_sess, mock_get, mock_retry
     ):
-        """TPEx row[3] is a digit string → OTC amount = safe_float / 100."""
+        """TPEx ``佰萬元`` 應除以 100 才是 UI 顯示的億元。"""
         mock_sess.return_value = MagicMock()
         mock_yahoo.return_value = ("無資料", "無資料")
         mock_mis.return_value = {
@@ -515,7 +561,7 @@ class TestFetchMarketIndicesBranches:
                         "stat": "ok",
                         "tables": [
                             {
-                                "fields": ["a", "b", "c", "d"],
+                                "fields": ["日期", "時間", "成交張數", "本日總成交值(佰萬元)"],
                                 "data": [["x", "y", "z", "5000"]],
                             }
                         ],
@@ -526,7 +572,13 @@ class TestFetchMarketIndicesBranches:
         mock_get.side_effect = side
         mock_retry.side_effect = side
 
-        with patch("twstock.market_data.fetcher._fetch_mi_index_cached", return_value={"tables": []}):
+        with (
+            patch("twstock.market_data.fetcher.is_market_open", return_value=False),
+            patch(
+                "twstock.market_data.fetcher._fetch_mi_index_cached",
+                return_value={"tables": []},
+            ),
+        ):
             r = fetcher.fetch_market_indices()
         assert isinstance(r, dict)
         assert r["OTC"]["amount"] == 50.0
@@ -577,8 +629,10 @@ class TestFetchMarketIndicesBranches:
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
     @patch("twstock.market_data.fetcher.get_http_session")
-    def test_yahoo_volumes_update_amount(self, mock_sess, mock_mis, mock_yahoo):
-        """Yahoo volumes != '無資料' → amount is set (safely parsed)."""
+    def test_yahoo_volumes_are_not_mixed_into_official_live_panel(
+        self, mock_sess, mock_mis, mock_yahoo
+    ):
+        """盤中即使 Yahoo 有值，也不可混入官方即時面板。"""
         mock_sess.return_value = None
         mock_mis.return_value = {
             "msgArray": [
@@ -587,7 +641,11 @@ class TestFetchMarketIndicesBranches:
             ],
         }
         mock_yahoo.return_value = ("1,234.5", "56.7")
-        assert fetcher.fetch_market_indices() is None
+        result = fetcher.fetch_market_indices()
+        assert result is not None
+        assert result["TAIEX"]["amount"] is None
+        assert result["OTC"]["amount"] is None
+        mock_yahoo.assert_not_called()
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
@@ -615,7 +673,7 @@ class TestFetchMarketIndicesBranches:
         mock_yahoo.return_value = ("無資料", "無資料")
         with (
             patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),
-            patch("utils.safe_http_get", return_value=None),
+            patch("twstock.utils.safe_http_get", return_value=None),
         ):
             r = fetcher.fetch_market_indices()
             assert r is None or isinstance(r, dict)
@@ -633,7 +691,7 @@ class TestFetchMarketIndicesBranches:
         mock_yahoo.side_effect = RuntimeError("yahoo boom")
         with (
             patch("twstock.market_data.fetcher.get_http_session", return_value=MagicMock()),
-            patch("utils.safe_http_get", return_value=None),
+            patch("twstock.utils.safe_http_get", return_value=None),
         ):
             r = fetcher.fetch_market_indices()
             assert r is None or isinstance(r, dict)

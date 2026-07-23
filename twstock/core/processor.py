@@ -102,7 +102,30 @@ class DataProcessor:
         df_write = df_write[cols].copy()
         if "date" in df_write.columns:
             df_write["date"] = pd.to_datetime(df_write["date"]).dt.strftime("%Y-%m-%d")
-        df_write = df_write.dropna(subset=["close"])
+        price_columns = ["open", "high", "low", "close"]
+        if all(column in df_write.columns for column in price_columns):
+            for column in price_columns:
+                df_write[column] = pd.to_numeric(df_write[column], errors="coerce")
+            valid_ohlc = (
+                (df_write["open"] > 0)
+                & (df_write["high"] > 0)
+                & (df_write["low"] > 0)
+                & (df_write["close"] > 0)
+                & (df_write["high"] >= df_write["open"])
+                & (df_write["high"] >= df_write["close"])
+                & (df_write["high"] >= df_write["low"])
+                & (df_write["low"] <= df_write["open"])
+                & (df_write["low"] <= df_write["close"])
+            )
+            invalid_count = int((~valid_ohlc).sum())
+            if invalid_count:
+                logger.warning("upsert_history rejected %d invalid/placeholder OHLC rows", invalid_count)
+            df_write = df_write.loc[valid_ohlc].copy()
+        else:
+            df_write = df_write.dropna(subset=["close"])
+
+        if df_write.empty:
+            return 0
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 
@@ -191,9 +214,7 @@ class DataProcessor:
         insert_cols = [c for c in all_expected if c in cols]
         placeholders = ",".join(["?"] * len(insert_cols))
         col_sql = ",".join(insert_cols)
-        updates = ", ".join(
-            f"{c} = excluded.{c}" for c in insert_cols if c not in ("stock_id", "date")
-        )
+        updates = ", ".join(f"{c} = excluded.{c}" for c in insert_cols if c not in ("stock_id", "date"))
         sql = f"""
         INSERT INTO institutional_data ({col_sql})
         VALUES ({placeholders})
@@ -210,14 +231,11 @@ class DataProcessor:
         finally:
             conn.close()
 
-    def _upsert_shareholding_unified(
-        self, df: pd.DataFrame, extra_cols_sql: str, extra_cols_values: str
-    ):
+    def _upsert_shareholding_unified(self, df: pd.DataFrame, extra_cols_sql: str):
         """
         Internal helper for upsert_tdcc / upsert_shareholding / upsert_shareholding_unified.
         All three write to shareholding_unified with the same ON CONFLICT logic.
         extra_cols_sql: additional column names for INSERT column list
-        extra_cols_values: additional ? placeholders for VALUES
         """
         if df.empty:
             return
@@ -277,8 +295,31 @@ class DataProcessor:
         if df.empty:
             return
         df_write = df.copy()
-        if "source" not in df_write.columns:
-            df_write["source"] = "tdcc"
+        if "date" not in df_write.columns:
+            if "date_int" not in df_write.columns:
+                logger.warning("TDCC payload has neither date nor date_int; skipping write")
+                return
+            parsed_dates = pd.to_datetime(
+                df_write["date_int"].astype(str).str.replace(r"\.0$", "", regex=True),
+                format="%Y%m%d",
+                errors="coerce",
+            )
+            df_write["date"] = parsed_dates.dt.strftime("%Y-%m-%d")
+        else:
+            parsed_dates = pd.to_datetime(df_write["date"], errors="coerce")
+            df_write["date"] = parsed_dates.dt.strftime("%Y-%m-%d")
+
+        invalid_dates = df_write["date"].isna()
+        if invalid_dates.any():
+            logger.warning("skipping %d TDCC rows with invalid dates", int(invalid_dates.sum()))
+            df_write = df_write[~invalid_dates].copy()
+        if df_write.empty:
+            return
+
+        # This public method is specifically for TDCC data.  Always assigning
+        # its source prevents a mixed or missing input column from creating a
+        # foreign-shareholding row with TDCC fields discarded.
+        df_write["source"] = "tdcc"
         expected = [
             "stock_id",
             "date",
@@ -295,7 +336,6 @@ class DataProcessor:
         self._upsert_shareholding_unified(
             df_write,
             "total_shares, whale_ratio, retail_ratio, total_people, whale_shares, whale_people",
-            "",
         )
 
     def upsert_shareholding(self, df: pd.DataFrame):
@@ -306,7 +346,7 @@ class DataProcessor:
         cols = [c for c in expected if c in df.columns]
         df_write = df[cols].copy()
         df_write["source"] = "twse_foreign"
-        self._upsert_shareholding_unified(df_write, "foreign_shares, foreign_ratio", "")
+        self._upsert_shareholding_unified(df_write, "foreign_shares, foreign_ratio")
 
     def upsert_shareholding_unified(self, df: pd.DataFrame):
         """Upserts weekly concentrations and foreign details into shareholding_unified."""
@@ -330,7 +370,6 @@ class DataProcessor:
         self._upsert_shareholding_unified(
             df_write,
             "total_shares, whale_ratio, retail_ratio, foreign_shares, foreign_ratio, total_people, whale_shares, whale_people",
-            "",
         )
 
     def upsert_dividend_events(self, df: pd.DataFrame):
@@ -437,8 +476,17 @@ class DataProcessor:
         if df.empty:
             return
         expected = ["stock_id", "stock_name", "industry_category", "market", "type", "source"]
-        cols = [c for c in expected if c in df.columns]
-        df_write = df[cols].copy()
+        missing = [c for c in expected[:-1] if c not in df.columns]
+        if missing:
+            logger.warning("stock_meta payload missing required columns: %s; skipping write", ", ".join(missing))
+            return
+        df_write = df.copy()
+        if "source" not in df_write.columns:
+            # Keep the writer compatible with older callers while ensuring
+            # every record matches the six-column SQL statement below.
+            df_write["source"] = "unknown"
+        df_write["source"] = df_write["source"].fillna("unknown").replace("", "unknown")
+        df_write = df_write[expected].copy()
 
         records = df_write.where(df_write.notna(), None).values.tolist()
 

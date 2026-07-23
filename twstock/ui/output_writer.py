@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import date, datetime
 from typing import Protocol, runtime_checkable
 
+from twstock.strategy.result_contract import normalize_json_payload
 from twstock.terminal import console
 
 
@@ -49,15 +51,15 @@ class ConsoleWriter:
             return
 
         strategy = data.get("strategy", "unknown")
-        stock_id = data.get("stock_id", "")
+        stock_id = data.get("stock_id") or data.get("stockId", "")
         status = data.get("status", "ok")
 
         if status == "no_result":
             self._console.print(f"[yellow]⚠️ {stock_id} 無 {strategy} 分析結果[/yellow]")
             return
 
-        if "error" in data:
-            self._console.print(f"[red]❌ {data['error']}[/red]")
+        if data.get("error"):
+            self._console.print(f"[red]❌ {data.get('message') or data['error']}[/red]")
             return
 
         self._console.print(f"[bold cyan]{stock_id} 策略分析結果:[/bold cyan]")
@@ -84,13 +86,31 @@ class JsonWriter:
         self._stream = output_stream or sys.stdout
 
     def write_result(self, data: dict) -> None:
-        """輸出 JSON 格式結果。"""
-        json.dump(data, self._stream, ensure_ascii=False, indent=2)
+        """輸出符合策略 JSON 契約的結果，並保留非策略的一般 JSON。"""
+        json.dump(
+            normalize_json_payload(data),
+            self._stream,
+            ensure_ascii=False,
+            indent=2,
+            default=_json_default,
+        )
         self._stream.write("\n")
         self._stream.flush()
 
     def write_error(self, message: str) -> None:
-        """輸出 JSON 格式錯誤。"""
-        json.dump({"error": message}, self._stream, ensure_ascii=False)
+        """輸出文件定義的機器可判斷錯誤格式。"""
+        json.dump({"error": True, "message": str(message)}, self._stream, ensure_ascii=False)
         self._stream.write("\n")
         self._stream.flush()
+
+
+def _json_default(value):
+    """Safely serialize date-like/numpy scalar values from strategy details."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except (TypeError, ValueError):
+            pass
+    return str(value)

@@ -17,6 +17,7 @@
 5. 執行 python strategy_runner.py <stock_id> 測試
 """
 
+import logging
 import os
 import sys
 
@@ -34,11 +35,6 @@ if sys.platform == "win32":
         pass
 
 # ── Import shared modules ──
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-_TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
-if _TWSTOCK_DIR not in sys.path:
-    sys.path.insert(0, _TWSTOCK_DIR)
-
 from twstock.db import get_connection
 
 # ── Strategy Configuration ──
@@ -53,7 +49,39 @@ _SCAN_CACHE = {
     "results": None,
 }
 
+SHARES_PER_LOT = 1000
+_LOGGER = logging.getLogger(__name__)
+
 console = Console()
+
+
+def _build_result(stock_id: str, df: pd.DataFrame) -> dict:
+    """Build the template result from an ascending, already-loaded data frame."""
+    if df.empty:
+        return {
+            "strategy": STRATEGY_NAME,
+            "stock_id": stock_id,
+            "score": 0,
+            "signal": "HOLD",
+            "confidence": 0,
+            "summary": f"無 {stock_id} 資料",
+            "details": {},
+        }
+
+    latest = float(df["close"].iloc[-1])
+    return {
+        "strategy": STRATEGY_NAME,
+        "stock_id": stock_id,
+        "score": 50,
+        "signal": "HOLD",
+        "confidence": 50,
+        "summary": f"{stock_id} 最新收盤 {latest:.2f}",
+        "details": {
+            "latest_price": latest,
+            "latest_date": str(df["date"].iloc[-1]),
+            "volume": int(df["volume"].iloc[-1]),
+        },
+    }
 
 
 def analyze(params: dict) -> dict:
@@ -75,46 +103,18 @@ def analyze(params: dict) -> dict:
     conn = get_connection(readonly=True)
     try:
         df = pd.read_sql(
+            "SELECT date, open, high, low, close, volume FROM ("
             "SELECT date, open, high, low, close, volume "
             "FROM stock_history WHERE stock_id = ? "
-            "ORDER BY date DESC LIMIT 250",
+            "ORDER BY date DESC LIMIT 250"
+            ") ORDER BY date ASC",
             conn,
             params=(stock_id,),
         )
     finally:
         conn.close()
 
-    if df.empty:
-        return {
-            "strategy": STRATEGY_NAME,
-            "stock_id": stock_id,
-            "score": 0,
-            "signal": "HOLD",
-            "confidence": 0,
-            "summary": f"無 {stock_id} 資料",
-            "details": {},
-        }
-
-    # ── 在此實作你的分析邏輯 ──
-    # 例如：計算均線、偵測型態、分析籌碼...
-    # 示例（請刪除）：
-    closes = df["close"].tolist()
-    latest = closes[-1] if closes else 0
-
-    return {
-        "strategy": STRATEGY_NAME,
-        "stock_id": stock_id,
-        "score": 50,  # 綜合評分 0~100
-        "signal": "HOLD",  # BUY / HOLD / SELL
-        "confidence": 50,  # 信心指數 0~100
-        "summary": f"{stock_id} 最新收盤 {latest:.2f}",
-        "details": {
-            "latest_price": latest,
-            "latest_date": str(df["date"].iloc[-1]),
-            "volume": int(df["volume"].iloc[-1]) if not df.empty else 0,
-            # 策略專屬詳細資料
-        },
-    }
+    return _build_result(stock_id, df)
 
 
 def run_strategy(params: dict) -> None:
@@ -154,25 +154,43 @@ def scan_market(vol: int = 500) -> list[dict]:
     Returns:
         list[dict] — 同 analyze() 回傳格式的列表，已排序
     """
+    min_volume_shares = max(0, int(vol)) * SHARES_PER_LOT
     conn = get_connection(readonly=True)
     try:
-        # 讀取所有有資料的股票
+        # ``vol`` is documented in lots; the database stores raw shares.
         stocks = conn.execute(
-            "SELECT DISTINCT stock_id FROM stock_history " "WHERE volume >= ? ORDER BY stock_id",
-            (vol,),
+            "SELECT stock_id FROM stock_history "
+            "WHERE date = (SELECT MAX(date) FROM stock_history) "
+            "AND volume >= ? ORDER BY stock_id",
+            (min_volume_shares,),
         ).fetchall()
+        stock_ids = [str(row[0]) for row in stocks]
+        results: list[dict] = []
+
+        # Load recent history in chunks instead of calling analyze() once per
+        # stock.  This avoids an N+1 query pattern and respects SQLite's
+        # parameter limit.
+        for start in range(0, len(stock_ids), 400):
+            chunk = stock_ids[start : start + 400]
+            placeholders = ",".join("?" for _ in chunk)
+            sql = (
+                "WITH ranked AS ("
+                "SELECT stock_id, date, open, high, low, close, volume, "
+                "ROW_NUMBER() OVER (PARTITION BY stock_id ORDER BY date DESC) AS rn "
+                "FROM stock_history WHERE stock_id IN ("
+                + placeholders
+                + ")"
+                ") SELECT stock_id, date, open, high, low, close, volume "
+                "FROM ranked WHERE rn <= 250 ORDER BY stock_id, date"
+            )
+            frames = pd.read_sql(sql, conn, params=chunk)
+            for stock_id, frame in frames.groupby("stock_id", sort=False):
+                try:
+                    results.append(_build_result(str(stock_id), frame.reset_index(drop=True)))
+                except Exception:
+                    _LOGGER.exception("Template analysis failed for %s", stock_id)
     finally:
         conn.close()
-
-    results = []
-    for row in stocks:
-        stock_id = row["stock_id"]
-        try:
-            result = analyze({"code": stock_id})
-            results.append(result)
-        except Exception as e:
-            print(f"[{__name__}] analyze failed for {stock_id}: {e}")
-            continue  # 單支失敗不影響其他
 
     # 按 score 降序排列
     results.sort(key=lambda x: x.get("score", 0), reverse=True)

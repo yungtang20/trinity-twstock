@@ -1,0 +1,32 @@
+# Local credentials
+api.env
+.env
+.env.*
+!api.env.example
+!.env.example
+
+# Python environments and generated caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_codex_*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+/models/
+
+# Local SQLite data and runtime sidecars
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Local editor and OS state
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

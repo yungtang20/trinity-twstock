@@ -10,25 +10,19 @@ utils.py — 跨模組共用工具函式
   - get_sys_info / get_market_mode / format_price_change：系統資訊與格式化
 
 使用方式：
-  from utils import safe_float, safe_int, get_http_session, ...
+  from twstock.utils import safe_float, safe_int, get_http_session, ...
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import sys
 from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-# 確保 twstock 目錄在 sys.path（讓 from db import 能運作）
-_DIR = os.path.dirname(os.path.abspath(__file__))
-if _DIR not in sys.path:
-    sys.path.insert(0, _DIR)
-
-from twstock.db import (  # noqa: E402  # ponytail: db 為基礎模組，此頂層耦合可接受（utils 無循環依賴風險）
+from twstock.db import (
     file_size_mb,
     get_connection,
     get_path,
@@ -204,12 +198,43 @@ def get_sys_info() -> dict:
 def get_market_mode() -> str:
     """判斷目前市場狀態（盤中 / 收盤後 / 假日）。"""
     now = datetime.now()
-    mins = now.hour * 60 + now.minute
     if now.weekday() >= 5:
         return "收盤後 (假日)"
-    if 540 <= mins <= 815:
-        return "盤中"
-    return "收盤後"
+    return "盤中" if is_market_open(now) else "收盤後"
+
+
+_TRADING_DAY_CACHE: dict[str, bool] = {}
+
+
+def is_market_open(now: datetime | None = None) -> bool:
+    """依系統時間與本機官方交易日曆判斷台股是否開盤。
+
+    交易日曆缺少當日資料或資料庫暫時不可用時，以平日作為安全降級；
+    已同步的國定假日、颱風休市日則會正確回傳 False。
+    """
+    current = now or datetime.now()
+    if current.weekday() >= 5:
+        return False
+    minutes = current.hour * 60 + current.minute
+    if not 9 * 60 <= minutes < 13 * 60 + 30:
+        return False
+
+    date_key = current.strftime("%Y-%m-%d")
+    if date_key not in _TRADING_DAY_CACHE:
+        is_open = True
+        try:
+            with get_connection(readonly=True) as conn:
+                row = conn.execute(
+                    "SELECT is_open FROM stock_trading_calendar WHERE date = ?",
+                    (date_key,),
+                ).fetchone()
+            if row is not None:
+                is_open = bool(row[0])
+        except Exception:
+            # UI 狀態不可因日曆 DB 暫時不可用而中斷；平日時間是降級依據。
+            pass
+        _TRADING_DAY_CACHE[date_key] = is_open
+    return _TRADING_DAY_CACHE[date_key]
 
 
 def format_price_change(current: float, previous: float):
@@ -227,7 +252,8 @@ def format_price_change(current: float, previous: float):
 
 # ── API 設定讀取（原 api_config.py，統一集中）──────────────
 # 所有 API key / endpoint 由此區塊集中管理，禁止在其他檔案中硬編碼。
-# 載入順序：twstock/api.env（優先）→ twstock/.env（不覆蓋）→ 系統環境變數。
+# 載入順序：系統環境變數（最高優先）→ twstock/api.env → twstock/.env。
+# 本機檔案只能補上未設定的值，絕不能覆蓋部署環境或 CI 明確提供的密鑰。
 
 _api_logger = logging.getLogger(__name__ + ".api_config")
 
@@ -239,14 +265,14 @@ _api_env_loaded = False
 
 
 def _ensure_loaded():
-    """載入 api.env > .env > 系統環境變數（兩段式 dotenv）。"""
+    """載入本機設定檔，但保留既有系統環境變數。"""
     global _api_env_loaded
     if _api_env_loaded:
         return
     # 優先載入 api.env
     api_env = _PKG_DIR / "api.env"
     if api_env.exists():
-        load_dotenv(api_env, override=True)
+        load_dotenv(api_env, override=False)
         _api_logger.debug("Loaded API config from %s", api_env)
     # 再載入 .env（不覆蓋 api.env 已設定的值）
     dot_env = _PKG_DIR / ".env"
@@ -282,4 +308,4 @@ def get_longcat_api_url() -> str:
 def get_longcat_model() -> str:
     """取得 LongCat 模型名稱。"""
     _ensure_loaded()
-    return os.environ.get("LONGCAT_MODEL", "LongCat-2.0-Preview")
+    return os.environ.get("LONGCAT_MODEL", "LongCat-2.0")

@@ -87,4 +87,73 @@ get_ssl_verify() -> D:\twse\.venv\Lib\site-packages\certifi\cacert.pem
 - `ssl.create_default_context()` 的失敗與產品無關（產品走 certifi），僅反映
   Windows 系統 CA 存放區對該端憑證鏈收錄問題；若未來其他工具以預設 context 連
   TPEX/TWSE，請改用 certifi。
-- 無程式碼變更（屬安全性相關，未經確認不動 SSL 驗證邏輯）。
+
+---
+
+## 增補：2026-07-18 噪音消音（fallback warning 降級）
+
+### 觀察到的症狀
+
+使用者在 TUI 持續看到：
+
+```
+SSL error on attempt 1/4 for https://www.tpex.org.tw/...:
+  [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+  Missing Subject Key Identifier (_ssl.c:1082)
+SSL verification failed for https://www.tpex.org.tw/... —
+  retrying with verify=False (InsecureRequestWarning suppressed)
+```
+
+即使 `retry_get` 最終都成功（fallback verify=False 拿到完整資料），這段 warning 仍每輪 TUI 渲染出現，屬**噪音**。
+
+### 實測結果（2026-07-18）
+
+| 測試項目 | 結果 |
+|---|---|
+| `requests.get(url, verify=certifi.where())` | **200 ✅** |
+| `requests.get(url, verify=True)` | **200 ✅** |
+| `ssl.create_default_context()`（Windows 系統 CA） | **OK ✅**（舊報告說失敗，已修復） |
+| `retry_get(url, verify=get_ssl_verify())` 連跑 5 次 | **5/5 (200, 408)，零 SSLError ✅** |
+| `fetch_market_indices()` 端到端 | **OK keys ['TAIEX','OTC','time','date'] ✅** |
+
+TPEX 憑證完整：SKI/AKI 皆存在、NotAfter 2026-09-01、Google Trust Services WE1。
+`Missing Subject Key Identifier` 是**過去舊憑證鏈中繼 CA 缺 SKI**，現已隨憑證輪換消失。
+
+### 變更內容
+
+`twstock/retry.py:77` — fallback retry 訊息從 `logger.warning` 降為 `logger.debug`：
+
+```diff
+-                logger.warning(
++                logger.debug(
+                     "SSL verification failed for %s — retrying with verify=False "
+                     "(InsecureRequestWarning suppressed)",
+                     url,
+                 )
+```
+
+### 保留不變
+
+| 程式碼 | 等級 | 原因 |
+|---|---|---|
+| `retry.py:68` SSLError warning | **warning** | 真實 SSL 問題，使用者應看見 |
+| `retry.py:97` fallback 也失敗 | **warning** | 安全網失效，嚴重問題 |
+| `retry.py:117` 全部重試失敗 | **error** | 最高嚴重度 |
+
+### 驗證
+
+| 日誌等級 | SSLError warning | Fallback retry 訊息 | 最終結果 |
+|---|---|---|---|
+| INFO | ✅ 顯示 | ❌ 隱藏 | (200, 408) |
+| DEBUG | ✅ 顯示 | ✅ 顯示 | (200, 408) |
+
+降噪後 TUI 不再出現 fallback 噪音，但 SSLError 本身仍可被看見；DEBUG 模式可追蹤完整流程。
+
+### 根因判定更新
+
+1. **TPEX 憑證本身完整**：SKI/AKI 皆存在、有效期限 2026-09-01、簽發者 Google Trust Services WE1。
+2. **Windows 系統 CA 存放區已修復**：`ssl.create_default_context()` 現在能驗證 TPEX/TWSE（舊報告說失敗，已過時）。
+3. **certifi 路徑一直沒問題**：產品程式碼走 certifi，SSL 全綠。
+4. **fallback 安全網仍必要**：系統 CA 間歇性失敗可能復發（CA 鏈狀態變化），`ssl_fallback=True` 保住資料抓取。
+
+---

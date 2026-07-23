@@ -11,11 +11,22 @@ r"""
 - 輸出透過 OutputWriter 抽象層，預設 ConsoleWriter，可注入 JsonWriter
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Optional
 
+# ``strategy_runner.py`` is a supported direct entry point.  Running it from
+# the repository root puts that directory, rather than its parent, on
+# ``sys.path``.  Bootstrap the package parent before every ``twstock`` import.
+# Do not add the package directory itself: that would permit duplicate
+# top-level modules such as ``db`` and split module state.
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_PACKAGE_PARENT = str(_PROJECT_ROOT.parent)
+if _PACKAGE_PARENT not in sys.path:
+    sys.path.insert(0, _PACKAGE_PARENT)
+
 from twstock.ui.output_writer import ConsoleWriter, JsonWriter
+from twstock.strategy.result_contract import normalize_strategy_result
 
 # Windows encoding fix — 只在直接執行時才替換 stdout/stderr
 if sys.platform == "win32" and __name__ == "__main__":
@@ -23,10 +34,6 @@ if sys.platform == "win32" and __name__ == "__main__":
 
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _CURRENT_DIR not in sys.path:
-    sys.path.insert(0, _CURRENT_DIR)
 
 # ── 策略匯入（模組層級，可被 monkeypatch 替換）──────────────
 from twstock.strategy.chips_strategy import ChipsStrategy
@@ -38,32 +45,48 @@ from twstock.strategy.sr_analyzer import SupportResistanceStrategy
 
 
 class _PredictionAdapter:
-    """預測分析適配器 - 不使用 random，移除假邏輯。"""
+    """SQLite historical-momentum heuristic, explicitly not an AI model.
+
+    The previous adapter produced a fixed +0.5%/-0.5% trajectory based on an
+    MA field that the MA strategy never returned.  This preserves the public
+    prediction entry while making the estimate data-driven and transparent.
+    """
 
     def analyze(self, stock_id: str, ma: Optional[dict] = None) -> dict:
         from twstock.db import get_connection
         from twstock.strategy._utils import fetch_klines
 
-        conn = get_connection()
+        conn = get_connection(readonly=True)
         try:
             df = fetch_klines(conn, stock_id, limit=30)
             if df is None or df.empty or len(df) < 5:
-                return {"error": "資料不足"}
+                return normalize_strategy_result(
+                    {
+                        "error": "資料不足",
+                        "summary": "至少需要 5 個交易日才能產生歷史動能估計。",
+                    },
+                    strategy="prediction",
+                    stock_id=stock_id,
+                )
 
             closes = df["close"].sort_index().tolist()
             last_close = closes[-1]
-            is_up = ma.get("ma25Trend") == "up" if ma else False
-
             returns = [(closes[i] / closes[i - 1] - 1) * 100 for i in range(1, len(closes))]
             avg_return = sum(returns) / len(returns) if returns else 0
             volatility = (
                 (sum(r**2 for r in returns) / len(returns) - avg_return**2) ** 0.5 if returns else 1
             )
 
+            # Blend the full lookback mean with a short trend.  The result is
+            # bounded to avoid an isolated data error producing an absurd
+            # projection.  It is intentionally a heuristic, not a model.
+            lookback = min(6, len(closes))
+            short_daily_return = ((closes[-1] / closes[-lookback]) - 1) * 100 / (lookback - 1)
+            daily_return = max(-3.0, min(3.0, 0.6 * avg_return + 0.4 * short_daily_return))
+
             predictions = []
             for i in range(1, 6):
-                trend_component = 0.5 * i if is_up else -0.5 * i
-                pct = trend_component
+                pct = ((1 + daily_return / 100) ** i - 1) * 100
                 predictions.append(
                     {
                         "day": f"T+{i}",
@@ -72,15 +95,25 @@ class _PredictionAdapter:
                     }
                 )
 
-            ai_score = 0.6 if is_up else 0.3
-
-            return {
-                "predictions": predictions,
-                "aiStrength": "看多" if is_up else "看空",
-                "aiScore": round(ai_score, 3),
-                "volatility": round(volatility, 2),
-                "avgReturn": round(avg_return, 2),
-            }
+            signal = "bullish" if daily_return > 0.05 else "bearish" if daily_return < -0.05 else "neutral"
+            return normalize_strategy_result(
+                {
+                    "strategy": "prediction",
+                    "stock_id": stock_id,
+                    "signal": signal,
+                    "confidence": max(0, min(100, round(100 - volatility * 12))),
+                    "summary": "Historical-momentum heuristic; not an AI or Kronos prediction.",
+                    "predictions": predictions,
+                    "model": "historical_momentum_heuristic",
+                    "is_model_prediction": False,
+                    "volatility": round(volatility, 2),
+                    "avgReturn": round(avg_return, 2),
+                    "dailyReturnEstimate": round(daily_return, 3),
+                    # Accepted for backwards compatibility but deliberately
+                    # not used as a hidden pseudo-model input.
+                    "ma_input_ignored": ma is not None,
+                }
+            )
         finally:
             conn.close()
 
@@ -189,15 +222,28 @@ def main(writer=None):
         pattern = run_pattern_analysis(stock_id)
         prediction = run_prediction_analysis(stock_id, ma=ma)
 
+        def _with_source(raw: dict, strategy_name: str, source: str) -> dict:
+            normalized = normalize_strategy_result(raw, strategy=strategy_name, stock_id=stock_id)
+            normalized["source"] = source
+            return normalized
+
+        # Keep legacy camelCase fields for existing callers, while emitting
+        # the snake_case form expected by ConsoleWriter and the JSON contract.
         result = {
+            "stock_id": stock_id,
             "stockId": stock_id,
+            "data_source": "sqlite",
             "dataSource": "sqlite",
             "strategies": {
-                "sr": {**sr, "source": "strategy/sr_analyzer.py"},
-                "ma": {**ma, "source": "strategy/ma_strategy.py"},
-                "chips": {**chips, "source": "strategy/chips_strategy.py"},
-                "pattern": {**pattern, "source": "strategy/patterns_strategy.py"},
-                "prediction": {**prediction, "source": "strategy/strategy_runner.py"},
+                "sr": _with_source(sr, "sr", "strategy/sr_analyzer.py"),
+                "ma": _with_source(ma, "ma", "strategy/ma_strategy.py"),
+                "chips": _with_source(chips, "chips", "strategy/chips_strategy.py"),
+                "pattern": _with_source(pattern, "pattern", "strategy/patterns_strategy.py"),
+                "prediction": _with_source(
+                    prediction,
+                    "prediction",
+                    "strategy/strategy_runner.py",
+                ),
             },
         }
 

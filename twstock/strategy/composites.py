@@ -27,23 +27,29 @@ from twstock.utils import (
     get_http_session,
     get_ssl_verify,
     get_stock_name,
+    is_market_open,
     safe_float,
     safe_http_get,
     safe_int,
 )
 
-# 策略模組 ID 與顯示標籤
-_STRATEGY_LABELS = [
-    ("1", "1 ⚡ 撐壓分析 (Support/Resistance)"),
-    ("2", "2 ⚡ 均線趨勢 (MA Trend)"),
-    ("3", "3 ⚡ 籌碼動能 (Institutional Chips)"),
-    ("4", "4 ⚡ AI 預測 (Kronos Prediction)"),
-    ("5", "5 ⚡ 幾何型態 (Chart Patterns)"),
-]
+# 顯示標籤直接由唯一策略註冊表建立，避免標題與實際執行模組錯位。
+_STRATEGY_ORDER = ("1", "2", "3", "4", "5")
+_STRATEGY_LABELS = [(key, f"{key} ⚡ {STRATEGY_REGISTRY[key]['name']}") for key in _STRATEGY_ORDER]
 
 
-def run_composite(stock_id: str, mobile: bool = False) -> None:
-    """執行多重策略的綜合分析面板。"""
+def run_composite(
+    stock_id: str,
+    mobile: bool = False,
+    allow_external: bool = False,
+    allow_live_quote: bool = False,
+) -> None:
+    """執行多重策略的綜合分析面板。
+
+    SQLite remains the default and authoritative source.  Live quotes and
+    LongCat calls are separate opt-ins: ``allow_live_quote`` only enriches
+    the price panel, while ``allow_external`` controls LongCat analysis.
+    """
     stock_name = get_stock_name(stock_id)
     os.system("cls" if os.name == "nt" else "clear")
 
@@ -57,8 +63,7 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
             lag = (now - db_date).days
             if lag > 1:
                 console.print(
-                    f"[yellow]⚠️ 資料庫最新日期為 {latest_db}（距今 {lag} 天），"
-                    f"建議先執行每日更新[/yellow]\n"
+                    f"[yellow]⚠️ 資料庫最新日期為 {latest_db}（距今 {lag} 天），" f"建議先執行每日更新[/yellow]\n"
                 )
     except Exception as e:
         console.print(f"[dim]DB 新鮮度檢查跳過: {e}[/dim]")
@@ -73,17 +78,14 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
 
     # ── Market Status ──
     now = datetime.now()
-    mins = now.hour * 60 + now.minute
-    is_weekday = now.weekday() < 5
-    is_trading = is_weekday and (9 * 60 <= mins <= 13 * 60 + 30)
+    is_trading = is_market_open(now)
     today_str = now.strftime("%Y-%m-%d")
 
     # ── Fetch DB: latest 3 trading days ──
     try:
         with get_connection(readonly=True) as conn:
             rows = conn.execute(
-                "SELECT date, close, volume FROM stock_history "
-                "WHERE stock_id = ? ORDER BY date DESC LIMIT 3",
+                "SELECT date, close, volume FROM stock_history " "WHERE stock_id = ? ORDER BY date DESC LIMIT 3",
                 (stock_id,),
             ).fetchall()
     except Exception:
@@ -104,7 +106,7 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
 
         live_price = None
         live_vol = None
-        if is_trading:
+        if is_trading and (allow_live_quote or allow_external):
             live_price, live_vol = _fetch_live_quote(stock_id)
 
         _render_price_panel(
@@ -130,6 +132,7 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
     _run_strategies(stock_id, mobile)
 
     # ── K 線圖 ──
+    console.print("\n[bold cyan]📈 K 線圖 (Price/Volume)[/]")
     df_kline = None  # ponytail: 初始化避免 try 拋異常時 UnboundLocalError
     try:
         with get_connection(readonly=True) as conn:
@@ -137,18 +140,21 @@ def run_composite(stock_id: str, mobile: bool = False) -> None:
         df_kline = df_kline.dropna(subset=["close"]).sort_values("date")
         if not df_kline.empty:
             console.print()
-            console.print(render_kline(df_kline, stock_id, ""))
+            console.print(render_kline(df_kline, stock_id, stock_name))
     except Exception as e:
         console.print(f"[dim]K 線圖渲染跳過: {e}[/dim]")
 
-    # ── LongCat AI 文字分析 ──
-    try:
-        ai_result = analyze_kline_with_longcat(df_kline, stock_id, "")
-        if ai_result:
-            console.print()
-            console.print(Panel(ai_result, title="🤖 LongCat AI 分析", border_style="magenta"))
-    except Exception as e:
-        console.print(f"[dim]LongCat AI 分析跳過: {e}[/dim]")
+    # ── Optional external enrichment ──
+    if allow_external and df_kline is not None:
+        try:
+            ai_result = analyze_kline_with_longcat(df_kline, stock_id, stock_name)
+            if ai_result:
+                console.print()
+                console.print(Panel(ai_result, title="🤖 LongCat AI 分析", border_style="magenta"))
+        except Exception as e:
+            console.print(f"[dim]LongCat AI 分析跳過: {e}[/dim]")
+    elif not allow_external:
+        console.print("[dim]本次綜合分析僅使用 SQLite 正式資料來源。[/dim]")
 
     input("\n按 Enter 鍵返回主選單...")
 
@@ -165,7 +171,13 @@ def _fetch_live_quote(stock_id: str):
             f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
             f"?ex_ch={ex_ch}&json=1&delay=0&_={int(time.time() * 1000)}"
         )
-        r = safe_http_get(url, session=session, timeout=3, verify=get_ssl_verify())
+        r = safe_http_get(
+            url,
+            session=session,
+            timeout=3,
+            verify=get_ssl_verify(),
+            headers={"Referer": "https://mis.twse.com.tw/stock/index.jsp"},
+        )
         if not r:
             return None, None
         try:
@@ -177,6 +189,9 @@ def _fetch_live_quote(stock_id: str):
         for item in data["msgArray"]:
             c = item.get("c", "")
             if c == stock_id or c.zfill(4) == stock_id:
+                quote_date = str(item.get("d") or item.get("^") or "").replace("-", "")
+                if quote_date and quote_date != datetime.now().strftime("%Y%m%d"):
+                    continue
                 z = item.get("z", "-")
                 v = item.get("v", "0")
                 price = None
@@ -217,13 +232,9 @@ def _render_price_panel(
 ) -> None:
     """渲染價格 + 成交量面板。"""
     if mobile:
-        _render_mobile(
-            is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol
-        )
+        _render_mobile(is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol)
     else:
-        _render_wide(
-            is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol
-        )
+        _render_wide(is_trading, today_str, now, d0, p0, v0, d1, p1, v1, p2, v2, live_price, live_vol)
 
 
 def _render_mobile(

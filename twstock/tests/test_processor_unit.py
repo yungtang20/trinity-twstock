@@ -103,6 +103,27 @@ class TestDataProcessor:
             count = proc.upsert_history(pd.DataFrame())
         assert count == 0
 
+    def test_upsert_history_rejects_zero_and_impossible_ohlc(self, in_memory_conn):
+        """零價占位列與 high/low 關係錯誤不得寫入日 K。"""
+        proc = DataProcessor.__new__(DataProcessor)
+        df = pd.DataFrame(
+            {
+                "stock_id": ["2330", "2330", "2330"],
+                "date": ["2026-07-02", "2026-07-03", "2026-07-04"],
+                "open": [0, 100, 100],
+                "high": [0, 99, 105],
+                "low": [0, 95, 95],
+                "close": [0, 102, 102],
+                "volume": [0, 1000, 1000],
+                "amount": [0, 100000, 100000],
+            }
+        )
+        with patch_gc(in_memory_conn):
+            count = proc.upsert_history(df)
+
+        assert count == 1
+        assert in_memory_conn.execute("SELECT date FROM stock_history").fetchall() == [("2026-07-04",)]
+
     def test_upsert_history_none(self, in_memory_conn):
         """None 應回傳 0。"""
         proc = DataProcessor.__new__(DataProcessor)
@@ -325,9 +346,7 @@ class TestBatchUpsert:
         )
         DataProcessor._batch_upsert("stock_history", df1, in_memory_conn)
         DataProcessor._batch_upsert("stock_history", df2, in_memory_conn)
-        row = in_memory_conn.execute(
-            "SELECT open, source FROM stock_history WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT open, source FROM stock_history WHERE stock_id='2330'").fetchone()
         assert row[0] == 110
         assert row[1] == "v2"
 
@@ -354,9 +373,7 @@ class TestUpsertHistoryEdgeCases:
         with patch_gc(in_memory_conn):
             count = proc.upsert_history(df)
         assert count == 1
-        row = in_memory_conn.execute(
-            "SELECT source FROM stock_history WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT source FROM stock_history WHERE stock_id='2330'").fetchone()
         assert row[0] == "official"
 
     def test_upsert_history_on_conflict_preserves_existing(self, in_memory_conn):
@@ -395,9 +412,7 @@ class TestUpsertHistoryEdgeCases:
         with patch_gc(in_memory_conn):
             proc.upsert_history(df1)
             proc.upsert_history(df2)
-        row = in_memory_conn.execute(
-            "SELECT trade_count, spread FROM stock_history WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT trade_count, spread FROM stock_history WHERE stock_id='2330'").fetchone()
         # trade_count and spread should be preserved from df1 (CASE WHEN excluded NULL)
         assert row[0] == 123
         assert abs(row[1] - 10.5) < 1e-6
@@ -436,9 +451,7 @@ class TestUpsertInstitutionalEdgeCases:
         with patch_gc(in_memory_conn):
             count = proc.upsert_institutional(df)
         assert count == 1
-        row = in_memory_conn.execute(
-            "SELECT source FROM institutional_data WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT source FROM institutional_data WHERE stock_id='2330'").fetchone()
         assert row[0] == "official"
 
     def test_upsert_institutional_on_conflict_updates(self, in_memory_conn):
@@ -497,9 +510,7 @@ class TestUpsertTdccEdgeCases:
         )
         with patch_gc(in_memory_conn):
             proc.upsert_tdcc(df)
-        row = in_memory_conn.execute(
-            "SELECT source FROM shareholding_unified WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT source FROM shareholding_unified WHERE stock_id='2330'").fetchone()
         assert row[0] == "tdcc"
 
     def test_upsert_shareholding_empty(self, in_memory_conn):
@@ -755,9 +766,7 @@ class TestUpsertPerData:
         )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df)
-        row = in_memory_conn.execute(
-            "SELECT per, pe_ratio FROM per_data WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT per, pe_ratio FROM per_data WHERE stock_id='2330'").fetchone()
         assert row[0] == 25.0
         assert row[1] == 25.0  # aliased from per
 
@@ -776,9 +785,7 @@ class TestUpsertPerData:
         )
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df)
-        row = in_memory_conn.execute(
-            "SELECT pbr, pb_ratio FROM per_data WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT pbr, pb_ratio FROM per_data WHERE stock_id='2330'").fetchone()
         assert row[0] == 3.0
         assert row[1] == 3.0  # aliased from pbr
 
@@ -808,9 +815,7 @@ class TestUpsertPerData:
         with patch_gc(in_memory_conn):
             proc.upsert_per_data(df1)
             proc.upsert_per_data(df2)
-        row = in_memory_conn.execute(
-            "SELECT per, pbr FROM per_data WHERE stock_id='2330'"
-        ).fetchone()
+        row = in_memory_conn.execute("SELECT per, pbr FROM per_data WHERE stock_id='2330'").fetchone()
         assert row[0] == 20.0  # preserved
         assert row[1] == 2.5  # updated
 
@@ -834,8 +839,7 @@ class TestUpsertMeta:
         with patch_gc(in_memory_conn):
             proc.upsert_meta(df)
         row = in_memory_conn.execute(
-            "SELECT stock_name, industry_category, market, type, source "
-            "FROM stock_meta WHERE stock_id='2330'"
+            "SELECT stock_name, industry_category, market, type, source " "FROM stock_meta WHERE stock_id='2330'"
         ).fetchone()
         assert row[0] == "台積電"
         assert row[1] == "半導體"

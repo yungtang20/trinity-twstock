@@ -8,7 +8,7 @@ _utils.py — 策略模組共用工具函式
 import os
 import sqlite3
 import warnings
-from typing import Optional
+from typing import Optional, Sequence
 
 import pandas as pd
 
@@ -101,3 +101,44 @@ def fetch_klines(
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").reset_index(drop=True)
     return df
+
+
+def fetch_klines_batch(
+    conn: sqlite3.Connection,
+    stock_ids: Sequence[str],
+    limit: int = 512,
+    include_amount: bool = False,
+    chunk_size: int = 400,
+) -> dict[str, pd.DataFrame]:
+    """Fetch recent OHLCV frames for many stocks without one SQL query per stock.
+
+    The strategy scanners still perform per-stock *analysis*, but loading is
+    batched so a market scan does not create an N+1 database-query pattern.
+    """
+    frames: dict[str, pd.DataFrame] = {}
+    if not stock_ids or limit <= 0:
+        return frames
+
+    cols = "stock_id, date, open, high, low, close, volume"
+    if include_amount:
+        cols += ", amount"
+    for start in range(0, len(stock_ids), max(1, chunk_size)):
+        chunk = list(stock_ids[start : start + max(1, chunk_size)])
+        placeholders = ",".join("?" for _ in chunk)
+        sql = (
+            "WITH ranked AS (SELECT "
+            + cols
+            + ", ROW_NUMBER() OVER (PARTITION BY stock_id ORDER BY date DESC) AS rn "
+            "FROM klines_indicators WHERE stock_id IN ("
+            + placeholders
+            + ")) SELECT "
+            + cols
+            + " FROM ranked WHERE rn <= ? ORDER BY stock_id, date"
+        )
+        data = pd.read_sql(sql, conn, params=[*chunk, int(limit)])
+        if data.empty:
+            continue
+        data["date"] = pd.to_datetime(data["date"])
+        for stock_id, frame in data.groupby("stock_id", sort=False):
+            frames[str(stock_id)] = frame.drop(columns=["stock_id"]).reset_index(drop=True)
+    return frames

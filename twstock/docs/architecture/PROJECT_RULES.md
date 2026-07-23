@@ -1,127 +1,67 @@
-# PROJECT_RULES.md — TRINITY 專案開發規範
+# TRINITY 開發規範
 
-> 所有開發者（人 / AI）必須遵循的專案級別規則。
+本規範與 [ARCHITECTURE.md](ARCHITECTURE.md) 一起構成實作約束。若文件與可執行 schema 有歧異，以 `db_admin.py` 與 [DB_SCHEMA.md](../specs/DB_SCHEMA.md) 為準，並在同一變更中修正文檔。
 
----
+## 相容性底線
 
-## 專案設計哲學
+- 不移除 public function、CLI 參數或既有 JSON 欄位。
+- 不修改既有 table 欄位或主鍵；只允許可重複的相容性 migration、索引與 read-only view。
+- 不建立 circular import，也不以 top-level module alias 躲避 package import。
+- 舊介面需要淘汰時，保留 adapter 並標記 deprecated，不可直接刪除。
 
-1. SQLite 為唯一資料來源
-2. 不做程式交易、自動下單、回測、排程、通知
-3. 所有分析以日 K 資料為主
-4. 所有策略互相獨立
-5. 模組低耦合、高內聚
-6. 優先可維護性，其次效能，最後才增加新功能
+## 程式風格
 
----
+- public class 與 function 要有 docstring；型別可表達時使用 type hints。
+- Python 使用四格縮排、`snake_case` function／變數、`PascalCase` class、`UPPER_CASE` 常數。
+- 對外 I/O 使用 logging 或 Rich；library／資料層不可用 `print()` 當錯誤處理。
+- 不可用 broad `except: pass` 吞掉寫入、schema 或資料驗證錯誤。
 
-## Coding Style
+## 命名
 
-### 基本原則
+| 前綴 | 用途 |
+|---|---|
+| `fetch_` | 從外部或儲存層取得資料 |
+| `update_` | 更新既有資料或狀態 |
+| `compute_` | 純計算 |
+| `build_` | 建立結構化結果 |
+| `save_` / `upsert_` | 寫入資料庫 |
+| `run_` | 執行完整流程 |
+| `render_` | 呈現 UI |
+| `is_` / `get_` | 判斷或取得值 |
 
-- 每個 public function 必须有 docstring
-- 每個 public class 必须有 class-level docstring
-- 禁止 magic number（定義為常數）
-- 禁止硬編碼路徑（用 `Path` 相對路徑）
-- 每個檔案開頭必須有模組說明（至少一行）
-
-### 程式碼風格
-
-```python
-# 使用 4 spaces 縮排，不 tab
-# 每行不超過 120 字元
-# 空行分隔邏輯區塊
-# 常量使用 UPPER_CASE
-# 變數使用 snake_case
-# 類別使用 PascalCase
-```
-
----
-
-## 命名規則
-
-| 動詞前綴 | 用途 | 範例 |
-|---------|------|------|
-| `fetch_` | 抓資料（外部 API） | `fetch_twse_quotes()` |
-| `update_` | 更新資料（寫入 DB） | `update_official_daily()` |
-| `compute_` | 數值運算 | `compute_ma()` |
-| `build_` | 建立 DataFrame | `build()` |
-| `save_` | 寫 DB | `save_stock_meta()` |
-| `run_` | 執行（策略 / 主流程） | `run_strategy()` |
-| `render_` | 畫畫面 | `render_dashboard()` |
-| `is_` | 布林判斷 | `is_trading_day()` |
-| `get_` | 取得設定 / 狀態 | `get_connection()` |
-
----
-
-## Import 規則
-
-### 允許的依賴方向
-
-```
-main.py → official/*, strategy/*, fetcher, processor, calculator, db, display, terminal
-official/* → fetcher, processor, db, utils, display
-fetcher → processor, db
-processor → db
-strategy/* → klines_helper, calculator, db, display
-calculator → db
-```
-
-### 禁止的依賴方向
-
-```
-strategy → official
-official → strategy
-processor → strategy
-fetcher → strategy
-calculator → official
-任何模組 → 循環 import
-```
-
-### import 順序
+## Import 與執行
 
 ```python
-# 1. 標準庫
-import os
-import sys
+from twstock.db import get_connection
+from twstock.strategy.result_contract import normalize_strategy_result
+```
 
-# 2. 第三方套件
-import pandas as pd
-import numpy as np
+不得使用：
 
-# 3. 本專案模組
+```python
 from db import get_connection
-from display import price_rich
+import db
 ```
 
----
+直接啟動入口前，只可加入專案父目錄至 `sys.path`。測試不可使用 `os.chdir()` 改變全域工作目錄，也不可以 production DB 當 fixture。
 
-## Commit 規則
+## 資料庫與效能
 
-- commit message 使用英文
-- 格式：`type: description`
-- type 範例：feat, fix, refactor, docs, chore
-- 範例：`feat: add support resistance analysis`
-- 每次 commit message 結尾加上 Co-Authored-By
+- 正式寫入集中在 `DataProcessor` 或明確的管理／修復工具。
+- 使用 `executemany()` 與交易批次；逐列 `execute()` 加 `commit()` 是禁止模式。
+- 查詢需以 `stock_id`、`date` 等索引欄位限制；掃描以 SQL／DataFrame 批次處理，不能 N+1 查詢或逐檔 API 呼叫。
+- 讀取使用 `get_connection(readonly=True)`；寫入後必須有可追溯的錯誤或 audit 記錄。
 
----
+## JSON 與策略
 
-## 禁止事項
+- 策略相容介面是 `analyze(stock_id)`。
+- 對外結果須透過 `normalize_strategy_result()`，訊號統一為 `BUY/HOLD/SELL/UNKNOWN`。
+- 新欄位可加入 `details`；破壞性輸出變更須更新契約版本與 adapter。
 
-1. 不得刪除現有功能
-2. 不得修改 public function name
-3. 不得修改 DB schema
-4. 不得修改 CLI argument 格式
-5. 不得修改 JSON output format
-6. 不得引入 circular import
-7. 不得使用 print() 代替 logging（CLI 互動提示除外）
+## 完成前檢查
 
----
-
-## 修改原則
-
-1. 新增功能優先新增 module
-2. 不修改既有 module（除非 backward compatible）
-3. 舊 function 可以 deprecated，不能移除
-4. 新功能必須有 docstring
-5. 新功能必須符合命名規則
+1. 編譯受影響 Python 檔，並執行相對應測試。
+2. 驗證 import graph 沒有新 cycle 或 top-level alias。
+3. 新寫入流程要測試空資料、重複 UPSERT、錯誤欄位與交易 rollback。
+4. 新 schema bootstrap 必須在空白 temporary DB 驗證。
+5. 更新對應規格、`dependency_graph.json` 與變更紀錄。

@@ -165,110 +165,123 @@ def vol_fmt_short(vol: int) -> str:
 # ── K-Line Chart ────────────────────────────────────────
 
 
-def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 60) -> str:
-    """
-    渲染文字 K 線圖（Rich markup）。
-    Args:
-        df: DataFrame with columns: date, open, high, low, close, volume
-        stock_id: 股票代號
-        stock_name: 股票名稱
-        days: 顯示天數（預設 60）
-    Returns:
-        str: Rich markup 字串，可直接用 console.print() 輸出
+def render_kline(df, stock_id: str = "", stock_name: str = "", days: int = 10) -> str:
+    """渲染適合終端閱讀的逐日 K 線與成交量。
+
+    每日以一根橫向 K 棒呈現，數字同時列出 OHLC、較昨收漲跌與成交量。
+    K 棒顏色依收盤與開盤比較；漲跌顏色依收盤與前收比較。
     """
     if df is None or df.empty:
         return "[yellow]無資料[/]"
-    df = df.tail(days).copy().reset_index(drop=True)
-    if len(df) < 2:
-        return "[yellow]資料不足[/]"
-    for col in ["open", "high", "low", "close", "volume"]:
+    for col in ["date", "open", "high", "low", "close", "volume"]:
         if col not in df.columns:
             return f"[yellow]缺少 {col} 欄位[/]"
 
-    price_high = float(df["high"].max())
-    price_low = float(df["low"].min())
-    price_range = price_high - price_low
-    if price_range <= 0:
-        price_range = 1.0
+    clean = (
+        df.copy().dropna(subset=["open", "high", "low", "close", "volume"]).sort_values("date").reset_index(drop=True)
+    )
+    if len(clean) < 2:
+        return "[yellow]資料不足[/]"
 
-    chart_height = 15
-    vol_height = 4
-    lines = []
+    display_days = max(2, int(days))
+    start_index = max(0, len(clean) - display_days)
+    view = clean.iloc[start_index:].reset_index(drop=True)
+    first_prev_close = float(clean["close"].iloc[start_index - 1]) if start_index > 0 else float(view["open"].iloc[0])
+    lines: list[str] = []
 
     # 標題
     title = f"{stock_id} {stock_name}" if stock_id else "K 線圖"
-    last_close = float(df["close"].iloc[-1])
-    prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else last_close
+    last_close = float(view["close"].iloc[-1])
+    prev_close = float(clean["close"].iloc[-2])
     change = last_close - prev_close
     pct = (change / prev_close * 100) if prev_close else 0.0
     color = price_color(change, pct)
     arrow = "▲" if change > 0 else ("▼" if change < 0 else "─")
-    lines.append(f"[bold]{title}[/]  [{color}]{last_close:.2f} {arrow}{abs(pct):.1f}%[/]")
+    sign = "+" if change > 0 else ""
+    lines.append(f"[bold]{title}[/]  [{color}]{last_close:.2f} " f"{arrow}{abs(pct):.1f}% ({sign}{change:.2f})[/]")
+    lines.append(
+        "[white on red] 漲停 [/] [bright_red]漲／買[/]  "
+        "[white]平[/]  [bright_green]跌／賣[/] [white on green] 跌停 [/]"
+    )
+    lines.append("[dim]K 棒：紅 K＝收盤＞開盤；綠 K＝收盤＜開盤；白＝開收相同[/]")
+    lines.append("[dim]圖例：○開盤　●收盤　◆開收相同　━K棒實體　─當日最低到最高[/]")
     lines.append("")
 
-    # K 線主體
-    for row in range(chart_height):
-        if row == 0:
-            label = f"{price_high:>8.2f} "
-        elif row == chart_height - 1:
-            label = f"{price_low:>8.2f} "
-        elif row == chart_height // 2:
-            mid_price = (price_high + price_low) / 2
-            label = f"{mid_price:>8.2f} "
+    closes = [float(value) for value in view["close"]]
+
+    def _daily_change(index: int) -> tuple[float, float]:
+        previous = closes[index - 1] if index > 0 else first_prev_close
+        current = closes[index]
+        delta = current - previous
+        percentage = (delta / previous * 100) if previous else 0.0
+        return delta, percentage
+
+    def _k_style(open_price: float, close_price: float) -> tuple[str, str]:
+        if close_price > open_price:
+            return "bright_red", "紅K"
+        if close_price < open_price:
+            return "bright_green", "綠K"
+        return "white", "十字"
+
+    def _horizontal_candle(low_price: float, high_price: float, open_price: float, close_price: float) -> str:
+        """建立單日橫向 K 棒：兩端為低/高，○為開盤，●為收盤。"""
+        width = 14
+        span = high_price - low_price
+        if span <= 0:
+            return "├" + " " * (width // 2) + "◆" + " " * (width - width // 2 - 1) + "┤"
+
+        def position(price: float) -> int:
+            mapped = round((price - low_price) / span * (width - 1))
+            return max(0, min(width - 1, mapped))
+
+        open_pos = position(open_price)
+        close_pos = position(close_price)
+        chars = ["─"] * width
+        for pos in range(min(open_pos, close_pos), max(open_pos, close_pos) + 1):
+            chars[pos] = "━"
+        if open_pos == close_pos:
+            chars[open_pos] = "◆"
         else:
-            label = "          "
+            chars[open_pos] = "○"
+            chars[close_pos] = "●"
+        return "├" + "".join(chars) + "┤"
 
-        line_chars = []
-        for i in range(len(df)):
-            o = float(df["open"].iloc[i])
-            h = float(df["high"].iloc[i])
-            low_price = float(df["low"].iloc[i])
-            c = float(df["close"].iloc[i])
-            is_up = c >= o
-            body_top = max(o, c)
-            body_bot = min(o, c)
+    period_high = float(view["high"].max())
+    period_low = float(view["low"].min())
+    period_start = float(view["close"].iloc[0])
+    period_change = last_close - period_start
+    period_pct = (period_change / period_start * 100) if period_start else 0.0
+    lines.append(f"[bold white]最近 {len(view)} 個交易日逐日 K 線（日期由舊到新）[/]")
+    lines.append(
+        f"[dim]區間最低 {period_low:.2f}　最高 {period_high:.2f}　"
+        f"收盤 {period_start:.2f} → {last_close:.2f}　[/]"
+        f"[{price_color(period_change, period_pct)}]{period_pct:+.1f}%[/]"
+    )
+    lines.append("[dim]日期       K棒   最低  │─○開盤━●收盤─│  最高    開盤→收盤       較昨收       成交量（張）[/]")
 
-            def price_to_row(p):
-                return int((price_high - p) / price_range * (chart_height - 1))
-
-            r_h = price_to_row(h)
-            r_l = price_to_row(low_price)
-            r_body_top = price_to_row(body_top)
-            r_body_bot = price_to_row(body_bot)
-            if r_h <= row <= r_l:
-                if r_body_top <= row <= r_body_bot:
-                    line_chars.append("[bright_red]█[/]" if is_up else "[bright_green]█[/]")
-                else:
-                    line_chars.append("[dim]│[/]")
-            else:
-                line_chars.append(" ")
-        lines.append(label + "".join(line_chars))
-
-    # 成交量
-    lines.append("")
-    lines.append("[dim]─ 成交量 ─[/]")
-    vol_max = int(df["volume"].max())
-    if vol_max <= 0:
-        vol_max = 1
-    for row in range(vol_height):
-        vol_threshold = vol_max * (1 - row / vol_height)
-        label = f"{vol_fmt_short(int(vol_threshold)):>8s} " if row == 0 else "          "
-        line_chars = []
-        for i in range(len(df)):
-            v = int(df["volume"].iloc[i])
-            is_up = float(df["close"].iloc[i]) >= float(df["open"].iloc[i])
-            if v >= vol_threshold:
-                line_chars.append("[bright_red]█[/]" if is_up else "[bright_green]█[/]")
-            else:
-                line_chars.append(" ")
-        lines.append(label + "".join(line_chars))
-
-    # 日期標籤
-    date_label = "          "
-    dates = df["date"].astype(str).tolist()
-    if len(dates) > 2:
-        lines.append(date_label + dates[0][:5] + " " * (len(dates) - 10) + dates[-1][:5])
-    else:
-        lines.append(date_label + "  ".join(d[:5] for d in dates))
+    max_volume = max(int(value) for value in view["volume"])
+    for i in range(len(view)):
+        open_price = float(view["open"].iloc[i])
+        high_price = float(view["high"].iloc[i])
+        low_price = float(view["low"].iloc[i])
+        close_price = closes[i]
+        volume = int(view["volume"].iloc[i])
+        delta, percentage = _daily_change(i)
+        change_style = price_color(delta, percentage)
+        k_style, k_label = _k_style(open_price, close_price)
+        arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "─")
+        volume_width = round(volume / max_volume * 10) if max_volume > 0 else 0
+        if volume > 0:
+            volume_width = max(1, volume_width)
+        volume_bar = "█" * volume_width
+        volume_style = "bright_red" if delta > 0 else "bright_green" if delta < 0 else "white"
+        candle = _horizontal_candle(low_price, high_price, open_price, close_price)
+        date_text = str(view["date"].iloc[i]).split(" ", 1)[0]
+        lines.append(
+            f"{date_text:<10} [{k_style}]{k_label:<3} {low_price:>7.2f} {candle} {high_price:>7.2f}  "
+            f"{open_price:>7.2f}→{close_price:<7.2f}[/] "
+            f"[{change_style}]{arrow}{abs(percentage):>5.1f}%[/]  "
+            f"[{volume_style}]{vol_fmt(volume):>9} {volume_bar}[/]"
+        )
 
     return "\n".join(lines)

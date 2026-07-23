@@ -139,20 +139,21 @@ class TestClearScreenAnsiFallback:
 
 
 class TestGetInteractiveInputRouting:
+    @patch("builtins.input", return_value="1")
     @patch("twstock.input_helper._get_interactive_input_windows")
-    def test_windows_path(self, mock_windows):
-        mock_windows.return_value = "1"
+    def test_windows_path_waits_for_enter(self, mock_windows, mock_input):
         with (
             patch("twstock.input_helper._IS_TTY", True),
             patch("twstock.input_helper.HAS_MSVCRT", True),
         ):
             result = get_interactive_input("prompt: ", "12345")
         assert result == "1"
-        mock_windows.assert_called_once()
+        mock_input.assert_called_once_with("prompt: ")
+        mock_windows.assert_not_called()
 
+    @patch("builtins.input", return_value="2330")
     @patch("twstock.input_helper._get_interactive_input_unix")
-    def test_unix_path(self, mock_unix):
-        mock_unix.return_value = "2"
+    def test_unix_path_waits_for_enter(self, mock_unix, mock_input):
         with (
             patch("twstock.input_helper._IS_TTY", True),
             patch("twstock.input_helper.HAS_MSVCRT", False),
@@ -161,8 +162,9 @@ class TestGetInteractiveInputRouting:
             patch("twstock.input_helper.sys.stdin.fileno", return_value=0),
         ):
             result = get_interactive_input("prompt: ", "12345")
-        assert result == "2"
-        mock_unix.assert_called_once()
+        assert result == "2330"
+        mock_input.assert_called_once_with("prompt: ")
+        mock_unix.assert_not_called()
 
 
 class TestWaitForSecondKeyWindows:
@@ -258,13 +260,14 @@ class TestGetInteractiveInputWindows:
             patch("twstock.input_helper.msvcrt", fake),
             patch("twstock.input_helper.sys.stdout"),
             patch("time.sleep"),
-            patch("twstock.input_helper._flush_input_buffer"),
+            patch("twstock.input_helper._flush_input_buffer") as mock_flush,
             patch(
                 "twstock.input_helper._wait_for_second_key_windows", return_value=False
             ) as mock_wait,
         ):
             result = _get_interactive_input_windows("prompt:", "01234", True, 0.4)
         assert result == "1"
+        mock_flush.assert_not_called()
         mock_wait.assert_called_once_with(0.4)
 
     def test_menu_key_with_second_key(self):
@@ -286,7 +289,7 @@ class TestGetInteractiveInputWindows:
             patch("twstock.input_helper.sys.stdout"),
             patch("time.sleep"),
             patch("twstock.input_helper._flush_input_buffer"),
-            patch("twstock.input_helper._wait_for_second_key_windows", return_value=True),
+            patch("twstock.input_helper._wait_for_second_key_windows", return_value=False),
         ):
             result = _get_interactive_input_windows("prompt:", "01234", True, 0.4)
         assert result == "5678"
@@ -324,11 +327,12 @@ class TestGetBlockingKeyWindows:
             patch("twstock.input_helper.HAS_MSVCRT", True),
             patch("twstock.input_helper._IS_TTY", True),
             patch("twstock.input_helper.sys.stdout"),
-            patch("twstock.input_helper._flush_input_buffer"),
+            patch("twstock.input_helper._flush_input_buffer") as mock_flush,
             patch("time.sleep"),
         ):
             result = get_blocking_key("")
         assert result == "a"
+        mock_flush.assert_not_called()
 
     def test_enter_returns_empty(self):
         fake = _make_smart_msvcrt(["\r"])

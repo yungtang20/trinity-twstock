@@ -1,5 +1,14 @@
-import os
+"""Pytest bootstrap for stable package imports."""
 
-# 從 twstock/ 內執行 pytest 時，自動回到專案根目錄
-if os.path.basename(os.getcwd()) == "twstock":
-    os.chdir(os.path.dirname(os.getcwd()))
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_PARENT = PROJECT_ROOT.parent
+
+# Do not mutate os.getcwd(): tests and application code should resolve paths
+# independently of how pytest was launched.
+if str(PROJECT_PARENT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_PARENT))

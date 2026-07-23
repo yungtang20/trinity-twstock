@@ -8,10 +8,8 @@ chcp / cls 全部收攏到此模組，對外只暴露：
   - clear_screen()                      — 跨平台清幕
   - setup_console_encoding()            - Windows UTF-8 / 手機跳過 chcp
 
-支援平台：
-  Windows (msvcrt)  → 即時按鍵、自動送出 4 碼股號
-  Linux / macOS / Termux → 用 termios+stty raw fallback
-  其他 (CI / pipe)  →  fallback 到標準 input()
+所有選單與股號輸入都採用標準行輸入，必須按 Enter 才送出。
+低階單鍵函式只保留給明確的「按任意鍵繼續」場景。
 
 使用方式：
   from input_helper import get_interactive_input, clear_screen, setup_console_encoding
@@ -120,24 +118,13 @@ def get_interactive_input(
     auto_four: bool = True,
     timeout: float = 0.4,
 ) -> str:
+    """Return one complete input line after Enter is pressed.
+
+    The legacy keyword arguments remain for backward compatibility but no
+    longer trigger delayed single-key or automatic four-digit submission.
     """
-    跨平台統一鍵盤輸入。
-
-    Windows (msvcrt): 按鍵即時回應、0.4s 延遲內無第二鍵則視為單鍵選擇、
-                     自動 4 碼送出。
-    Termux/Linux/macOS: 使用 termios raw mode 模擬；第一次按鍵後等待
-                       0.4s 判斷是否單鍵選擇。
-    其他 (pipe / CI):  fallback 到標準 input()。
-    """
-    if not _IS_TTY or (not HAS_MSVCRT and not _is_unix_tty()):
-        return input(prompt).strip()
-
-    # Windows fast path — keep original behavior for compatibility
-    if HAS_MSVCRT:
-        return _get_interactive_input_windows(prompt, menu_keys, auto_four, timeout)
-
-    # Unix/Termux path
-    return _get_interactive_input_unix(prompt, menu_keys, auto_four, timeout)
+    del menu_keys, auto_four, timeout
+    return input(prompt).strip()
 
 
 def _is_unix_tty() -> bool:  # pragma: no cover — Unix-only, not executed on Windows CI
@@ -162,7 +149,6 @@ def _get_interactive_input_windows(
 ) -> str:
     """Windows 版本：msvcrt（與原版 main.py 行為完全一致）。"""
 
-    _flush_input_buffer()
     sys.stdout.write(prompt)
     sys.stdout.flush()
     buf = ""
@@ -187,33 +173,13 @@ def _get_interactive_input_windows(
                         continue
                     return buf
                 if auto_four and len(buf) == 4 and buf.isdigit():
-                    if _wait_for_second_key_windows(1.2):
-                        has_interrupted = False
-                        start = 0.0
-                        while start < 1.2:
-                            if msvcrt.kbhit():  # type: ignore[union-attr]
-                                nc = msvcrt.getwch()  # type: ignore[union-attr]
-                                if nc in ("\r", "\n"):
-                                    break
-                                elif nc == "\b":
-                                    if buf:
-                                        buf = buf[:-1]
-                                        sys.stdout.write("\b \b")
-                                        sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                                elif nc.isprintable():
-                                    buf += nc
-                                    sys.stdout.write(nc)
-                                    sys.stdout.flush()
-                                    has_interrupted = True
-                                    break
-                            import time as _t
-
-                            _t.sleep(0.01)
-                            start += 0.01
-                        if not has_interrupted:
-                            return buf
+                    # A four-digit stock code is complete after the grace
+                    # period.  The former code only returned when a fifth key
+                    # arrived; a normal four-digit entry fell back into this
+                    # infinite input loop.  If another key is already queued,
+                    # leave it for the outer loop to consume instead.
+                    if not _wait_for_second_key_windows(1.2):
+                        return buf
         import time as _t
 
         _t.sleep(0.01)
@@ -239,7 +205,6 @@ def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed
     """Termux/Linux/macOS 版本：termios raw mode 模擬。"""
     import time as _t
 
-    _flush_input_buffer()
     sys.stdout.write(prompt)
     sys.stdout.flush()
     buf = ""
@@ -274,7 +239,7 @@ def _get_interactive_input_unix(  # pragma: no cover — Unix-only, not executed
 
 # ── Convenience alias ────────────────────────────────────────
 def get_single_key_input(prompt: str, keys: str, auto_four: bool = False) -> str:
-    """單鍵輸入的語意化別名，委託給 :func:`get_interactive_input`。"""
+    """Compatibility wrapper that now also waits for Enter before returning."""
     return get_interactive_input(
         prompt=prompt,
         menu_keys=keys,
@@ -297,7 +262,6 @@ def get_blocking_key(prompt: str = "") -> str:
         return input().strip()
 
     if HAS_MSVCRT:
-        _flush_input_buffer()
         while True:
             if msvcrt.kbhit():  # type: ignore[union-attr]
                 ch = msvcrt.getwch()  # type: ignore[union-attr]
@@ -334,11 +298,29 @@ def get_blocking_key(prompt: str = "") -> str:
     return input().strip()
 
 
+# ── 阻塞式輸入（Enter 才返回）────────────────────────────────
+def blocking_input(prompt: str = "\n🔍 輸入: ") -> str:
+    """阻塞式輸入：無論何種平台，一律等待使用者按下 Enter 後才回傳。
+
+    與 ``get_interactive_input`` 的差異：
+      - 不檢查 menu_keys、不自動送出、不做任何即時回顯
+      - 內部直接走標準 ``input()``，呼叫端全程 blocking
+
+    回傳 ``prompt`` 後已 ``strip()`` 的字串；空字串代表使用者按 Enter 不輸入任何內容，
+    可由 caller 自行判定為「返回上層 / 退出」等。
+
+    呼叫端若要 dashboard 即時刷新，應在呼叫此函式**之前**自行 render，
+    因為 blocking 期間不會有背景刷新（見 A + ① 組合）。
+    """
+    return input(prompt).strip()
+
+
 # ── Convenience exports ────────────────────────────────
 __all__ = [
     "get_interactive_input",
     "get_single_key_input",
     "get_blocking_key",
+    "blocking_input",
     "clear_screen",
     "setup_console_encoding",
     "HAS_MSVCRT",

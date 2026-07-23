@@ -23,24 +23,16 @@ if sys.platform == "win32":
     except AttributeError:
         pass
 
-# [AI MOD] Import unified database path from db.py
-import sys
-from pathlib import Path
-
-_PARENT = Path(__file__).resolve().parent.parent
-if str(_PARENT) not in sys.path:
-    sys.path.append(str(_PARENT))
-
 # FinMind API fallback
 try:
-    from twstock.market_data.historical_fetcher import DataFetcher
+    from twstock.market_data.historical_fetcher import DataFetcher, DividendFetcher
 
     FINMIND_AVAILABLE = True
 except ImportError:
     FINMIND_AVAILABLE = False
 
 from twstock.retry import retry_get
-from twstock.utils import get_ssl_verify
+from twstock.utils import get_finmind_token, get_ssl_verify
 
 
 def _convert_date(date_str: str, input_format: str) -> str:
@@ -167,6 +159,7 @@ def fetch_tpex_dividend_events(start_date: str, end_date: str) -> pd.DataFrame:
         retries=3,
         backoff=1.0,
         verify=get_ssl_verify(),
+        ssl_fallback=True,
     )
     if resp is None:
         print("  [ERROR] TPEx crawler failed after retries")
@@ -227,13 +220,18 @@ def fetch_dividend_events(
             fetcher = DataFetcher()
             stock_list = fetcher.fetch_stock_meta()
             if not stock_list.empty:
+                dividend_fetcher = DividendFetcher(api_token=get_finmind_token(), db=None)
                 all_dividends = []
                 # Fallback sequentially per stock (useful for missing individual tickers)
                 for stock in stock_list.itertuples(index=False):
                     stock_id = stock.stock_id
-                    df = fetcher.fetch_dividend(stock_id, start_date, end_date)
-                    if not df.empty:
-                        all_dividends.append(df)
+                    try:
+                        raw = dividend_fetcher.fetch_dividend(stock_id, start_date, end_date)
+                        if raw.get("data"):
+                            all_dividends.append(pd.DataFrame(dividend_fetcher._transform(raw)))
+                    except Exception as exc:
+                        # 單一股票無資料或暫時失敗，不應中止其餘 fallback。
+                        print(f"  FinMind dividend skipped for {stock_id}: {exc}")
                 if all_dividends:
                     combined_df = pd.concat(all_dividends, ignore_index=True)
                     print(f"  Fetched {len(combined_df)} records via FinMind API fallback")

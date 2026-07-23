@@ -5,7 +5,6 @@
 # [AI MOD] Migrated to taiwan_stock_unified.db + klines view
 """
 
-import os
 import signal
 import sqlite3
 import sys
@@ -102,19 +101,11 @@ else:
 warnings.filterwarnings("ignore")
 
 # ── Module path ───────────────────────────────────────────
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-_TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
-if _TWSTOCK_DIR not in sys.path:
-    sys.path.insert(0, _TWSTOCK_DIR)
-
 from twstock.db import get_connection  # [AI MOD]
 from twstock.display import price_color, vol_color  # [AI MOD]
-from twstock.strategy._utils import clear_screen, get_stock_name, render_header
+from twstock.strategy._utils import clear_screen, fetch_klines_batch, get_stock_name, render_header
 
-try:
-    from twstock.input_helper import get_blocking_key
-except ImportError:
-    from input_helper import get_blocking_key  # type: ignore[no-redef]
+from twstock.input_helper import blocking_input, get_blocking_key
 
 
 # ── Local helpers ─────────────────────────────────────────
@@ -129,7 +120,7 @@ def _clear_screen():
 
 
 def _wait_for_enter():
-    rconsole.input("\n按 Enter 繼續...")
+    blocking_input("\n按 Enter 繼續...")
 
 
 def _render_kronos_prediction(
@@ -169,7 +160,8 @@ def _render_kronos_prediction(
                 f"[dim]  Kronos 未就緒，使用 Monte Carlo fallback: {pred.benchmark:.2f} (信心 {pred.confidence:.1%})[/]"
             )
         else:
-            pred = engine.kronos_engine.predict(work, engine.config)
+            with rconsole.status("[cyan]Kronos-base 正在產生 5 日預測...[/]"):
+                pred = engine.kronos_engine.predict(work, engine.config)
             current = float(work["close"].iloc[-1])
             rconsole.print()
             rconsole.print(
@@ -194,10 +186,11 @@ def _render_kronos_prediction(
 
             direction = "偏多" if pred.drift > 0 else "偏空" if pred.drift < 0 else "中性"
             dc = "bright_red" if pred.drift > 0 else "bright_green" if pred.drift < 0 else "white"
+            confidence_text = f"{pred.confidence:.1%}" if pred.confidence > 0 else "N/A"
             rconsole.print(
                 f"  當前: {current:.2f}  目標: {pred.benchmark:.2f}  "
                 f"預期: [{dc}]{direction} ({pred.drift:+.2%})[/]  "
-                f"信心: {pred.confidence:.1%}"
+                f"信心: {confidence_text}"
             )
     except Exception as e:
         rconsole.print(f"[red]❌ Kronos 預測失敗: {e}[/]")
@@ -206,16 +199,18 @@ def _render_kronos_prediction(
 class MarketScanner:
 
     def __init__(self, conn: sqlite3.Connection, config: Optional[Dict] = None):
-        if DEFAULT_CONFIG is None or MonteCarloEngine is None or PredictionEngine is None:
+        if DEFAULT_CONFIG is None or MonteCarloEngine is None:
             raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")
         self.conn = conn
         self.config = DEFAULT_CONFIG.copy()
         if config:
             self.config.update(config)
         self.mc_engine = MonteCarloEngine()
-        # 優先使用 Kronos，失敗則 fallback 到 Monte Carlo
-        self.engine = PredictionEngine(self.config)
-        self.uses_kronos = self.engine.kronos_engine is not None and self.engine.kronos_engine.ready
+        # 全市場可能超過一千檔。逐檔執行 102M Kronos-base 會令掃描耗時數小時；
+        # 此處只做快速 Monte Carlo 初篩，使用者選定個股後才執行 Kronos。
+        # 同時避免只是進入 AI 選單就載入約 405 MB 權重。
+        self.engine = self.mc_engine
+        self.uses_kronos = False
 
     def scan_market(self, min_volume: int = 500) -> None:
         try:
@@ -286,6 +281,7 @@ class MarketScanner:
         self, stock_ids: List[str], name_mapping: Dict[str, str]
     ) -> List[StockPrediction]:
         preds = []
+        frames = fetch_klines_batch(self.conn, stock_ids, limit=60)
         with Progress(
             SpinnerColumn(),
             TextColumn("[cyan]🚀 正在對全市場進行預測分析中..."),
@@ -297,7 +293,10 @@ class MarketScanner:
 
             for code in stock_ids:
                 try:
-                    df = fetch_klines(self.conn, code, limit=60)
+                    df = frames.get(code)
+                    if df is None:
+                        progress.advance(task)
+                        continue
                     df = df.dropna(subset=["close"]).sort_values("date")
                     if len(df) < 20:
                         progress.advance(task)
@@ -350,7 +349,7 @@ class MarketScanner:
         sort_names = {"1": "距潛力估值由大到小", "2": "成交量(%)由大到小"}  # [AI MOD]
         sort_name = sort_names.get(sort_choice, "距潛力估值由大到小")
 
-        engine_label = "Kronos" if self.uses_kronos else "MonteCarlo"
+        engine_label = "Monte Carlo 快速初篩；個股使用 Kronos"
         table = Table(
             title=f"🔮 AI 預測潛力分析榜 (排序: {sort_name}) (基準日: {latest_date}) (模型: {engine_label})",
             box=box.SIMPLE,
@@ -361,7 +360,7 @@ class MarketScanner:
         table.add_column("名稱", justify="left", no_wrap=True)
         table.add_column("收盤", justify="right", no_wrap=True)
         table.add_column("成交張數", justify="right", no_wrap=True)
-        table.add_column("額(億)", style="bright_green", justify="right", no_wrap=True)
+        table.add_column("額(億)", style="white", justify="right", no_wrap=True)
         table.add_column("潛力估值", justify="right", no_wrap=True)
         table.add_column("預期目標", justify="right", no_wrap=True)
         table.add_column("模型信心", justify="right", no_wrap=True)
@@ -436,12 +435,12 @@ class PredictionAnalysisApp:
                 latest_str = str(ld_temp) if ld_temp else "N/A"
                 rconsole.print(f"[dim]基準日期: {latest_str}[/dim]\n")
 
-                cmd = rconsole.input("[bold cyan]🔍 輸入股號或按 Enter 回到上一頁: [/]").strip()
+                cmd = blocking_input("🔍 輸入股號或按 Enter 回到上一頁: ").strip()
 
                 if cmd == "0":
                     break
                 elif cmd == "":
-                    vol_str = rconsole.input("📊 最小成交量 (張, 預設 500): ").strip()
+                    vol_str = blocking_input("📊 最小成交量 (張, 預設 500): ").strip()
                     min_vol = int(vol_str) if vol_str.isdigit() else 500
                     scanner.scan_market(min_vol)
                     _wait_for_enter()
@@ -480,8 +479,6 @@ def run_strategy(params: dict):
     code = params.get("code")
     scan = params.get("scan", False)
     vol = params.get("vol", 500)
-    compact = params.get("compact", False)
-    mobile = params.get("mobile", False)
     app = PredictionAnalysisApp()
     if scan:
         conn = get_connection(readonly=True)
@@ -497,10 +494,6 @@ def run_strategy(params: dict):
             df = df.dropna(subset=["close"]).sort_values("date")
             if not df.empty:
                 name = get_stock_name(conn, code)
-                # 幾何型態分析
-                if _StockPredictionAnalyzer:
-                    analyzer = _StockPredictionAnalyzer(app.config)
-                    analyzer.analyze_single_stock(code, name, df, compact=compact, mobile=mobile)
                 # Kronos 預測（5 日價格）
                 if PredictionEngine is None or MonteCarloEngine is None:
                     raise RuntimeError("kronos_engine 未安裝或匯入失敗，此功能需要 torch")

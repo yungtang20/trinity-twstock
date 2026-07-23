@@ -88,3 +88,5 @@ _f.txt
 test-results/
 *.bak*
 archive/
+# Added by code-review-graph
+.code-review-graph/

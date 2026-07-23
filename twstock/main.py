@@ -19,6 +19,14 @@ import argparse
 import os
 import sys
 
+_MIN_PYTHON = (3, 12)
+if sys.version_info[:2] < _MIN_PYTHON:
+    print(
+        "TRINITY requires Python >= 3.12.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
 # 支援雙模式執行：
 #   python -m twstock.main        → Python 自動將 D:\twse 加進 sys.path
 #   python d:/twse/twstock/main.py → Python 只加 D:\twse\twstock，需手動補兩層：
@@ -26,14 +34,18 @@ import sys
 #     2. 套件目錄（D:\twse\twstock）讓套件內 from db import ... 隱式相對 import 能解析
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
-for _p in (_PROJECT_ROOT, _CURRENT_DIR):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
-from twstock.db import get_path
-from twstock.db_admin import init_db, migrate_db
-from twstock.terminal import console
-from twstock.utils import get_token
+# ``python main.py`` has no package context, so make the *parent* directory
+# importable before any ``twstock.*`` import.  Do not add the package directory
+# itself: doing both creates separate ``db`` and ``twstock.db`` module objects
+# with divergent DB_PATH/monkeypatch state.
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from twstock.db import get_path  # noqa: E402
+from twstock.db_admin import init_db, migrate_db  # noqa: E402
+from twstock.terminal import console  # noqa: E402
+from twstock.utils import get_token  # noqa: E402
 
 # 命令分派表
 _ACTION_MAP = {
@@ -76,7 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--days", type=int, default=1, help="下載幾個交易日")
     parser.add_argument("--tdcc-only", action="store_true", help="僅抓取最新 TDCC")
     parser.add_argument("--with-tdcc", action="store_true", help="更新後自動更新 TDCC")
-    parser.add_argument("--tdcc-weeks", type=int, help="抓取最近 N 週 TDCC 歷史")
+    parser.add_argument(
+        "--tdcc-weeks",
+        type=int,
+        help="相容性參數；官方全市場 API 僅更新最新一期 TDCC",
+    )
     parser.add_argument("--start-date", type=str, help="開始日期 (dividend)")
     parser.add_argument("--end-date", type=str, help="結束日期 (dividend)")
     return parser

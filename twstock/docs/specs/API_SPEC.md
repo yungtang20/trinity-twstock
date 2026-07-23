@@ -1,191 +1,60 @@
-# API_SPEC.md — TRINITY 外部 API 規格
+# TRINITY 外部資料來源規格
 
-> 所有外部 API 的 endpoint、參數、回應格式、錯誤處理。
+外部來源只供更新流程使用；策略分析以 SQLite 已保存資料為準。端點與 payload 會隨供應商變動，解析器、fixture 與欄位驗證必須一起更新。
 
----
-
-## 1. FinMind API
+## FinMind
 
 | 項目 | 值 |
-|------|-----|
+|---|---|
 | Base URL | `https://api.finmindtrade.com/api/v4/data` |
-| Auth | `Authorization: Bearer {FINMIND_TOKEN}` |
-| Rate Limit | 每小時 600 次（`_RateLimiter` 滑動視窗） |
+| 認證 | `Authorization: Bearer {FINMIND_TOKEN}` |
+| 實作 | `market_data/historical_fetcher.py` |
 
-### 常用 dataset
+主要 dataset 包含日線、法人買賣超、外資持股與股票基本資料。日線常見來源欄位 `max`／`min` 必須映射到 DB 的 `high`／`low`；成交量與金額維持原始股數／元。
 
-| dataset | data_id | 回傳欄位 |
-|---------|---------|---------|
-| TaiwanStockPrice | 股號 | stock_id, date, open, high, low, close, Trading_Volume, Trading_Money, ... |
-| TaiwanStockInstitutionalInvestorsBuySell | 股號 | stock_id, date, Foreign_Investor_Buy, Foreign_Investor_Sell, Investment_Trust_Buy, Investment_Trust_Sell, ... |
-| TaiwanStockShareholding | 股號 | stock_id, date, Foreign_Remaining_Shares, Foreign_Shareholding_Ratio |
-| TaiwanStockInfo | "" | stock_id, stock_name, industry_category, market, type |
+## TWSE 與 TPEx
 
-### 回應格式
+| 資料 | 實作 |
+|---|---|
+| 上市／上櫃日線與成交資訊 | `official/quotes.py`、`market_data/fetcher.py` |
+| 上市／上櫃法人 | `official/institutional.py` |
+| 股利 | `official/dividend_crawler.py` |
+| 交易行事曆 | `official/trading_calendar.py` |
+| 即時快照 | `market_data/historical_fetcher.py`、TWSE MIS |
 
-```json
-{
-  "data": [
-    {"stock_id": "2330", "date": "2026-06-26", ...}
-  ],
-  "msg": "success"
-}
-```
+TPEx 日期多使用民國年格式，解析器要在 ETL 邊界統一成 ISO 日期。上市與上櫃法人資料都必須輸出完整標準欄位：foreign、trust、dealer 的 buy、sell、net，以及 institutional net。
 
-### 錯誤處理
-
-- `msg != "success"` → 回傳空 DataFrame
-- HTTP error → retry 3 次，仍失敗回傳空 DataFrame
-- Timeout → retry 3 次（指數退避）
-
----
-
-## 2. TWSE 官方 API
-
-### 收盤行情（全市場）
+## TDCC
 
 | 項目 | 值 |
-|------|-----|
-| URL | `https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX` |
-| Method | GET |
-| Params | `date` (YYYYMMDD), `type=ALL`, `response=json` |
-| 回傳 | `{"tables": [{"title": "每日收盤行情", "fields": [...], "data": [[...]]}]}` |
+|---|---|
+| Open data | `https://openapi.tdcc.com.tw/` |
+| 網頁歷史來源 | `https://www.tdcc.com.tw/` |
+| 實作 | `official/tdcc.py` |
 
-### 三大法人
+TDCC payload 在進入 `shareholding_unified` 前需要標準化 `date`、`stock_id` 與 `source='tdcc'`。不得送入僅處理外資持股欄位的寫入方法。
 
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.twse.com.tw/rwd/zh/fund/T86` |
-| Method | GET |
-| Params | `date` (YYYYMMDD), `selectType=ALLBUT0999`, `response=json` |
-| 回傳 | `{"fields": [...], "data": [[...]]}` |
+`/v1/opendata/1-5` 是最新全市場快照；`date` query 參數不得視為歷史期別切換保證。
+寫入日期必須取自 payload 的「資料日期」（欄名可能帶 UTF-8 BOM）；缺少、無效或同一
+payload 有多個期別時必須拒絕寫入。每日更新可重複取得最新快照，但必須以
+`(stock_id, payload date, source)` 冪等 UPSERT，不能以本機星期六推測期別，也不能只用全表
+`MAX(date)` 判定快照已完整。
 
-### 除權息（全市場）
+## 行情與輔助來源
 
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.twse.com.tw/rwd/zh/exRight/TWT49U` |
-| Method | GET |
-| Params | `response=json`, `startDate` (YYYY-MM-DD), `endDate` (YYYY-MM-DD) |
+`market_data/fetcher.py` 也使用 Yahoo 台股頁面、TWSE MIS 與 TPEx 公開資料取得市場顯示資訊。這些資料屬更新／展示用途；失敗時不應讓策略直接改用未驗證網路回應。
 
-### 即時報價
+主畫面於本機官方交易日曆標示開市、且系統時間介於 09:00（含）至 13:30（不含）時，優先呼叫 TWSE MIS 即時服務；若即時服務沒有有效行情才降級使用 MI_INDEX。首頁第一次顯示及使用者從其他功能返回首頁時同步一次行情；停留在首頁等待輸入期間不重畫畫面，也不自動呼叫 API。畫面標題的日期時間代表該次首頁更新時的系統時鐘，不冒充外部 API 的資料時間。
 
-| 項目 | 值 |
-|------|-----|
-| URL | `https://mis.twse.com.tw/stock/api/getStockInfo.jsp` |
-| Method | GET |
-| Params | `ex_ch=tse_{股號}.tw`, `json=1`, `delay=0` |
-| 回傳 | `{"msgArray": [{"c": "2330", "z": 720.5, "o": 718.0, "h": 722.0, "l": 717.5, "v": 5200, ...}]}` |
-| 單位 | v = 張 |
+## 可選 AI 服務
 
-### 交易日曆
+- LongCat：僅在明確啟用的功能使用 `LONGCAT_API_KEY`；模型名稱、URL 與 token 上限由執行環境設定，不在本文件硬編碼。
+- Kronos：vendored engine 需要 `torch`、`huggingface-hub`、`tqdm`、`einops`。模型與 tokenizer 路徑必須從設定或使用者指定位置取得，不能假設固定磁碟路徑。
 
-| 項目 | 值 |
-|------|-----|
-| URL | `https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule` |
-| Method | GET |
-| 回傳 | `[{"Date": "1150101", "Description": "元旦"}, ...]`（民國年） |
+任何 heuristic 都必須明確標示為 heuristic，不能宣稱是模型推論。
 
-### 處置股票
+## 錯誤與 TLS
 
-| 項目 | 值 |
-|------|-----|
-| URL | `https://openapi.twse.com.tw/v1/announcement/punish` |
-| Method | GET |
-| 回傳 | `[{"Code": "3366", "DispositionPeriod": "115/06/01~115/06/30"}, ...]` |
-
----
-
-## 3. TPEx 官方 API
-
-### 收盤行情（全市場）
-
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430_result.php` |
-| Method | GET |
-| Params | `l=zh-tw`, `d={ROC_DATE}`, `se=AL`, `s=0,asc,0` |
-| ROC Date | `YYY/MM/DD`（民國年） |
-
-### 三大法人
-
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php` |
-| Method | GET |
-| Params | `l=zh-tw`, `o=json`, `se=AL`, `t=D`, `d={ROC_DATE}` |
-| 回傳 | 7 組買賣超（g1_g7），非 foreign/trust/dealer 格式 |
-
-### 除權息
-
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.tpex.org.tw/web/stock/exright/dailyquo/exDailyQ_result.php` |
-| Method | GET |
-| Params | `l=zh-tw`, `d={開始日期}`, `ed={結束日期}`, `se=EW`, `s=0,asc,0` |
-
----
-
-## 4. TDCC 集保 API
-
-### OpenAPI（本週）
-
-| 項目 | 值 |
-|------|-----|
-| URL | `https://openapi.tdcc.com.tw/v1/opendata/1-5` |
-| Method | GET |
-| Params | `date=YYYY-MM-DD`（本週六） |
-| 回傳 | `[{"證券代號": "2317", "持股分級": "17", "股數": 1234567, "人數": 890, ...}]` |
-
-### 官網爬蟲（單一股票歷史）
-
-| 項目 | 值 |
-|------|-----|
-| URL | `https://www.tdcc.com.tw/portal/zh/smWeb/qryStock` |
-| Method | GET → POST（需 CSRF token） |
-| 用途 | 單一股票特定日期的集保資料 |
-
----
-
-## 5. LongCat AI
-
-| 項目 | 值 |
-|------|-----|
-| URL | `{LONGCAT_API_URL}/chat/completions` |
-| Auth | `Authorization: Bearer {LONGCAT_API_KEY}` |
-| Model | `{LONGCAT_MODEL}`（預設 LongCat-2.0-Preview） |
-| Method | POST |
-| Body | `{"model": "...", "messages": [...], "max_tokens": 128000, "temperature": 0.7}` |
-
----
-
-## 6. Kronos AI
-
-| 項目 | 值 |
-|------|-----|
-| Model ID | `NeoQuasar/Kronos-base` |
-| Tokenizer | `NeoQuasar/Kronos-Tokenizer-base` |
-| Max Context | 512 tokens |
-| Predict Length | 5 days |
-| Location | `d:/twse/kronos/`（模型權重） |
-
----
-
-## 錯誤處理統一規則
-
-| HTTP Status | 行為 |
-|-------------|------|
-| 200 | 正常處理 |
-| 404 | Skip，回傳空 DataFrame |
-| 500 | Retry 3 次（指數退避 1s, 2s, 4s） |
-| Timeout | Retry 3 次（指數退避） |
-| JSON Parse Error | Skip，log warning |
-
-## 速率限制
-
-| API | 限制 | 實作 |
-|-----|------|------|
-| FinMind | 600 次/小時 | `_RateLimiter` 滑動視窗 |
-| TWSE/TPEx | 無明確限制 | 全市場一次抓，不逐檔 |
-| TDCC OpenAPI | 無明確限制 | 每週一次 |
-| TDCC 官網爬蟲 | 每 0.15s 一次 | `time.sleep(0.15)` |
+- timeout 與可恢復的 5xx 可以有限次指數退避重試。
+- 4xx、JSON／欄位解析錯誤與資料驗證失敗要回傳可識別失敗，不能寫入空白成功資料。
+- TLS 憑證錯誤不得自動關閉驗證；修正 CA bundle、系統時間或網路攔截設定後再試。

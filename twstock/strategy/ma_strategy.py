@@ -30,6 +30,7 @@ import time as _time_mod
 # Import unified connection factory
 from twstock.db import get_connection
 from twstock.strategy.base import BaseStrategy
+from twstock.strategy.result_contract import normalize_strategy_result
 from twstock.terminal import console
 
 _CACHE_TTL = 300  # 5 分鐘
@@ -44,10 +45,7 @@ _SCAN_CACHE: dict[str, Any] = {
 from twstock.display import ma_color, price_color, price_rich, vol_color  # [AI MOD]
 from twstock.strategy._utils import fetch_klines
 
-try:
-    from twstock.input_helper import _getch_windows, _kbhit_windows
-except ImportError:
-    from input_helper import _getch_windows, _kbhit_windows  # type: ignore[no-redef]
+from twstock.input_helper import _getch_windows, _kbhit_windows
 
 
 def _compute_ma_with_deduction(closes: list[float], period: int) -> dict[str, Any]:
@@ -134,10 +132,12 @@ def _render_mobile_ma(data: dict[str, Any], code: str, name: str) -> None:
         f"MA200 {ma200['ma']:.2f}  {ma200['trend']}  " f"扣抵 {d200:.2f} {ma200['tomorrow']}"
     )
 
-    if abs(bias) > 20:
+    if bias >= 20:
         console.print(f"乖離 {bias:+.1f}%  [bright_red]⚠ 過熱[/]")
+    elif bias <= -20:
+        console.print(f"乖離 {bias:+.1f}%  [bright_green]⚠ 超跌[/]")
     else:
-        console.print(f"乖離 {bias:+.1f}%")
+        console.print(f"乖離 {bias:+.1f}%  [white]正常[/]")
 
 
 def _render_full_ma(data: dict[str, Any], code: str, name: str) -> None:
@@ -194,8 +194,12 @@ def _render_full_ma(data: dict[str, Any], code: str, name: str) -> None:
         f"[{ma_color(ma200['trend'])}]{ma200['trend']}[/]",
     )
 
-    bias_color = "bright_red" if abs(bias) > 20 else "white"
-    bias_label = "⚠過熱" if abs(bias) > 20 else "正常"
+    if bias >= 20:
+        bias_color, bias_label = "bright_red", "⚠過熱"
+    elif bias <= -20:
+        bias_color, bias_label = "bright_green", "⚠超跌"
+    else:
+        bias_color, bias_label = "white", "正常"
     t.add_row("季線乖離", f"[{bias_color}]{bias:+.2f}%[/]", f"[{bias_color}]{bias_label}[/]")
 
     console.print(t)
@@ -222,18 +226,8 @@ def scan_market_stocks(
 
     _t0 = _time.time()
 
-    # [AI MOD] 自動刷新缺失指標
     try:
-        from twstock.strategy.indicators import ensure_indicators_all
-
-        refreshed = ensure_indicators_all(conn)
-        if refreshed:
-            console.print(f"[dim]🔄 自動刷新 {refreshed} 檔指標[/dim]")
-    except Exception as e:
-        console.print(f"[dim]auto refresh indicators skipped: {e}[/dim]")
-
-    try:
-        latest_date = conn.execute("SELECT MAX(date) FROM stock_indicators").fetchone()[0]
+        latest_date = conn.execute("SELECT MAX(date) FROM stock_history").fetchone()[0]
         if not latest_date:
             console.print("[red]❌ 無法獲取資料庫日期[/red]")
             return
@@ -256,9 +250,7 @@ def scan_market_stocks(
         except Exception as e:
             console.print(f"[dim]strategy key input skipped: {e}[/dim]")
 
-    # [FIX] Update target_ma_map & period after strat_choice is confirmed
-    target_ma_map = {"1": "ma200", "2": "ma60", "3": "ma25"}
-    target_ma_col = target_ma_map.get(strat_choice, "ma200")
+    # [FIX] Update period after strat_choice is confirmed
     period_map = {"1": 200, "2": 60, "3": 25}
     period = period_map.get(strat_choice, 200)
 
@@ -283,36 +275,20 @@ def scan_market_stocks(
         except Exception:
             name_map = {}
 
-        # === 嚴格三段式掃描 ===
-        # 第一段：SQL 撈 stock_indicators 最新一日 → snapshot (與原版一致)
-
-        snapshot_sql = f"""
-            SELECT i.stock_id, h.close, i.{target_ma_col}, i.vol_ma5, i.vol_ma60
-            FROM stock_indicators i
-            JOIN stock_history h ON i.stock_id = h.stock_id AND i.date = h.date
-            WHERE i.date = ? AND h.volume >= ? AND i.stock_id GLOB '[1-9][0-9][0-9][0-9]'
+        # 第一段只從正式行情表選候選股。策略掃描不得為了讀取而更新
+        # stock_indicators；下方會從同一批歷史資料向量計算所需指標。
+        snapshot_sql = """
+            SELECT stock_id, close
+            FROM stock_history
+            WHERE date = ? AND volume >= ? AND close > 0
+              AND stock_id GLOB '[1-9][0-9][0-9][0-9]'
         """
         # h.volume 單位為股，min_volume 單位為張（1張=1000股）
         cursor = conn.execute(snapshot_sql, (latest_date, min_volume * 1000))
         rows = cursor.fetchall()
         total_snapshots = len(rows)
 
-        # 第二段：純記憶體篩選（禁止 fetch_klines / pd.read_sql / rolling）
-        # 與原版對齊：只保留 volume>=500, GLOB, target_ma 有值
-        hit_list = []
-        for row in rows:
-            stock_id, close, target_ma, vma5, vma60 = row
-            if target_ma is None:
-                continue
-            hit_list.append(
-                {
-                    "stock_id": stock_id,
-                    "close": close,
-                    "target_ma": target_ma,
-                    "vol_ma5": vma5,
-                    "vol_ma60": vma60,
-                }
-            )
+        hit_list = [{"stock_id": row[0], "close": row[1]} for row in rows]
 
         # 第三段：批次載入命中股票歷史（每 500 檔一批 SQL），groupby 後以 rolling 向量計算
         from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -434,7 +410,7 @@ def scan_market_stocks(
                                 vol_ratio = (
                                     (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
                                 )
-                                retraces = _count_retraces_wrapped(ma_series, c, period)
+                                retraces = _count_retraces_wrapped(ma_series, c)
                                 triggered.append(
                                     {
                                         "code": code,
@@ -472,7 +448,7 @@ def scan_market_stocks(
                                 vol_ratio = (
                                     (curr_vol - prev_vol) / prev_vol if prev_vol > 0 else 0.0
                                 )
-                                retraces = _count_retraces_wrapped(ma_series, c, period)
+                                retraces = _count_retraces_wrapped(ma_series, c)
                                 triggered.append(
                                     {
                                         "code": code,
@@ -528,7 +504,7 @@ def scan_market_stocks(
                                             if ma25[-1] > 0
                                             else 0.0
                                         )
-                                        retraces = _count_retraces_wrapped(ma25, c, 25)
+                                        retraces = _count_retraces_wrapped(ma25, c)
                                         triggered.append(
                                             {
                                                 "code": code,
@@ -776,7 +752,6 @@ def _analyze_one(
 def _count_retraces_wrapped(
     ma_series: list[float] | None,
     closes: list[float],
-    period: int,
 ) -> int:
     """
     包裝 _count_retraces：顯傳入 ma_series 與 closes，確保索引對齊。
@@ -843,7 +818,7 @@ def _display_scan_results(
     t.add_column("成交張數", no_wrap=True)  # [AI MOD]
     t.add_column("額(億)", style="yellow", no_wrap=True)
     t.add_column(ma_col_name, style="bright_white", no_wrap=True)
-    t.add_column("乖離率", style="bright_red", no_wrap=True)
+    t.add_column("乖離率", no_wrap=True)
     t.add_column("曾回踩", style="cyan", no_wrap=True)  # [AI MOD]
 
     for r in results[:40]:
@@ -883,9 +858,9 @@ def _display_scan_results(
 
 def get_latest_date() -> str:
     """供 strategies.py 查詢資料基準日 — 委託 StrategyBase 統一查詢。"""
-    ld = BaseStrategy.get_latest_date("stock_indicators")
+    ld = BaseStrategy.get_latest_date("stock_history")
     if ld is None:
-        raise RuntimeError("stock_indicators 無資料")
+        raise RuntimeError("stock_history 無資料")
     return ld
 
 
@@ -899,15 +874,6 @@ def run_strategy(params: dict[str, Any]) -> None:
 
     conn = get_connection(readonly=True)
     try:
-        # [AI MOD] 自動刷新缺失指標
-        if code:
-            try:
-                from twstock.strategy.indicators import ensure_indicators
-
-                ensure_indicators(code, conn)
-            except Exception as e:
-                console.print(f"[dim]ensure_indicators skipped for {code}: {e}[/dim]")
-
         if scan:
             scan_market_stocks(conn, vol, strat_choice, sort_choice=sort_choice)
             return
@@ -926,7 +892,7 @@ def run_strategy(params: dict[str, Any]) -> None:
         df = pd.read_sql(
             """
             SELECT date, open, high, low, close, volume
-            FROM klines_indicators
+            FROM klines
             WHERE stock_id = ?
             ORDER BY date DESC
             LIMIT 300
@@ -999,18 +965,18 @@ class MAStrategy:
 
     def analyze(self, stock_id: str) -> dict:
         """分析均線信號。回傳 strategy/stock_id/signal。"""
-        from db import get_connection
-
-        conn = get_connection()
+        conn = get_connection(readonly=True)
         try:
             df = fetch_klines(conn, stock_id, limit=250)
             if df is None or df.empty or len(df) < 60:
-                return {
-                    "strategy": "ma",
-                    "stock_id": stock_id,
-                    "signal": "neutral",
-                    "reason": "資料不足",
-                }
+                return normalize_strategy_result(
+                    {
+                        "strategy": "ma",
+                        "stock_id": stock_id,
+                        "signal": "neutral",
+                        "reason": "資料不足",
+                    }
+                )
 
             c = df["close"].sort_index().tolist()
             curr = c[-1]
@@ -1030,15 +996,18 @@ class MAStrategy:
                 signal = "neutral"
                 arrangement = "區間震盪"
 
-            return {
-                "strategy": "ma",
-                "stock_id": stock_id,
-                "signal": signal,
-                "ma25": round(ma25, 2),
-                "ma60": round(ma60, 2),
-                "ma200": round(ma200, 2),
-                "arrangement": arrangement,
-            }
+            return normalize_strategy_result(
+                {
+                    "strategy": "ma",
+                    "stock_id": stock_id,
+                    "signal": signal,
+                    "ma25": round(ma25, 2),
+                    "ma60": round(ma60, 2),
+                    "ma200": round(ma200, 2),
+                    "arrangement": arrangement,
+                    "summary": f"均線排列：{arrangement}。",
+                }
+            )
         finally:
             conn.close()
 

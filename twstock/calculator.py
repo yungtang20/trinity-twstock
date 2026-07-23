@@ -1,163 +1,186 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-calculator.py — 技術指標計算引擎
-從 stock_history 讀取日線資料，計算 SMA/EMA/MACD/Bollinger/KDJ/RSI/LogReturn/Pivot，
-並嘗試 LEFT JOIN 基本面與籌碼資料。
+"""Technical indicator loading and persistence for TRINITY.
+
+The module keeps the existing public calculator classes, while using indexed
+batched reads and ``executemany`` writes for full-market refreshes.
 """
 
 from __future__ import annotations
 
-import math
+import logging
 import sqlite3
+from collections.abc import Iterator
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from twstock.db import get_connection
-from twstock.db_admin import (
-    create_tables,  # [FIX] Reuse the single stock_indicators schema definition instead of duplicating it here
-)
+from twstock.db_admin import create_tables
+
+logger = logging.getLogger(__name__)
 
 
-def _bulk_load_stocks(
+def _iter_stock_frames(
     db: sqlite3.Connection,
-    stock_ids: list[str],
     *,
     chunk_size: int = 400,
-) -> dict[str, pd.DataFrame]:
-    """ponytail: 一次 IN (...) 批次載入整批 history，避免 calculate_all 逐股 N+1。
-    chunk_size=400：SQLite 單句ude變數上限 32766，留安全餘量。
-    回傳 {stock_id: df}，df 已排序、含全部六個欄位（含 amount，供 VWAP 用）。"""
-    if not stock_ids:
-        return {}
-    result: dict[str, pd.DataFrame] = {}
-    for i in range(0, len(stock_ids), chunk_size):
-        chunk = stock_ids[i : i + chunk_size]
-        placeholders = ",".join(["?"] * len(chunk))
-        df_chunk = pd.read_sql(
+) -> Iterator[tuple[str, pd.DataFrame]]:
+    """Yield each stock's ordered history without retaining the whole market.
+
+    A former implementation first assembled a dictionary containing every
+    stock's complete history.  That avoided N+1 reads but retained millions of
+    rows at once.  This preserves batched, indexed queries and lets each group
+    be released as soon as it has been persisted.
+    """
+    rows = db.execute("SELECT DISTINCT stock_id FROM stock_history ORDER BY stock_id").fetchall()
+    stock_ids = [str(row[0]) for row in rows]
+    for offset in range(0, len(stock_ids), chunk_size):
+        batch = stock_ids[offset : offset + chunk_size]
+        if not batch:
+            continue
+        placeholders = ",".join("?" for _ in batch)
+        frame = pd.read_sql_query(
             "SELECT stock_id, date, open, high, low, close, volume, amount "
             f"FROM stock_history WHERE stock_id IN ({placeholders}) "
             "ORDER BY stock_id ASC, date ASC",
             db,
-            params=chunk,
+            params=batch,
         )
-        if df_chunk.empty:
-            continue
-        for sid, group in df_chunk.groupby("stock_id", sort=False):
-            result[sid] = group.reset_index(drop=True)
-    return result
+        for stock_id, group in frame.groupby("stock_id", sort=False):
+            yield str(stock_id), group.reset_index(drop=True)
+
+
+def _sql_number(value: Any) -> float | None:
+    """Return a finite nullable float suitable for a SQLite parameter."""
+    if value is None or pd.isna(value):
+        return None
+    number = float(value)
+    return number if np.isfinite(number) else None
+
+
+def _date_text(value: object) -> str:
+    """Normalize pandas and SQLite date values to the public YYYY-MM-DD form."""
+    return str(value)[:10]
 
 
 class IndicatorEngine:
+    """Build display-oriented technical indicators for one stock."""
+
     def __init__(
         self, stock_id: str, limit: int = 600, df_intraday: pd.DataFrame | None = None
     ) -> None:
-        self.stock_id: str = stock_id
-        self.limit: int = limit
-        self.df: pd.DataFrame = self._load_data()
+        self.stock_id = stock_id
+        self.limit = limit
+        self.df = self._load_data()
         if df_intraday is not None and not df_intraday.empty:
             self.df = pd.concat([self.df, df_intraday], ignore_index=True)
 
     def _load_data(self) -> pd.DataFrame:
-        """從 stock_history 讀取 date, open, high, low, close, volume，按 date 升序排列"""
-        conn = get_connection(readonly=True)
+        """Load the most recent ``limit`` daily bars in chronological order."""
+        columns = ["date", "open", "high", "low", "close", "volume"]
+        try:
+            limit = max(0, int(self.limit))
+        except (TypeError, ValueError):
+            logger.warning("Invalid indicator limit for %s: %r", self.stock_id, self.limit)
+            return pd.DataFrame(columns=columns)
+        if limit == 0:
+            return pd.DataFrame(columns=columns)
+
+        # SQLite can use the (stock_id, date) index for the inner DESC query;
+        # the outer query restores the chronological order required by rolling
+        # calculations.  Ordering ASC before LIMIT returned the oldest rows.
         query = """
             SELECT date, open, high, low, close, volume
-            FROM stock_history
-            WHERE stock_id = ?
+            FROM (
+                SELECT date, open, high, low, close, volume
+                FROM stock_history
+                WHERE stock_id = ?
+                ORDER BY date DESC
+                LIMIT ?
+            )
             ORDER BY date ASC
-            LIMIT ?
         """
-        df = pd.read_sql_query(query, conn, params=(self.stock_id, self.limit))
-        conn.close()
-        if df.empty:
-            return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
-        df["date"] = pd.to_datetime(df["date"])
-        return df
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = get_connection(readonly=True)
+            frame = pd.read_sql_query(query, conn, params=(self.stock_id, limit))
+        except Exception as exc:  # database may not be initialized in UI startup
+            logger.warning("Could not load indicator history for %s: %s", self.stock_id, exc)
+            return pd.DataFrame(columns=columns)
+        finally:
+            if conn is not None:
+                conn.close()
+
+        if frame.empty:
+            return pd.DataFrame(columns=columns)
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+        return frame.dropna(subset=["date"]).reset_index(drop=True)
 
     def _add_moving_averages(self) -> None:
-        """計算 SMA 5/10/20/60/120/200, EMA 12/26, 成交量 SMA 5/20, 成交量比率"""
         if self.df.empty:
             return
         close = self.df["close"]
-        vol = self.df["volume"]
-
-        # SMA
-        for period in [5, 10, 20, 60, 120, 200]:
+        volume = self.df["volume"]
+        for period in (5, 10, 20, 60, 120, 200):
             self.df[f"sma_{period}"] = close.rolling(window=period).mean()
-
-        # EMA
         self.df["ema_12"] = close.ewm(span=12, adjust=False).mean()
         self.df["ema_26"] = close.ewm(span=26, adjust=False).mean()
-
-        # 成交量均線
-        self.df["volume_sma_5"] = vol.rolling(window=5).mean()
-        self.df["volume_sma_20"] = vol.rolling(window=20).mean()
-        self.df["volume_ratio"] = vol / self.df["volume_sma_5"]
+        self.df["volume_sma_5"] = volume.rolling(window=5).mean()
+        self.df["volume_sma_20"] = volume.rolling(window=20).mean()
+        self.df["volume_ratio"] = volume / self.df["volume_sma_5"]
 
     def _add_macd(self) -> None:
-        """MACD (12, 26, 9): DIF, DEA, HISTOGRAM"""
         if self.df.empty:
             return
-        close = self.df["close"]
-        ema_12 = close.ewm(span=12, adjust=False).mean()
-        ema_26 = close.ewm(span=26, adjust=False).mean()
+        ema_12 = self.df["close"].ewm(span=12, adjust=False).mean()
+        ema_26 = self.df["close"].ewm(span=26, adjust=False).mean()
         self.df["macd_dif"] = ema_12 - ema_26
         self.df["macd_dea"] = self.df["macd_dif"].ewm(span=9, adjust=False).mean()
         self.df["macd_hist"] = self.df["macd_dif"] - self.df["macd_dea"]
 
     def _add_kdj(self) -> None:
-        """KDJ (9, 3, 3): K, D, J"""
         if self.df.empty:
             return
-        n = 9
-        low_n = self.df["low"].rolling(window=n).min()
-        high_n = self.df["high"].rolling(window=n).max()
-        rsv = (self.df["close"] - low_n) / (high_n - low_n) * 100
-        rsv = rsv.fillna(50)
-
+        low_n = self.df["low"].rolling(window=9).min()
+        high_n = self.df["high"].rolling(window=9).max()
+        denominator = (high_n - low_n).replace(0, np.nan)
+        rsv = ((self.df["close"] - low_n) / denominator * 100).fillna(50)
         self.df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
         self.df["kdj_d"] = self.df["kdj_k"].ewm(com=2, adjust=False).mean()
         self.df["kdj_j"] = 3 * self.df["kdj_k"] - 2 * self.df["kdj_d"]
 
     def _add_rsi(self) -> None:
-        """RSI 6 / 14"""
         if self.df.empty:
             return
-        for period in [6, 14]:
-            delta = self.df["close"].diff()
-            gain = delta.where(delta > 0, 0.0)
-            loss = -delta.where(delta < 0, 0.0)
+        delta = self.df["close"].diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = -delta.where(delta < 0, 0.0)
+        for period in (6, 14):
             avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
             avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
-            rs = avg_gain / avg_loss
+            rs = avg_gain / avg_loss.replace(0, np.nan)
             self.df[f"rsi_{period}"] = 100 - (100 / (1 + rs))
 
     def _add_bollinger_bands(self) -> None:
-        """Bollinger Bands (20, 2): middle, upper, lower, bandwidth, %b"""
         if self.df.empty:
             return
-        period = 20
-        self.df["bb_middle"] = self.df["close"].rolling(window=period).mean()
-        std = self.df["close"].rolling(window=period).std()
-        self.df["bb_upper"] = self.df["bb_middle"] + 2 * std
-        self.df["bb_lower"] = self.df["bb_middle"] - 2 * std
-        self.df["bb_bandwidth"] = (
-            (self.df["bb_upper"] - self.df["bb_lower"]) / self.df["bb_middle"] * 100
-        )
-        self.df["bb_pct_b"] = (self.df["close"] - self.df["bb_lower"]) / (
-            self.df["bb_upper"] - self.df["bb_lower"]
-        )
+        middle = self.df["close"].rolling(window=20).mean()
+        std = self.df["close"].rolling(window=20).std()
+        upper = middle + 2 * std
+        lower = middle - 2 * std
+        self.df["bb_middle"] = middle
+        self.df["bb_upper"] = upper
+        self.df["bb_lower"] = lower
+        self.df["bb_bandwidth"] = (upper - lower) / middle.replace(0, np.nan) * 100
+        self.df["bb_pct_b"] = (self.df["close"] - lower) / (upper - lower).replace(0, np.nan)
 
     def _add_log_return(self) -> None:
-        """日報酬率 (log return)"""
-        if self.df.empty:
-            return
-        self.df["log_return"] = np.log(self.df["close"] / self.df["close"].shift(1))
+        if not self.df.empty:
+            self.df["log_return"] = np.log(self.df["close"] / self.df["close"].shift(1))
 
     def _add_pivot(self) -> None:
-        """樞紐點: pivot, r1, r2, s1, s2"""
         if self.df.empty:
             return
         self.df["pivot"] = (self.df["high"] + self.df["low"] + self.df["close"]) / 3
@@ -167,45 +190,67 @@ class IndicatorEngine:
         self.df["pivot_s2"] = self.df["pivot"] - (self.df["high"] - self.df["low"])
 
     def _join_fundamental_chips(self) -> None:
-        """JOIN 籌碼/基本面資料，若無對應表則跳過"""
-        if self.df.empty:
+        """Join related data using the current schema and date as the key.
+
+        ``shareholding_unified`` has a source in its primary key, so its values
+        are aggregated per date before merging.  This avoids duplicate daily
+        bars when TDCC and foreign-holding records coexist.
+        """
+        if self.df.empty or "date" not in self.df:
             return
+        dates = pd.to_datetime(self.df["date"], errors="coerce")
+        if dates.isna().all():
+            return
+        start_date = dates.min().strftime("%Y-%m-%d")
+        end_date = dates.max().strftime("%Y-%m-%d")
+        queries = (
+            """
+            SELECT date, foreign_buy, foreign_sell, trust_buy, trust_sell,
+                   dealer_buy, dealer_sell, foreign_net, trust_net, dealer_net,
+                   institutional_net
+            FROM institutional_data
+            WHERE stock_id = ? AND date BETWEEN ? AND ?
+            """,
+            """
+            SELECT date, MAX(foreign_shares) AS foreign_shares,
+                   MAX(foreign_ratio) AS foreign_ratio
+            FROM shareholding_unified
+            WHERE stock_id = ? AND date BETWEEN ? AND ?
+            GROUP BY date
+            """,
+        )
+        conn: sqlite3.Connection | None = None
         try:
             conn = get_connection(readonly=True)
-            tables_to_join: list[tuple[str, list[str]]] = [
-                ("institutional_data", ["foreign_buy", "foreign_sell", "trust_buy", "trust_sell"]),
-                ("shareholding_data", ["foreign_shares", "foreign_ratio"]),
-            ]
-            for table, cols in tables_to_join:
+            self.df["date"] = dates
+            for query in queries:
                 try:
-                    query = (
-                        f"SELECT stock_id, date, {', '.join(cols)} FROM {table} WHERE stock_id = ?"
+                    joined = pd.read_sql_query(
+                        query,
+                        conn,
+                        params=(self.stock_id, start_date, end_date),
                     )
-                    df_join = pd.read_sql_query(query, conn, params=(self.stock_id,))
-                    if not df_join.empty:
-                        df_join["date"] = pd.to_datetime(df_join["date"])
-                        self.df["date"] = pd.to_datetime(self.df["date"])
-                        self.df = self.df.merge(df_join, on=["stock_id", "date"], how="left")
-                except Exception:  # noqa: PERF203 — 刻意保留：單表 join 失敗不可中斷批次處理
-                    pass  # 表格不存在就跳過
-            conn.close()
-        except Exception:
-            pass
+                except (sqlite3.DatabaseError, pd.errors.DatabaseError) as exc:
+                    logger.warning("Could not join supplemental data for %s: %s", self.stock_id, exc)
+                    continue
+                if joined.empty:
+                    continue
+                joined["date"] = pd.to_datetime(joined["date"], errors="coerce")
+                joined = joined.dropna(subset=["date"])
+                self.df = self.df.merge(joined, on="date", how="left")
+        finally:
+            if conn is not None:
+                conn.close()
 
     def build(self) -> pd.DataFrame:
-        """整合所有計算步驟，回傳完整 DataFrame"""
+        """Build technical indicators and attach available chip/fundamental data."""
         if self.df.empty:
             return self.df
-
-        # 1. 按日期升序
-        self.df = self.df.sort_values("date").reset_index(drop=True)
-
-        # 2. 移除 close <= 0 的列
+        self.df["date"] = pd.to_datetime(self.df["date"], errors="coerce")
+        self.df = self.df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
         self.df = self.df[self.df["close"] > 0].copy()
         if self.df.empty:
             return self.df
-
-        # 3. 依序計算各項指標
         self._add_moving_averages()
         self._add_macd()
         self._add_bollinger_bands()
@@ -213,312 +258,258 @@ class IndicatorEngine:
         self._add_rsi()
         self._add_log_return()
         self._add_pivot()
-
-        # 4. 嘗試 JOIN 籌碼資料
         self._join_fundamental_chips()
-
-        # 5. 向下相容別名：main.py 盤中指標讀 latest['macd']，計算產出為 macd_dif
-        if "macd_dif" in self.df.columns and "macd" not in self.df.columns:
-            self.df["macd"] = self.df["macd_dif"]
-
+        self.df["macd"] = self.df["macd_dif"]
         return self.df
 
 
-# ATRCalculator — Issue 009 (ATR14，Wilder's EMA)
-# ============================================================================
-
-
 class ATRCalculator:
-    """ATR14 計算器，使用 Wilder's EMA 平滑法"""
+    """Persist ATR14 computed with Wilder's smoothing."""
+
+    _UPSERT = """
+        INSERT INTO stock_indicators (stock_id, date, atr14)
+        VALUES (?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET atr14=excluded.atr14
+    """
 
     def __init__(self, db: sqlite3.Connection) -> None:
-        self.db: sqlite3.Connection = db
+        self.db = db
 
-    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
+    def calculate(
+        self,
+        stock_id: str,
+        df: pd.DataFrame | None = None,
+        *,
+        _commit: bool = True,
+        _ensure_schema: bool = True,
+    ) -> int:
+        """Calculate and upsert ATR14 for one stock.
+
+        Internal keyword arguments let ``calculate_all`` run one transaction
+        while preserving the established commit-on-single-calculation behavior.
         """
-        計算 stock_id 的 ATR14，UPSERT 到 stock_indicators.atr14。
-
-        TR(1) = high - low
-        TR(t) = max(high-low, |high-prev_close|, |low-prev_close|)
-        ATR14(14) = mean(TR1..TR14)（第一個值用 SMA）
-        ATR14(t)  = (ATR14(t-1) * 13 + TR(t)) / 14（Wilder's EMA）
-        前 13 天 = NULL
-
-        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
-        """
+        if _ensure_schema:
+            create_tables(self.db)
         if df is None:
-            cur = self.db.execute(
+            df = pd.read_sql_query(
                 "SELECT date, high, low, close FROM stock_history "
-                "WHERE stock_id=? ORDER BY date ASC",
-                (stock_id,),
-            )
-            rows = cur.fetchall()
-            if not rows:
-                return 0
-            dates = [r[0] for r in rows]
-            highs = [r[1] for r in rows]
-            lows = [r[2] for r in rows]
-            closes = [r[3] for r in rows]
-        else:
-            if df.empty:
-                return 0
-            sub = df.sort_values("date").reset_index(drop=True)
-            dates = sub["date"].tolist()
-            highs = sub["high"].tolist()
-            lows = sub["low"].tolist()
-            closes = sub["close"].tolist()
-        n: int = len(dates)
-
-        # 計算 TR
-        tr: list[float] = [0.0] * n
-        tr[0] = float(highs[0]) - float(lows[0])  # 第一天無 prev_close
-        for i in range(1, n):
-            prev_close = float(closes[i - 1])
-            tr[i] = max(
-                float(highs[i]) - float(lows[i]),
-                abs(float(highs[i]) - prev_close),
-                abs(float(lows[i]) - prev_close),
-            )
-
-        # 計算 ATR14（ Wilder's EMA）
-        atr14: list[float | None] = [None] * n
-        period: int = 14
-        if n >= period:
-            # 第一個 ATR14 = SMA(TR1..TR14)
-            atr14[period - 1] = sum(tr[:period]) / period
-            # 後續用 Wilder's EMA
-            for i in range(period, n):
-                prev = atr14[i - 1]
-                if prev is None:
-                    prev = 0.0
-                atr14[i] = (prev * (period - 1) + tr[i]) / period
-
-        # UPSERT stock_indicators（只更新 atr14）
-        for i in range(n):
-            val = atr14[i]
-            if val is not None and isinstance(val, float) and math.isnan(val):
-                val = None
-            self.db.execute(
-                """INSERT INTO stock_indicators (stock_id, date, atr14)
-                VALUES (?, ?, ?)
-                ON CONFLICT(stock_id, date) DO UPDATE SET atr14=excluded.atr14""",
-                (stock_id, dates[i], val),
-            )
-
-        self.db.commit()
-        return n
-
-    def calculate_all(self) -> dict[str, int]:
-        """
-        對 stock_history 所有 stock_id 執行 calculate()。
-        回傳 dict：{stock_id: count}
-        """
-        cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
-
-        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
-        bulk = _bulk_load_stocks(self.db, stock_ids)
-
-        result: dict[str, int] = {}
-        for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
-        self.db.commit()
-        return result
-
-
-# ============================================================================
-# VWAPCalculator — Issue 010 (日 VWAP = amount / volume)
-# ============================================================================
-
-
-class VWAPCalculator:
-    """日 VWAP 計算器，vwap = amount / volume"""
-
-    def __init__(self, db: sqlite3.Connection) -> None:
-        self.db: sqlite3.Connection = db
-
-    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
-        """
-        計算 stock_id 的日 VWAP，UPSERT 到 stock_indicators.vwap。
-
-        vwap = amount / volume
-        volume = 0 → vwap = NULL
-
-        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
-        """
-        if df is None:
-            cur = self.db.execute(
-                "SELECT date, volume, amount FROM stock_history WHERE stock_id=? ORDER BY date ASC",
-                (stock_id,),
-            )
-            rows = cur.fetchall()
-        else:
-            sub = df.sort_values("date").reset_index(drop=True)
-            rows = list(sub[["date", "volume", "amount"]].itertuples(index=False, name=None))
-        if not rows:
-            return 0
-
-        updates = 0
-        for date, volume, amount in rows:
-            vwap = None
-            if volume and volume > 0:
-                vwap = float(amount) / float(volume)
-                if math.isnan(vwap) or math.isinf(vwap):
-                    vwap = None
-
-            self.db.execute(
-                """INSERT INTO stock_indicators (stock_id, date, vwap)
-                VALUES (?, ?, ?)
-                ON CONFLICT(stock_id, date) DO UPDATE SET vwap=excluded.vwap""",
-                (stock_id, date, vwap),
-            )
-            updates += 1
-
-        self.db.commit()
-        return updates
-
-    def calculate_all(self) -> dict[str, int]:
-        """
-        對 stock_history 所有 stock_id 執行 calculate()。
-        回傳 dict：{stock_id: count}
-        """
-        cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
-
-        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
-        bulk = _bulk_load_stocks(self.db, stock_ids)
-
-        result: dict[str, int] = {}
-        for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
-        self.db.commit()
-        return result
-
-
-class MACalculator:
-    """
-    MA 計算器 — 供 test_008_ma.py 使用
-    介面：MACalculator(db=conn) → calculate(stock_id) → int
-    """
-
-    def __init__(self, db: sqlite3.Connection) -> None:
-        self.db: sqlite3.Connection = db
-
-    def calculate(self, stock_id: str, df: pd.DataFrame | None = None) -> int:
-        """
-        計算 stock_id 的 MA 指標並寫入 stock_indicators。
-        回傳寫入列數。
-
-        ponytail: df ≠ None 時略過單股 SQL（批次路徑）。
-        """
-        if df is None:
-            # 用 pd.read_sql 從 db 讀取（不加 LIMIT，確保全部歷史資料都被計算）
-            df = pd.read_sql(
-                "SELECT date, open, high, low, close, volume FROM stock_history "
                 "WHERE stock_id = ? ORDER BY date ASC",
                 self.db,
                 params=(stock_id,),
             )
         else:
             df = df.copy()
-        if df.empty:
+        required = ["date", "high", "low", "close"]
+        if df.empty or not set(required).issubset(df.columns):
+            return 0
+        frame = df.dropna(subset=required).sort_values("date").reset_index(drop=True)
+        if frame.empty:
             return 0
 
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.sort_values("date").reset_index(drop=True)
-        df = df[df["close"] > 0].copy()
-        if df.empty:
-            return 0
-
-        close = df["close"]
-        vol = df["volume"]
-
-        # SMA
-        for period in [5, 10, 20, 25, 60, 120, 200]:
-            df[f"sma_{period}"] = close.rolling(window=period).mean()
-
-        # 成交量均線
-        df["volume_sma_5"] = vol.rolling(window=5).mean()
-        df["volume_sma_20"] = vol.rolling(window=20).mean()
-        df["volume_sma_60"] = vol.rolling(window=60).mean()
-
-        # 確保表格存在（改用 db_admin.py 的唯一 schema 定義，避免兩處定義漂移）
-        create_tables(self.db)
-
-        # 寫入指標
-        written = 0
-        for row in df.itertuples(index=False):
-            date_str = str(row.date)[:10]
-            cols = row._asdict()
-            ma5 = float(cols["sma_5"]) if pd.notna(cols.get("sma_5")) else None
-            ma20 = float(cols["sma_20"]) if pd.notna(cols.get("sma_20")) else None
-            ma25 = float(cols["sma_25"]) if pd.notna(cols.get("sma_25")) else None
-            ma60 = float(cols["sma_60"]) if pd.notna(cols.get("sma_60")) else None
-            ma200 = float(cols["sma_200"]) if pd.notna(cols.get("sma_200")) else None
-            vol_ma5 = float(cols["volume_sma_5"]) if pd.notna(cols.get("volume_sma_5")) else None
-            vol_ma20 = float(cols["volume_sma_20"]) if pd.notna(cols.get("volume_sma_20")) else None
-            vol_ma60 = float(cols["volume_sma_60"]) if pd.notna(cols.get("volume_sma_60")) else None
-
-            def _bias(c: float | None, m: float | None) -> float | None:
-                if m is None or m == 0:
-                    return None
-                cm: float = c  # type: ignore[assignment]
-                return (cm - m) / m * 100
-
-            close_val = float(cols["close"]) if pd.notna(cols.get("close")) else None
-            bias_ma25 = _bias(close_val, ma25)
-            bias_ma60 = _bias(close_val, ma60)
-            bias_ma200 = _bias(close_val, ma200)
-
-            self.db.execute(
-                """
-                INSERT INTO stock_indicators
-                (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20, vol_ma60,
-                 bias_ma25, bias_ma60, bias_ma200, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(stock_id, date) DO UPDATE SET
-                    ma5=excluded.ma5, ma20=excluded.ma20, ma25=excluded.ma25,
-                    ma60=excluded.ma60, ma200=excluded.ma200,
-                    vol_ma5=excluded.vol_ma5, vol_ma20=excluded.vol_ma20, vol_ma60=excluded.vol_ma60,
-                    bias_ma25=excluded.bias_ma25, bias_ma60=excluded.bias_ma60,
-                    bias_ma200=excluded.bias_ma200,
-                    updated_at=CURRENT_TIMESTAMP
-            """,
-                (
-                    stock_id,
-                    date_str,
-                    ma5,
-                    ma20,
-                    ma25,
-                    ma60,
-                    ma200,
-                    vol_ma5,
-                    vol_ma20,
-                    vol_ma60,
-                    bias_ma25,
-                    bias_ma60,
-                    bias_ma200,
-                ),
-            )
-            written += 1
-
-        self.db.commit()
-        return written
+        high = pd.to_numeric(frame["high"], errors="coerce")
+        low = pd.to_numeric(frame["low"], errors="coerce")
+        close = pd.to_numeric(frame["close"], errors="coerce")
+        previous_close = close.shift(1)
+        true_range = pd.concat(
+            [high - low, (high - previous_close).abs(), (low - previous_close).abs()],
+            axis=1,
+        ).max(axis=1)
+        period = 14
+        atr = pd.Series(np.nan, index=frame.index, dtype=float)
+        if len(frame) >= period:
+            # Seed the EWM with the first SMA so the subsequent values are
+            # exactly Wilder's recursive ATR rather than a generic EWM start.
+            seeded = true_range.iloc[period - 1 :].copy()
+            seeded.iloc[0] = true_range.iloc[:period].mean()
+            atr.iloc[period - 1 :] = seeded.ewm(alpha=1 / period, adjust=False).mean()
+        rows = [
+            (stock_id, _date_text(date), _sql_number(value))
+            for date, value in zip(frame["date"], atr, strict=True)
+        ]
+        self.db.executemany(self._UPSERT, rows)
+        if _commit:
+            self.db.commit()
+        return len(rows)
 
     def calculate_all(self) -> dict[str, int]:
-        """
-        對 stock_history 所有 stock_id 執行 calculate()。
-        回傳 dict：{stock_id: count}
-        """
-        create_tables(self.db)  # 只呼叫一次，避免每支股票重複 catalog 檢查
-        cur = self.db.execute("SELECT DISTINCT stock_id FROM stock_history")
-        stock_ids: list[str] = [row[0] for row in cur.fetchall()]
-
-        # ponytail: 批次載入一次 IN (...) 取代逐股 N+1。
-        bulk = _bulk_load_stocks(self.db, stock_ids)
-
+        """Calculate ATR14 for every stock with batched reads and one commit."""
+        create_tables(self.db)
         result: dict[str, int] = {}
-        for stock_id in stock_ids:
-            result[stock_id] = self.calculate(stock_id, df=bulk.get(stock_id))
-        self.db.commit()
+        try:
+            for stock_id, frame in _iter_stock_frames(self.db):
+                result[stock_id] = self.calculate(
+                    stock_id, frame, _commit=False, _ensure_schema=False
+                )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return result
+
+
+class VWAPCalculator:
+    """Persist daily VWAP as raw amount divided by raw share volume."""
+
+    _UPSERT = """
+        INSERT INTO stock_indicators (stock_id, date, vwap)
+        VALUES (?, ?, ?)
+        ON CONFLICT(stock_id, date) DO UPDATE SET vwap=excluded.vwap
+    """
+
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self.db = db
+
+    def calculate(
+        self,
+        stock_id: str,
+        df: pd.DataFrame | None = None,
+        *,
+        _commit: bool = True,
+        _ensure_schema: bool = True,
+    ) -> int:
+        """Calculate and upsert VWAP for one stock."""
+        if _ensure_schema:
+            create_tables(self.db)
+        if df is None:
+            df = pd.read_sql_query(
+                "SELECT date, volume, amount FROM stock_history "
+                "WHERE stock_id = ? ORDER BY date ASC",
+                self.db,
+                params=(stock_id,),
+            )
+        else:
+            df = df.copy()
+        required = ["date", "volume", "amount"]
+        if df.empty or not set(required).issubset(df.columns):
+            return 0
+        frame = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+        volume = pd.to_numeric(frame["volume"], errors="coerce")
+        amount = pd.to_numeric(frame["amount"], errors="coerce")
+        vwap = amount.div(volume).where(volume > 0)
+        rows = [
+            (stock_id, _date_text(date), _sql_number(value))
+            for date, value in zip(frame["date"], vwap, strict=True)
+        ]
+        self.db.executemany(self._UPSERT, rows)
+        if _commit:
+            self.db.commit()
+        return len(rows)
+
+    def calculate_all(self) -> dict[str, int]:
+        """Calculate VWAP for every stock with batched reads and one commit."""
+        create_tables(self.db)
+        result: dict[str, int] = {}
+        try:
+            for stock_id, frame in _iter_stock_frames(self.db):
+                result[stock_id] = self.calculate(
+                    stock_id, frame, _commit=False, _ensure_schema=False
+                )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return result
+
+
+class MACalculator:
+    """Persist simple moving averages, volume averages, and MA bias."""
+
+    _UPSERT = """
+        INSERT INTO stock_indicators
+        (stock_id, date, ma5, ma20, ma25, ma60, ma200, vol_ma5, vol_ma20,
+         vol_ma60, bias_ma25, bias_ma60, bias_ma200, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(stock_id, date) DO UPDATE SET
+            ma5=excluded.ma5,
+            ma20=excluded.ma20,
+            ma25=excluded.ma25,
+            ma60=excluded.ma60,
+            ma200=excluded.ma200,
+            vol_ma5=excluded.vol_ma5,
+            vol_ma20=excluded.vol_ma20,
+            vol_ma60=excluded.vol_ma60,
+            bias_ma25=excluded.bias_ma25,
+            bias_ma60=excluded.bias_ma60,
+            bias_ma200=excluded.bias_ma200,
+            updated_at=CURRENT_TIMESTAMP
+    """
+
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self.db = db
+
+    def calculate(
+        self,
+        stock_id: str,
+        df: pd.DataFrame | None = None,
+        *,
+        _commit: bool = True,
+        _ensure_schema: bool = True,
+    ) -> int:
+        """Calculate and upsert MA fields for one stock."""
+        if _ensure_schema:
+            create_tables(self.db)
+        if df is None:
+            df = pd.read_sql_query(
+                "SELECT date, close, volume FROM stock_history "
+                "WHERE stock_id = ? ORDER BY date ASC",
+                self.db,
+                params=(stock_id,),
+            )
+        else:
+            df = df.copy()
+        required = ["date", "close", "volume"]
+        if df.empty or not set(required).issubset(df.columns):
+            return 0
+        frame = df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+        frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+        frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce")
+        frame = frame[frame["close"] > 0].copy()
+        if frame.empty:
+            return 0
+
+        for period in (5, 10, 20, 25, 60, 120, 200):
+            frame[f"sma_{period}"] = frame["close"].rolling(window=period).mean()
+        frame["volume_sma_5"] = frame["volume"].rolling(window=5).mean()
+        frame["volume_sma_20"] = frame["volume"].rolling(window=20).mean()
+        frame["volume_sma_60"] = frame["volume"].rolling(window=60).mean()
+        for period in (25, 60, 200):
+            average = frame[f"sma_{period}"].replace(0, np.nan)
+            frame[f"bias_ma{period}"] = (frame["close"] - average) / average * 100
+
+        rows = [
+            (
+                stock_id,
+                _date_text(row.date),
+                _sql_number(row.sma_5),
+                _sql_number(row.sma_20),
+                _sql_number(row.sma_25),
+                _sql_number(row.sma_60),
+                _sql_number(row.sma_200),
+                _sql_number(row.volume_sma_5),
+                _sql_number(row.volume_sma_20),
+                _sql_number(row.volume_sma_60),
+                _sql_number(row.bias_ma25),
+                _sql_number(row.bias_ma60),
+                _sql_number(row.bias_ma200),
+            )
+            for row in frame.itertuples(index=False)
+        ]
+        self.db.executemany(self._UPSERT, rows)
+        if _commit:
+            self.db.commit()
+        return len(rows)
+
+    def calculate_all(self) -> dict[str, int]:
+        """Calculate MA fields for every stock with bounded memory and one commit."""
+        create_tables(self.db)
+        result: dict[str, int] = {}
+        try:
+            for stock_id, frame in _iter_stock_frames(self.db):
+                result[stock_id] = self.calculate(
+                    stock_id, frame, _commit=False, _ensure_schema=False
+                )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
         return result

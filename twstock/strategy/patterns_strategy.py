@@ -6,14 +6,12 @@
 # [AI MOD] Migrated to taiwan_stock_unified.db + klines view
 """
 
-import os
 import signal
 import sys
 import time
-import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -33,30 +31,21 @@ from twstock.strategy.base import BaseStrategy
 from twstock.terminal import rconsole
 
 _CACHE_TTL = 300  # 5 分鐘
-_PATTERN_CACHE = {
+_PATTERN_CACHE: dict[str, Any] = {
     "date": None,
     "min_volume": None,
     "results": None,
     "ts": 0,
 }
 
-warnings.filterwarnings("ignore")
-
 # ── Module path ───────────────────────────────────────────
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-_TWSTOCK_DIR = os.path.abspath(os.path.join(_CURRENT_DIR, ".."))
-if _TWSTOCK_DIR not in sys.path:
-    sys.path.insert(0, _TWSTOCK_DIR)
-
 from twstock.db import get_connection  # [AI MOD]
 
-try:
-    from twstock.input_helper import get_blocking_key
-except ImportError:
-    from input_helper import get_blocking_key  # type: ignore[no-redef]
+from twstock.input_helper import blocking_input, get_blocking_key
 # fetch_klines already imported from strategy._utils above
 from twstock.display import price_color, vol_color  # [AI MOD]
-from twstock.strategy._utils import clear_screen, fetch_klines, get_stock_name, render_header
+from twstock.strategy._utils import clear_screen, fetch_klines, fetch_klines_batch, get_stock_name, render_header
+from twstock.strategy.result_contract import normalize_strategy_result
 
 # ══════════════════════════════════════════════════════════
 #  Imports & Config from shared engine [AI MOD]
@@ -115,8 +104,8 @@ NECKLINE_TOL = 0.08
 PIVOT_WINDOW = 5
 QUALITY_FLOOR = 0.45
 
-_DIR_STYLE = {"bullish": "bright_red", "bearish": "bright_green", "neutral": "bright_yellow"}
-_DIR_ICON = {"bullish": "🔴", "bearish": "🟢", "neutral": "🟡"}
+_DIR_STYLE = {"bullish": "bright_red", "bearish": "bright_green", "neutral": "white"}
+_DIR_ICON = {"bullish": "🔴", "bearish": "🟢", "neutral": "⚪"}
 
 
 # ── Stub classes for type hints ──────────────────────────
@@ -207,28 +196,17 @@ def _render_header(title, is_detail=False):
 def _get_single_key_input(
     prompt: str, keys: str, default: str = "4", auto_four: bool = False, back_on_enter: bool = False
 ) -> str:
-    """向後相容包裝：統一使用 input_helper.get_blocking_key。
+    """Enter-confirmed compatibility input for pattern menus and stock codes.
 
     ponytail: back_on_enter=True makes Enter return "" (back signal) instead of default.
     """
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
-
-    ch = get_blocking_key()
-
-    if not ch:
+    value = blocking_input(prompt)
+    if not value:
         return "" if back_on_enter else default
-    if ch in keys:
-        return ch
-    if auto_four and ch.isdigit():
-        buf = ch
-        while len(buf) < 4:
-            next_ch = get_blocking_key()
-            if not next_ch or next_ch == "\x1b":
-                break
-            if next_ch.isdigit():
-                buf += next_ch
-        return buf if buf else default
+    if value in keys:
+        return value
+    if auto_four and len(value) == 4 and value.isdigit():
+        return value
     return default
 
 
@@ -283,7 +261,7 @@ class PivotBasedScanner:
         patterns += self._match_channels(view, hi_pivots, lo_pivots)
 
         # Flag / box
-        patterns += self._match_flags(view, hi_pivots, lo_pivots)
+        patterns += self._match_flags(view)
         patterns += self._match_range_box(view, hi_pivots, lo_pivots)
 
         # Arc
@@ -800,7 +778,7 @@ class PivotBasedScanner:
         return results
 
     # ── Flags ──
-    def _match_flags(self, df, hi_pivots, lo_pivots) -> List[PatternInfo]:
+    def _match_flags(self, df) -> List[PatternInfo]:
         results: List[PatternInfo] = []
         c = df["close"].values
         current = float(c[-1])
@@ -1050,7 +1028,7 @@ class StockPredictionAnalyzer:
             self.config.update(config)
         self.pattern_scanner = PivotBasedScanner()
 
-    def _render_mobile_patterns(self, df, code, name, pat):
+    def _render_mobile_patterns(self, code, name, pat):
         """Mobile layout for chart patterns (only patterns)."""
         rconsole.print(f"[dim]{'─ 4 型態 ' + code + ' ' + name}{'─' * 20}[/]")
         if pat:
@@ -1071,7 +1049,7 @@ class StockPredictionAnalyzer:
             best_pat = max(patterns, key=lambda p: p.quality) if patterns else None
 
             if mobile:
-                self._render_mobile_patterns(df, symbol, name, best_pat)
+                self._render_mobile_patterns(symbol, name, best_pat)
                 return
 
             # ── Desktop ──
@@ -1150,13 +1128,14 @@ class MarketScanner:
 
     def _analyze(self, sl, nm):
         preds = []
+        frames = fetch_klines_batch(self.conn, sl, limit=60)
         with Progress(
             SpinnerColumn(), TextColumn("[cyan]🚀 預測掃描..."), BarColumn(), TimeElapsedColumn()
         ) as prog:
             task = prog.add_task("scan", total=len(sl))
             for code in sl:
                 try:
-                    r = self._one(code, nm)
+                    r = self._one(code, nm, frames.get(code))
                     if r:
                         preds.append(r)
                 except Exception as e:
@@ -1164,9 +1143,9 @@ class MarketScanner:
                 prog.advance(task)
         return preds
 
-    def _one(self, code, nm):
-        # [AI MOD] Use klines view — no inject_price_data needed
-        df = fetch_klines(self.conn, code, limit=60)
+    def _one(self, code, nm, df=None):
+        if df is None:
+            return None
         df = df.dropna(subset=["close"]).sort_values("date")
         if len(df) < 20:
             return None
@@ -1200,7 +1179,7 @@ class MarketScanner:
             ("名稱", None),
             ("收盤", None),
             ("成交張數", None),
-            ("額(億)", "bright_green"),
+            ("額(億)", "white"),
             ("潛力估值", None),
             ("預期目標", None),
             ("模型信心", None),
@@ -1239,6 +1218,7 @@ class PatternBreakoutScanner:
                 rconsole.print("[yellow]⚠️ 無行情數據[/]")
                 return []
 
+            cands_with_data: list[tuple[BreakoutCandidate, pd.DataFrame]]
             # Check session cache
             if (
                 _PATTERN_CACHE["date"] == ld
@@ -1278,7 +1258,7 @@ class PatternBreakoutScanner:
                         params = list(chunk) + [ld]
                         bulk_sql = (
                             "SELECT stock_id, date, open, high, low, close, volume "
-                            "FROM klines_indicators "
+                            "FROM klines "
                             "WHERE stock_id IN (" + placeholders + ") "
                             "AND date >= date(?, '-3 years') "
                             "ORDER BY stock_id ASC, date ASC"
@@ -1475,7 +1455,7 @@ class PatternBreakoutScanner:
             _tbl(f"🟢 看跌型態 · {base}", bears, "bright_green")
             rconsole.print()
         if neuts:
-            _tbl(f"🟡 中性型態 · {base}", neuts, "bright_yellow")
+            _tbl(f"⚪ 中性型態 · {base}", neuts, "white")
 
 
 # ══════════════════════════════════════════════════════════
@@ -1520,11 +1500,11 @@ class PredictionAnalysisApp:
         rconsole.print("  [bold]  [2][/]        5 日內可能突破頸線（型態掃描）")
         rconsole.print("  [bold]  [0][/]        退出")
         rconsole.print()
-        cmd = rconsole.input("  🔍 指令: ").strip()
+        cmd = blocking_input("  🔍 指令: ").strip()
         if cmd == "0":
             return "exit", None
         elif cmd == "1":
-            v = rconsole.input("  📊 最小成交量 (張, 預設 500, 按 Enter 返回): ").strip()
+            v = blocking_input("  📊 最小成交量 (張, 預設 500, 按 Enter 返回): ").strip()
             if not v:
                 return None, None  # ponytail: back to main menu
             return "predict_scan", int(v) if v.isdigit() else 500
@@ -1535,7 +1515,7 @@ class PredictionAnalysisApp:
         else:
             raise ValueError("無效指令")
 
-    def analyze_single_stock(self, conn, code, compact=False, mobile=False):
+    def analyze_single_stock(self, conn, code, compact=False, mobile=False, allow_external=False):
         try:
             # [AI MOD] klines view + parameterized query
             df = fetch_klines(conn, code, limit=512)
@@ -1551,45 +1531,37 @@ class PredictionAnalysisApp:
             # 1. 幾何型態分析 [AI MOD]
             self.analyzer.analyze_single_stock(code, name, df, compact=compact, mobile=mobile)
 
-            # 2. Kronos 預測分析 [AI MOD] Only print if not compact (standalone run)
+            # Do not execute the same local pattern analyzer a second time and
+            # present it as a Kronos prediction.  Real model prediction has
+            # its own explicit strategy entry.
             if not compact:
+                rconsole.print("[dim]Kronos 預測請從 AI 預測策略入口另行執行。[/]")
+
+            # LongCat is external enrichment, never part of a default SQLite
+            # strategy run.
+            if allow_external:
                 try:
-                    try:
-                        RealPredictionAnalyzer = StockPredictionAnalyzer  # [FIX] use local class; avoids cross-module re-import
-                    except NameError:
-                        RealPredictionAnalyzer = None
-                    if RealPredictionAnalyzer is None:
-                        raise ImportError("patterns_strategy.StockPredictionAnalyzer 不存在")
-                    real_pred_analyzer = RealPredictionAnalyzer(self.config)
-                    real_pred_analyzer.analyze_single_stock(
-                        code, name, df, compact=False, mobile=mobile
-                    )
-                except Exception as pe:
-                    rconsole.print(f"[red]❌ Kronos 預測加載失敗: {pe}[/]")
+                    from twstock.longcat_vision import analyze_kline_with_longcat
 
-            # 3. LongCat AI 深度視覺辨識 (60日)
-            try:
-                from longcat_vision import analyze_kline_with_longcat
-
-                ai_result = analyze_kline_with_longcat(df, code, name)
-                if ai_result:
-                    rconsole.print()
-                    rconsole.print(
-                        Panel(
-                            ai_result,
-                            title="🧠 LongCat AI 深度視覺辨識",
-                            border_style="magenta",
-                            box=box.DOUBLE,
+                    ai_result = analyze_kline_with_longcat(df, code, name)
+                    if ai_result:
+                        rconsole.print()
+                        rconsole.print(
+                            Panel(
+                                ai_result,
+                                title="🧠 LongCat AI 深度視覺辨識",
+                                border_style="magenta",
+                                box=box.DOUBLE,
+                            )
                         )
-                    )
-                else:
-                    rconsole.print("[dim]  LongCat AI 未設定 API key 或 mplfinance 未安裝[/]")
-            except Exception as pe:
-                rconsole.print(f"[dim]  LongCat AI 分析跳過: {pe}[/]")
+                except Exception as pe:
+                    rconsole.print(f"[dim]  LongCat AI 分析跳過: {pe}[/]")
+            else:
+                rconsole.print("[dim]型態分析僅使用 SQLite 正式資料來源。[/]")
 
             if not compact:
                 rconsole.print()
-                rconsole.input("  [dim]按 Enter 返回...[/]")
+                blocking_input("  [dim]按 Enter 返回...[/]")
         except Exception as e:
             rconsole.print(f"[red]❌ {e}[/]")
             time.sleep(2)
@@ -1600,7 +1572,7 @@ class PredictionAnalysisApp:
                 self.market_scanner = MarketScanner(conn, self.config)
             self.market_scanner.scan_market(mv)
             rconsole.print()
-            rconsole.input("  [dim]按 Enter 返回...[/]")
+            blocking_input("  [dim]按 Enter 返回...[/]")
         except Exception as e:
             rconsole.print(f"[red]❌ {e}[/]")
             time.sleep(2)
@@ -1650,7 +1622,7 @@ class PredictionAnalysisApp:
                 direction_filter = filter_map.get(choice)
 
                 while True:  # volume loop
-                    v = rconsole.input(
+                    v = blocking_input(
                         "  📊 最小成交量 (張, 預設 500, 按 Enter 回上一步): "
                     ).strip()
                     if not v:
@@ -1738,48 +1710,51 @@ class PatternStrategy:
 
     def analyze(self, stock_id: str) -> dict:
         """分析型態信號。回傳 strategy/stock_id/signal。"""
-        from db import get_connection
-
-        from twstock.strategy._utils import fetch_klines
-
-        conn = get_connection()
+        conn = get_connection(readonly=True)
         try:
             df = fetch_klines(conn, stock_id, limit=90)
             if df is None or df.empty or len(df) < 30:
-                return {
-                    "strategy": "pattern",
-                    "stock_id": stock_id,
-                    "signal": "neutral",
-                    "reason": "資料不足",
-                }
+                return normalize_strategy_result(
+                    {
+                        "strategy": "pattern",
+                        "stock_id": stock_id,
+                        "signal": "neutral",
+                        "reason": "資料不足",
+                    }
+                )
 
             scanner = PivotBasedScanner()
             patterns = scanner.find_patterns(df)
             best = max(patterns, key=lambda p: p.quality) if patterns else None
 
             if best is None:
-                return {
-                    "strategy": "pattern",
-                    "stock_id": stock_id,
-                    "signal": "neutral",
-                    "reason": "無明顯型態",
-                }
+                return normalize_strategy_result(
+                    {
+                        "strategy": "pattern",
+                        "stock_id": stock_id,
+                        "signal": "neutral",
+                        "reason": "無明顯型態",
+                    }
+                )
 
             signal = (
                 "bullish"
                 if best.direction == "bullish"
                 else ("bearish" if best.direction == "bearish" else "neutral")
             )
-            return {
-                "strategy": "pattern",
-                "stock_id": stock_id,
-                "signal": signal,
-                "pattern": best.pattern,
-                "neckline": best.neckline,
-                "target": best.target,
-                "stop_loss": best.stop_loss,
-                "quality": best.quality,
-            }
+            return normalize_strategy_result(
+                {
+                    "strategy": "pattern",
+                    "stock_id": stock_id,
+                    "signal": signal,
+                    "pattern": best.pattern,
+                    "neckline": best.neckline,
+                    "target": best.target,
+                    "stop_loss": best.stop_loss,
+                    "quality": best.quality,
+                    "summary": f"偵測到 {best.pattern} 型態。",
+                }
+            )
         finally:
             conn.close()
 
