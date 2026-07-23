@@ -46,7 +46,8 @@ def _to_date_int(val: Any) -> int:
 warnings.filterwarnings("ignore")
 
 _CACHE_TTL = 300  # 5 分鐘
-_SR_CACHE: dict[str, Any] = {"date": None, "min_volume": None, "results": None, "ts": 0}
+_MAX_CACHE_SIZE = 10000  # 防止記憶體耗盡的最大快取筆數
+_SR_CACHE: dict[str, Any] = {"date": None, "min_volume": None, "results": None, "ts": 0, "size": 0}
 
 # [AI MOD] 集中式 Console：解決 Windows cp950 無法渲染 emoji 的問題
 from twstock.terminal import console

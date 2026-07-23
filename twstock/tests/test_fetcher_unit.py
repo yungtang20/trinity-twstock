@@ -399,8 +399,9 @@ class TestFetchMarketIndicesBranches:
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
+    @patch("twstock.market_data.fetcher.is_market_open", return_value=True)
     @patch("twstock.market_data.fetcher.get_http_session")
-    def test_mis_z_zero_falls_back_to_y(self, mock_sess, mock_mis, mock_yahoo):
+    def test_mis_z_zero_falls_back_to_y(self, mock_sess, mock_open, mock_mis, mock_yahoo):
         """z == 0 → z becomes y; change = 0, pct = 0."""
         mock_sess.return_value = None
         mock_yahoo.return_value = ("無資料", "無資料")
@@ -416,9 +417,10 @@ class TestFetchMarketIndicesBranches:
         mock_yahoo.assert_not_called()
 
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
+    @patch("twstock.market_data.fetcher.is_market_open", return_value=True)
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
     @patch("twstock.market_data.fetcher.get_http_session")
-    def test_mis_y_zero_covers_pct_guard(self, mock_sess, mock_mis, mock_yahoo):
+    def test_mis_y_zero_covers_pct_guard(self, mock_sess, mock_mis, mock_open, mock_yahoo):
         """y == 0 → pct guard returns 0 (avoids ZeroDivisionError)."""
         mock_sess.return_value = None
         mock_yahoo.return_value = ("無資料", "無資料")
@@ -626,11 +628,12 @@ class TestFetchMarketIndicesBranches:
         assert isinstance(r, dict)
         assert r["TAIEX"]["up"] is None
 
+    @patch("twstock.market_data.fetcher.is_market_open", return_value=True)
     @patch("twstock.market_data.fetcher.get_yahoo_market_volumes")
     @patch("twstock.market_data.fetcher.get_realtime_mis_data")
     @patch("twstock.market_data.fetcher.get_http_session")
     def test_yahoo_volumes_are_not_mixed_into_official_live_panel(
-        self, mock_sess, mock_mis, mock_yahoo
+        self, mock_sess, mock_mis, mock_yahoo, mock_open
     ):
         """盤中即使 Yahoo 有值，也不可混入官方即時面板。"""
         mock_sess.return_value = None

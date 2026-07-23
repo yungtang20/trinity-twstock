@@ -40,6 +40,7 @@ class TestUpsertDataframe:
     """upsert_dataframe tests."""
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_basic(self, mock_proc):
         df = pd.DataFrame(
@@ -57,6 +58,7 @@ class TestUpsertDataframe:
         mock_proc.return_value.upsert_history.assert_called_once()
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_with_turnover(self, mock_proc):
         df = pd.DataFrame(
@@ -75,6 +77,7 @@ class TestUpsertDataframe:
         mock_proc.return_value.upsert_history.assert_called_once()
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_code_rename(self, mock_proc):
         df = pd.DataFrame(
@@ -88,6 +91,7 @@ class TestUpsertDataframe:
         updater.upsert_dataframe("stock_history", df)
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_stock_history_date_int(self, mock_proc):
         df = pd.DataFrame(
@@ -101,6 +105,7 @@ class TestUpsertDataframe:
         updater.upsert_dataframe("stock_history", df)
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_institutional_data(self, mock_proc):
         df = pd.DataFrame(
@@ -165,6 +170,7 @@ class TestUpsertDataframeEdgeCases:
     """Extra branch coverage."""
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_code_column_renamed(self, mock_proc):
         df = pd.DataFrame({"code": ["2330"], "date": ["2026-07-02"], "open": [100], "close": [102]})
@@ -174,6 +180,7 @@ class TestUpsertDataframeEdgeCases:
         assert "code" not in called_df.columns
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_date_int_becomes_date(self, mock_proc):
         df = pd.DataFrame({"stock_id": ["2330"], "date_int": [20260702], "open": [100], "close": [102]})
@@ -183,6 +190,7 @@ class TestUpsertDataframeEdgeCases:
         assert called_df["date"].iloc[0] == "2026-07-02"
 
     @patch("twstock.official.updater.PROCESSOR_AVAILABLE", True)
+    @patch("twstock.official.updater._VALID_STOCK_IDS", {"2330"})
     @patch("twstock.official.updater.DataProcessor")
     def test_turnover_to_amount(self, mock_proc):
         df = pd.DataFrame(
